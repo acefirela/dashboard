@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ACE Fire LA — Quote Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#181A1F; --ink2:#3C4048; --muted:#767B85;
+  --paper:#F5F4F1; --card:#FFFFFF; --line:#E4E2DC; --line2:#D5D2CA;
+  --red:#C4322E; --red-dk:#9E2724; --red-bg:#FBEDEC;
+  --amber:#B26A00; --amber-bg:#FCF3E3;
+  --green:#2E7D4F; --green-bg:#EAF4EE;
+  --blue:#2B5FA3; --blue-bg:#EBF1F9;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(20,22,26,.06), 0 4px 14px rgba(20,22,26,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--paper); color:var(--ink); font-size:14px; line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:14px}
+a{color:var(--blue)}
+
+/* ============ Header ============ */
+header{
+  background:var(--ink); color:#fff;
+  position:sticky; top:0; z-index:50;
+}
+.hd-inner{
+  max-width:1440px; margin:0 auto; padding:10px 16px;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+}
+.brand{display:flex; align-items:baseline; gap:8px; margin-right:auto}
+.brand .ace{
+  font-family:'Barlow Condensed'; font-weight:700; font-size:24px; letter-spacing:.04em;
+  color:#fff; text-transform:uppercase;
+}
+.brand .ace b{color:#E8534E; font-weight:700}
+.brand .sub{
+  font-family:'Barlow Condensed'; font-weight:500; font-size:15px; letter-spacing:.14em;
+  text-transform:uppercase; color:#9BA0AB;
+}
+.hd-user{display:flex; align-items:center; gap:10px; font-size:12.5px; color:#C6CAD2}
+.hd-user .email{max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hd-btn{
+  background:transparent; border:1px solid #464B55; color:#E8EAEE;
+  border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.hd-btn:hover{background:#262A31; border-color:#5A5F6A}
+.hd-btn:disabled{opacity:.5; cursor:default}
+.hd-btn.spin svg{animation:rot 1s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+/* safety stripe — signature accent */
+.stripe{
+  height:6px;
+  background:repeating-linear-gradient(-45deg, var(--red) 0 14px, var(--ink) 14px 28px);
+}
+
+/* ============ Tab bar ============ */
+nav.tabs{
+  background:var(--card); border-bottom:1px solid var(--line);
+  position:sticky; top:0; z-index:40;
+}
+.tabs-inner{
+  max-width:1440px; margin:0 auto; padding:0 8px;
+  display:flex; gap:2px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+.tab{
+  appearance:none; background:none; border:none; cursor:pointer;
+  font-family:'Barlow Condensed'; font-weight:600; font-size:18px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--muted);
+  padding:13px 16px 11px; border-bottom:3px solid transparent;
+  display:flex; align-items:center; gap:8px; white-space:nowrap;
+  min-height:48px;
+}
+.tab .cnt{
+  font-family:'Inter'; font-size:11px; font-weight:700; letter-spacing:0;
+  background:var(--paper); color:var(--muted); border:1px solid var(--line);
+  border-radius:99px; padding:1px 8px;
+}
+.tab.active{color:var(--ink); border-bottom-color:var(--red)}
+.tab.active .cnt{background:var(--red-bg); color:var(--red-dk); border-color:#EFD2D1}
+.tab .ro{font-family:'Inter'; font-size:10px; letter-spacing:.05em; color:var(--muted); border:1px solid var(--line2); border-radius:4px; padding:1px 5px}
+
+/* ============ Toolbar ============ */
+.toolbar{
+  max-width:1440px; margin:0 auto; padding:14px 16px 4px;
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+.search{
+  flex:1; min-width:200px; max-width:420px; position:relative;
+}
+.search input{
+  width:100%; padding:10px 12px 10px 36px; border:1px solid var(--line2); border-radius:var(--radius);
+  background:var(--card); font-size:14px; outline:none;
+}
+.search input:focus{border-color:var(--ink2)}
+.search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted)}
+.meta-note{font-size:12px; color:var(--muted); margin-left:auto}
+
+/* ============ Main / table ============ */
+main{max-width:1440px; margin:0 auto; padding:10px 16px 90px}
+.tablewrap{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); overflow:auto;
+}
+table{border-collapse:collapse; width:100%; min-width:900px}
+thead th{
+  font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ink2); text-align:left;
+  padding:11px 10px; border-bottom:2px solid var(--line2);
+  background:#FAFAF8; position:sticky; top:0; z-index:5; white-space:nowrap;
+}
+thead th.edit-col{color:var(--red-dk)}
+thead th.edit-col::after{content:"✎"; margin-left:5px; font-size:11px; opacity:.7}
+tbody td{
+  padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.dirty{background:#FFFBEB}
+tbody tr:hover{background:#FAFAF8}
+tbody tr.dirty:hover{background:#FFF7DB}
+
+.qnum{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+.qnum a{margin-left:5px; text-decoration:none; font-size:12px}
+.name-cell .nm{font-weight:600}
+.name-cell .ttl{color:var(--ink2); font-size:12.5px; margin-top:2px; max-width:340px}
+.contact{margin-top:3px; display:flex; gap:10px; font-size:12px}
+.contact a{text-decoration:none; color:var(--blue); white-space:nowrap}
+.money{font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap}
+.sub-line{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap}
+.notes-ro{font-size:12.5px; color:var(--ink2); max-width:300px; white-space:pre-wrap}
+
+.badge{
+  display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px;
+  padding:2px 8px; white-space:nowrap; font-variant-numeric:tabular-nums;
+}
+.b-red{background:var(--red-bg); color:var(--red-dk)}
+.b-amber{background:var(--amber-bg); color:var(--amber)}
+.b-green{background:var(--green-bg); color:var(--green)}
+.b-blue{background:var(--blue-bg); color:var(--blue)}
+.b-gray{background:#EFEEEA; color:var(--ink2)}
+
+/* editable cells */
+td.editable{background:#FDFCF9}
+tr.dirty td.editable{background:transparent}
+.ctl input[type=text], .ctl select, .ctl textarea{
+  width:100%; min-width:110px; padding:8px 9px;
+  border:1px solid var(--line2); border-radius:8px; background:#fff; outline:none;
+}
+.ctl textarea{min-width:220px; min-height:60px; resize:vertical; line-height:1.4}
+.ctl input:focus, .ctl select:focus, .ctl textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
+.ctl.changed input, .ctl.changed select, .ctl.changed textarea{border-color:var(--amber); background:#FFFDF4}
+.chips{display:flex; gap:5px; margin-top:5px; flex-wrap:wrap}
+.chip{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
+  font-size:11px; font-weight:600; border-radius:99px; padding:3px 9px; cursor:pointer;
+}
+.chip:hover{border-color:var(--red); color:var(--red-dk)}
+.backlist{
+  appearance:none; border:none; background:none; color:var(--blue); font-size:11px;
+  cursor:pointer; padding:3px 2px; margin-top:3px; text-align:left;
+}
+
+/* row save */
+.rowsave{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
+  border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:700; cursor:default;
+  white-space:nowrap; min-height:36px;
+}
+tr.dirty .rowsave, .m-card.dirty .rowsave{
+  background:var(--red); border-color:var(--red); color:#fff; cursor:pointer;
+}
+tr.dirty .rowsave:hover, .m-card.dirty .rowsave:hover{background:var(--red-dk)}
+.rowsave.saving{opacity:.6; pointer-events:none}
+.revert{
+  appearance:none; border:none; background:none; color:var(--muted); font-size:11.5px;
+  cursor:pointer; padding:4px 2px; display:none; text-decoration:underline;
+}
+tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
+
+.empty{
+  padding:48px 20px; text-align:center; color:var(--muted); font-size:14px;
+}
+
+/* ============ Mobile cards ============ */
+.cards{display:none}
+.m-card{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px; margin-bottom:12px;
+}
+.m-card.dirty{border-color:#E7C87B; background:#FFFDF4}
+.m-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+.m-head .nm{font-weight:700; font-size:15px}
+.m-head .qn{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; color:var(--red-dk); white-space:nowrap}
+.m-ttl{color:var(--ink2); font-size:13px; margin-top:3px}
+.m-meta{display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; align-items:center}
+.m-contact{display:flex; gap:16px; margin-top:8px; font-size:13px}
+.m-contact a{text-decoration:none; font-weight:600}
+.m-fields{margin-top:12px; border-top:1px dashed var(--line2); padding-top:10px;
+  display:grid; grid-template-columns:1fr; gap:10px}
+.m-field label{
+  display:block; font-family:'Barlow Condensed'; font-weight:600; font-size:13.5px;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink2); margin-bottom:4px;
+}
+.m-field label.ed{color:var(--red-dk)}
+.m-field label.ed::after{content:" ✎"; font-size:10px}
+.m-field .ro-val{font-size:13.5px; color:var(--ink); white-space:pre-wrap}
+.m-actions{display:flex; gap:12px; align-items:center; margin-top:12px; justify-content:flex-end}
+.m-actions .rowsave{padding:10px 22px; font-size:13.5px}
+
+@media (max-width:880px){
+  .tablewrap{display:none}
+  .cards{display:block}
+  .brand .sub{display:none}
+  .hd-user .email{display:none}
+  main{padding:8px 10px 90px}
+  .toolbar{padding:12px 10px 4px}
+  .meta-note{width:100%; margin-left:0}
+}
+
+/* ============ Sign-in screen ============ */
+.gate{
+  min-height:calc(100vh - 60px); display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.gate-card{
+  background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+  max-width:400px; width:100%; padding:34px 30px; text-align:center;
+}
+.gate-card .glogo{
+  font-family:'Barlow Condensed'; font-weight:700; font-size:30px; text-transform:uppercase; letter-spacing:.04em;
+}
+.gate-card .glogo b{color:var(--red)}
+.gate-card p{color:var(--muted); font-size:13.5px; margin:10px 0 24px}
+.gbtn{
+  appearance:none; width:100%; padding:13px 16px; border-radius:10px; border:none;
+  background:var(--ink); color:#fff; font-size:15px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+.gbtn:hover{background:#000}
+.gbtn:disabled{opacity:.6; cursor:default}
+.gate-err{color:var(--red-dk); font-size:12.5px; margin-top:14px; display:none}
+
+/* ============ Toast ============ */
+#toast{
+  position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(80px);
+  background:var(--ink); color:#fff; font-size:13.5px; font-weight:600;
+  padding:12px 20px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.25);
+  transition:transform .25s ease; z-index:100; max-width:calc(100vw - 40px); text-align:center;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--red-dk)}
+#toast.ok{background:var(--green)}
+
+.loading-bar{
+  position:fixed; top:0; left:0; right:0; height:3px; z-index:200; display:none;
+}
+.loading-bar.on{display:block}
+.loading-bar i{
+  display:block; height:100%; width:30%; background:var(--red); border-radius:3px;
+  animation:slide 1s ease-in-out infinite;
+}
+@keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
+</style>
+</head>
+<body>
+
+<div class="loading-bar" id="loadbar"><i></i></div>
+
+<header>
+  <div class="hd-inner">
+    <div class="brand">
+      <span class="ace"><b>ACE</b> Fire LA</span>
+      <span class="sub">Quote Dashboard</span>
+    </div>
+    <div class="hd-user" id="hdUser" style="display:none">
+      <span class="email" id="userEmail"></span>
+      <button class="hd-btn" id="btnRefresh" title="Refresh data">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v5h-5"/></svg>
+        Refresh
+      </button>
+      <button class="hd-btn" id="btnSignout">Sign out</button>
+    </div>
+  </div>
+  <div class="stripe"></div>
+</header>
+
+<!-- Sign-in gate -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="glogo"><b>ACE</b> Fire LA</div>
+    <p>Team quote dashboard. Sign in with your Google account (the one with access to the Wix quotes sheet).</p>
+    <button class="gbtn" id="btnSignin">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="gate-err" id="gateErr"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <nav class="tabs"><div class="tabs-inner" id="tabbar"></div></nav>
+  <div class="toolbar">
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="text" id="searchBox" placeholder="Search quote #, name, title…" autocomplete="off">
+    </div>
+    <span class="meta-note" id="metaNote"></span>
+  </div>
+  <main id="main"></main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   CONFIG — edit these two values if the sheet or OAuth client changes
+   ===================================================================== */
+const CONFIG = {
+  CLIENT_ID: '974411831257-7ov5s0e5lvh5g4tetovdnl45iojibaa2.apps.googleusercontent.com',
+  SPREADSHEET_ID: '1cxqn3ZHlIA6CaSHa73C_dCJdFFqd2Pm7uEKiU8n_lnQ',
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
+  ACTIVITY_LOG_SHEET: 'Activity Log',   // set to '' to disable edit logging
+  STALE_MS: 5 * 60 * 1000               // auto-refresh when returning to a stale tab
+};
+
+/* Tab definitions. colIdx are 0-based (A=0). */
+const TABS = [
+  {
+    id: 'quotes', label: 'Quotes', sheet: 'Quotes', lastCol: 'Q', keyLabel: 'Quote #',
+    editable: [10, 11, 12, 13]   // K Sent Email, L Text, M Call, N follow up notes
+  },
+  {
+    id: 'tracker', label: 'Tracker', sheet: 'Tracker', lastCol: 'N', keyLabel: 'Quote',
+    editable: [9, 10, 11, 12, 13] // J..N
+  },
+  {
+    id: 'accepted', label: 'Accepted', sheet: 'Accepted', lastCol: 'N', keyLabel: 'Quote',
+    editable: [], readOnly: true
+  }
+];
+
+/* =====================================================================
+   State
+   ===================================================================== */
+const state = {
+  token: null,
+  email: '',
+  activeTab: 'quotes',
+  data: {},          // tabId -> [{key, sheetRow, cells[], edits{}, saving}]
+  headers: {},       // tabId -> [header strings]
+  options: {},       // tracker colIdx -> [dropdown options] (from live data validation)
+  suggest: {},       // tracker colIdx -> [suggestions from existing values]
+  lastLoad: 0,
+  search: ''
+};
+
+const $  = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const colLetter = i => String.fromCharCode(65 + i);
+const todayMD = () => { const d = new Date(); return (d.getMonth()+1) + '/' + d.getDate(); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, kind){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show' + (kind ? ' ' + kind : '');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.className = '', 3200);
+}
+function loading(on){ $('#loadbar').classList.toggle('on', !!on); }
+
+/* =====================================================================
+   Auth (Google Identity Services token flow)
+   ===================================================================== */
+let tokenClient = null;
+let pendingTokenResolve = null;
+
+function gisReady(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.CLIENT_ID,
+    scope: CONFIG.SCOPES,
+    callback: resp => {
+      if (resp.access_token){
+        state.token = resp.access_token;
+        if (pendingTokenResolve){ pendingTokenResolve(true); pendingTokenResolve = null; }
+        else onSignedIn();
+      }
+    },
+    error_callback: err => {
+      if (pendingTokenResolve){ pendingTokenResolve(false); pendingTokenResolve = null; }
+      const g = $('#gateErr');
+      if (g && $('#gate').style.display !== 'none'){
+        g.style.display = 'block';
+        g.textContent = 'Sign-in was cancelled or blocked. Try again.';
+      }
+      $('#btnSignin').disabled = false;
+    }
+  });
+  // Attempt silent sign-in if this browser signed in before
+  const hint = localStorage.getItem('acefire_hint');
+  if (hint){
+    silentToken(hint).then(ok => { if (ok) onSignedIn(); });
+  }
+}
+
+function silentToken(hint){
+  return new Promise(resolve => {
+    pendingTokenResolve = resolve;
+    try { tokenClient.requestAccessToken({ prompt: '', hint: hint || state.email || undefined }); }
+    catch(e){ pendingTokenResolve = null; resolve(false); }
+    setTimeout(() => { if (pendingTokenResolve){ pendingTokenResolve = null; resolve(false); } }, 8000);
+  });
+}
+
+$('#btnSignin').addEventListener('click', () => {
+  $('#btnSignin').disabled = true;
+  $('#gateErr').style.display = 'none';
+  tokenClient.requestAccessToken({ prompt: '' });
+  setTimeout(() => $('#btnSignin').disabled = false, 4000);
+});
+
+$('#btnSignout').addEventListener('click', () => {
+  const tk = state.token;
+  state.token = null;
+  localStorage.removeItem('acefire_hint');
+  if (tk){ try { google.accounts.oauth2.revoke(tk, () => {}); } catch(e){} }
+  location.reload();
+});
+
+async function onSignedIn(){
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + state.token }
+    });
+    if (r.ok){
+      const u = await r.json();
+      state.email = u.email || '';
+      localStorage.setItem('acefire_hint', state.email);
+    }
+  } catch(e){}
+  $('#gate').style.display = 'none';
+  $('#app').style.display = 'block';
+  $('#hdUser').style.display = 'flex';
+  $('#userEmail').textContent = state.email;
+  buildTabBar();
+  await loadAll();
+}
+
+/* =====================================================================
+   Sheets API helper with auto token refresh on 401
+   ===================================================================== */
+async function api(path, opts = {}, retry = true){
+  const r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + CONFIG.SPREADSHEET_ID + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}), Authorization: 'Bearer ' + state.token }
+  });
+  if (r.status === 401 && retry){
+    const ok = await silentToken(state.email);
+    if (ok) return api(path, opts, false);
+    toast('Session expired — sign in again', 'err');
+    $('#gate').style.display = 'flex';
+    $('#app').style.display = 'none';
+    throw new Error('auth');
+  }
+  if (!r.ok){
+    let msg = 'API error ' + r.status;
+    try { msg = (await r.json()).error?.message || msg; } catch(e){}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+/* =====================================================================
+   Load data + live dropdown options
+   ===================================================================== */
+async function loadAll(showToast){
+  loading(true);
+  try {
+    const ranges = TABS.map(t => encodeURIComponent(`'${t.sheet}'!A1:${t.lastCol}`)).join('&ranges=');
+    const res = await api(`/values:batchGet?ranges=${ranges}&valueRenderOption=FORMATTED_VALUE`);
+
+    TABS.forEach((t, i) => {
+      const vals = (res.valueRanges[i] && res.valueRanges[i].values) || [];
+      const header = vals[0] || [];
+      const nCols = colIdxOf(t.lastCol) + 1;
+      state.headers[t.id] = header;
+      state.data[t.id] = vals.slice(1).map((row, j) => {
+        const cells = Array.from({ length: nCols }, (_, c) => row[c] !== undefined ? String(row[c]) : '');
+        return { key: cells[0].trim(), sheetRow: j + 2, cells, edits: {}, saving: false };
+      }).filter(r => r.cells.some(c => c !== ''));
+    });
+
+    await loadTrackerOptions();
+    state.lastLoad = Date.now();
+    renderAll();
+    if (showToast) toast('Data refreshed', 'ok');
+  } catch(e){
+    if (e.message !== 'auth') toast('Load failed: ' + e.message, 'err');
+  } finally {
+    loading(false);
+  }
+}
+const colIdxOf = L => L.charCodeAt(0) - 65;
+
+/* Read the Tracker tab's own data-validation lists so dropdown options
+   always match the sheet. Column J has no validation → suggestions from
+   existing values instead. */
+async function loadTrackerOptions(){
+  state.options = {}; state.suggest = {};
+  try {
+    const rng = encodeURIComponent("'Tracker'!J2:N2");
+    const res = await api(`?ranges=${rng}&fields=${encodeURIComponent('sheets(data(startColumn,rowData(values(dataValidation))))')}`);
+    const d = res.sheets?.[0]?.data?.[0];
+    const startCol = d?.startColumn ?? 9;
+    const vals = d?.rowData?.[0]?.values || [];
+    vals.forEach((v, i) => {
+      const cond = v?.dataValidation?.condition;
+      if (cond && (cond.type === 'ONE_OF_LIST') && cond.values){
+        state.options[startCol + i] = cond.values.map(x => x.userEnteredValue).filter(Boolean);
+      }
+    });
+  } catch(e){ /* fall back to suggestions */ }
+
+  // Suggestions from existing column values (used for J, and merged into datalists)
+  const rows = state.data.tracker || [];
+  for (const c of TABS[1].editable){
+    const seen = new Map();
+    rows.forEach(r => {
+      const v = (r.cells[c] || '').trim();
+      if (v) seen.set(v, (seen.get(v) || 0) + 1);
+    });
+    state.suggest[c] = [...seen.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 12);
+  }
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+function buildTabBar(){
+  const bar = $('#tabbar');
+  bar.innerHTML = '';
+  TABS.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (state.activeTab === t.id ? ' active' : '');
+    b.innerHTML = `${t.label} <span class="cnt" data-cnt="${t.id}">–</span>` + (t.readOnly ? ' <span class="ro">view</span>' : '');
+    b.addEventListener('click', () => {
+      if (hasUnsaved() && state.activeTab !== t.id && !confirm('You have unsaved edits on this tab. Switch anyway?')) return;
+      state.activeTab = t.id;
+      $$('.tab').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      renderAll();
+    });
+    bar.appendChild(b);
+  });
+}
+function hasUnsaved(){
+  return (state.data[state.activeTab] || []).some(r => Object.keys(r.edits).length);
+}
+
+function renderAll(){
+  TABS.forEach(t => {
+    const el = document.querySelector(`[data-cnt="${t.id}"]`);
+    if (el) el.textContent = (state.data[t.id] || []).length;
+  });
+  $('#metaNote').textContent = state.lastLoad
+    ? 'Updated ' + new Date(state.lastLoad).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const tab = TABS.find(t => t.id === state.activeTab);
+  const rows = filteredRows(tab);
+  const main = $('#main');
+  main.innerHTML = '';
+  if (!rows.length){
+    main.innerHTML = `<div class="tablewrap"><div class="empty">${state.search ? 'No rows match your search.' : 'No rows in this tab yet.'}</div></div>
+                      <div class="cards"><div class="m-card empty">${state.search ? 'No rows match your search.' : 'No rows yet.'}</div></div>`;
+    return;
+  }
+  main.appendChild(renderTable(tab, rows));
+  main.appendChild(renderCards(tab, rows));
+}
+
+function filteredRows(tab){
+  const rows = state.data[tab.id] || [];
+  const q = state.search.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter(r => r.cells.join(' ').toLowerCase().includes(q));
+}
+
+/* ---- column plans per tab (desktop table) ---- */
+function tablePlan(tab){
+  if (tab.id === 'quotes') return [
+    { h: '#',        render: r => qnumCell(r, 0, 5) },
+    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[4], r.cells[2], r.cells[3]) },
+    { h: 'Total',    render: r => `<span class="money">${esc(r.cells[7])}</span>` },
+    { h: 'Expires',  render: r => expCell(r.cells[6], r.cells[8]) },
+    { h: 'Status',   render: r => r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '' },
+    { h: 'Sent Email', edit: 10 }, { h: 'Text', edit: 11 }, { h: 'Call', edit: 12 },
+    { h: 'Follow-up Notes', edit: 13 },
+    { h: 'Ember',    render: r => emberCell(r.cells[14], r.cells[15]) },
+    { h: '',         render: r => saveCell(r) }
+  ];
+  if (tab.id === 'tracker') return [
+    { h: '#',        render: r => `<span class="qnum">${esc(r.cells[0])}</span>` },
+    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[2]) },
+    { h: 'Status',   render: r => statusBadge(r.cells[3]) },
+    { h: 'Wix',      render: r => wixBadge(r.cells[4]) },
+    { h: 'Invoice',  render: r => invCell(r.cells[5], r.cells[6]) },
+    { h: 'Ember',    render: r => emberCell(r.cells[7], r.cells[8]) },
+    { h: 'Report Submitted', edit: 9 }, { h: 'Notes', edit: 10 },
+    { h: 'Retest Report', edit: 11 }, { h: 'Retest Invoice', edit: 12 }, { h: 'Job Status', edit: 13 },
+    { h: '',         render: r => saveCell(r) }
+  ];
+  return [ // accepted (read-only)
+    { h: '#',        render: r => qnumCell(r, 0, 5) },
+    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[4], r.cells[2], r.cells[3]) },
+    { h: 'Total',    render: r => `<span class="money">${esc(r.cells[6])}</span>` },
+    { h: 'Status',   render: r => statusBadge(r.cells[7]) },
+    { h: 'Wix',      render: r => wixBadge(r.cells[8]) },
+    { h: 'Invoice #',render: r => esc(r.cells[9]) },
+    { h: 'Invoice Status', render: r => invStatusBadge(r.cells[10]) },
+    { h: 'Paid Date',render: r => esc(r.cells[11]) },
+    { h: 'Ember',    render: r => emberCell(r.cells[12], r.cells[13]) }
+  ];
+}
+
+/* ---- small cell renderers ---- */
+function qnumCell(r, keyIdx, linkIdx){
+  const link = (r.cells[linkIdx] || '').trim();
+  return `<span class="qnum">${esc(r.cells[keyIdx])}${/^https?:\/\//.test(link) ? ` <a href="${esc(link)}" target="_blank" rel="noopener" title="Open in Wix">↗</a>` : ''}</span>`;
+}
+function nameCell(name, title, email, phone){
+  let h = `<div class="name-cell"><div class="nm">${esc(name)}</div>`;
+  if (title) h += `<div class="ttl">${esc(title)}</div>`;
+  const links = [];
+  if (phone && phone.trim()) links.push(`<a href="tel:${esc(phone.trim())}">📞 ${esc(phone.trim())}</a>`);
+  if (email && email.trim()) links.push(`<a href="mailto:${esc(email.trim())}">✉ ${esc(email.trim())}</a>`);
+  if (links.length) h += `<div class="contact">${links.join('')}</div>`;
+  return h + '</div>';
+}
+function expCell(exp, days){
+  const n = parseInt(String(days).replace(/[^\-0-9]/g, ''), 10);
+  let cls = 'b-gray', label = esc(days);
+  if (!isNaN(n)){
+    if (n < 0){ cls = 'b-red'; label = 'Expired ' + Math.abs(n) + 'd'; }
+    else if (n <= 7){ cls = 'b-amber'; label = n + 'd left'; }
+    else { cls = 'b-green'; label = n + 'd left'; }
+  }
+  const d = exp ? String(exp).slice(0, 10) : '';
+  return `<span class="badge ${cls}">${label}</span>${d ? `<div class="sub-line">${esc(d)}</div>` : ''}`;
+}
+function emberCell(date, type){
+  if (!date && !type) return '<span class="sub-line">—</span>';
+  return `${type ? `<span class="badge b-blue">${esc(type)}</span>` : ''}${date ? `<div class="sub-line">${esc(date)}</div>` : ''}`;
+}
+function invCell(num, status){
+  return `${num ? `<b>${esc(num)}</b>` : '<span class="sub-line">—</span>'}${status ? '<div>' + invStatusBadge(status) + '</div>' : ''}`;
+}
+function statusBadge(v){
+  if (!v) return '';
+  const m = { 'Completed': 'b-green', 'Confirmed': 'b-blue', 'Scheduled': 'b-blue', 'In Progress': 'b-amber', 'Unconfirmed': 'b-gray', 'Cancelled': 'b-red' };
+  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
+}
+function wixBadge(v){
+  if (!v) return '';
+  const m = { 'Paid': 'b-green', 'Invoiced': 'b-amber', 'Accepted': 'b-blue' };
+  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
+}
+function invStatusBadge(v){
+  if (!v) return '';
+  const m = { 'Paid': 'b-green', 'Sent': 'b-blue', 'Overdue': 'b-red', 'Not Sent': 'b-gray' };
+  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
+}
+function saveCell(r){
+  return `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+    <button class="rowsave" data-save="${r.sheetRow}">${Object.keys(r.edits).length ? 'Save' : 'Saved'}</button>
+    <button class="revert" data-revert="${r.sheetRow}">undo</button></div>`;
+}
+
+/* ---- desktop table ---- */
+function renderTable(tab, rows){
+  const wrap = document.createElement('div');
+  wrap.className = 'tablewrap';
+  const plan = tablePlan(tab);
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr>${plan.map(c =>
+    `<th class="${c.edit !== undefined ? 'edit-col' : ''}">${esc(c.h)}</th>`).join('')}</tr></thead>`;
+  const tb = document.createElement('tbody');
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.dataset.row = r.sheetRow;
+    if (Object.keys(r.edits).length) tr.classList.add('dirty');
+    plan.forEach(c => {
+      const td = document.createElement('td');
+      if (c.edit !== undefined){
+        td.className = 'editable';
+        td.appendChild(buildControl(tab, r, c.edit));
+      } else {
+        td.innerHTML = c.render(r);
+      }
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+  table.appendChild(tb);
+  wrap.appendChild(table);
+  bindRowActions(wrap, tab);
+  return wrap;
+}
+
+/* ---- mobile cards ---- */
+function cardMeta(tab, r){
+  if (tab.id === 'quotes') return [
+    `<span class="money">${esc(r.cells[7])}</span>`, expCell(r.cells[6], r.cells[8]),
+    r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '',
+    emberCell(r.cells[14], r.cells[15])
+  ];
+  if (tab.id === 'tracker') return [
+    statusBadge(r.cells[3]), wixBadge(r.cells[4]),
+    r.cells[5] ? `<span class="badge b-gray">Inv ${esc(r.cells[5])}</span>` : '',
+    invStatusBadge(r.cells[6]), emberCell(r.cells[7], r.cells[8])
+  ];
+  return [
+    `<span class="money">${esc(r.cells[6])}</span>`, statusBadge(r.cells[7]), wixBadge(r.cells[8]),
+    r.cells[9] ? `<span class="badge b-gray">Inv ${esc(r.cells[9])}</span>` : '',
+    invStatusBadge(r.cells[10]), r.cells[11] ? `<span class="sub-line">Paid ${esc(r.cells[11])}</span>` : ''
+  ];
+}
+function renderCards(tab, rows){
+  const wrap = document.createElement('div');
+  wrap.className = 'cards';
+  const hdr = state.headers[tab.id] || [];
+  rows.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'm-card' + (Object.keys(r.edits).length ? ' dirty' : '');
+    card.dataset.row = r.sheetRow;
+
+    const name = r.cells[1], title = tab.id === 'tracker' ? r.cells[2] : r.cells[4];
+    const email = tab.id === 'tracker' ? '' : r.cells[2];
+    const phone = tab.id === 'tracker' ? '' : r.cells[3];
+    const link  = tab.id === 'tracker' ? '' : (r.cells[5] || '');
+
+    let h = `<div class="m-head"><div><div class="nm">${esc(name)}</div></div>
+      <div class="qn">#${esc(r.cells[0])}${/^https?:\/\//.test(link.trim()) ? ` <a href="${esc(link.trim())}" target="_blank" rel="noopener" style="font-size:13px">↗</a>` : ''}</div></div>`;
+    if (title) h += `<div class="m-ttl">${esc(title)}</div>`;
+    h += `<div class="m-meta">${cardMeta(tab, r).filter(Boolean).join('')}</div>`;
+    const links = [];
+    if (phone && phone.trim()) links.push(`<a href="tel:${esc(phone.trim())}">📞 Call</a>`);
+    if (email && email.trim()) links.push(`<a href="mailto:${esc(email.trim())}">✉ Email</a>`);
+    if (links.length) h += `<div class="m-contact">${links.join('')}</div>`;
+    card.innerHTML = h;
+
+    if (tab.editable.length){
+      const grid = document.createElement('div');
+      grid.className = 'm-fields';
+      tab.editable.forEach(colIdx => {
+        const f = document.createElement('div');
+        f.className = 'm-field';
+        const lb = document.createElement('label');
+        lb.className = 'ed';
+        lb.textContent = hdr[colIdx] || colLetter(colIdx);
+        f.appendChild(lb);
+        f.appendChild(buildControl(tab, r, colIdx));
+        grid.appendChild(f);
+      });
+      card.appendChild(grid);
+      const act = document.createElement('div');
+      act.className = 'm-actions';
+      act.innerHTML = `<button class="revert" data-revert="${r.sheetRow}">undo changes</button>
+        <button class="rowsave" data-save="${r.sheetRow}">${Object.keys(r.edits).length ? 'Save' : 'Saved'}</button>`;
+      card.appendChild(act);
+    }
+    wrap.appendChild(card);
+  });
+  bindRowActions(wrap, tab);
+  return wrap;
+}
+
+function bindRowActions(root, tab){
+  root.querySelectorAll('[data-save]').forEach(b =>
+    b.addEventListener('click', () => saveRow(tab, +b.dataset.save)));
+  root.querySelectorAll('[data-revert]').forEach(b =>
+    b.addEventListener('click', () => revertRow(tab, +b.dataset.revert)));
+}
+
+/* =====================================================================
+   Editable controls
+   ===================================================================== */
+function currentVal(r, colIdx){
+  return colIdx in r.edits ? r.edits[colIdx] : (r.cells[colIdx] || '');
+}
+function setEdit(tab, r, colIdx, val){
+  const orig = r.cells[colIdx] || '';
+  if (val === orig) delete r.edits[colIdx];
+  else r.edits[colIdx] = val;
+  syncRowUI(r);
+}
+function syncRowUI(r){
+  const dirty = Object.keys(r.edits).length > 0;
+  $$(`[data-row="${r.sheetRow}"]`).forEach(el => el.classList.toggle('dirty', dirty));
+  $$(`[data-save="${r.sheetRow}"]`).forEach(b => { if (!r.saving) b.textContent = dirty ? 'Save' : 'Saved'; });
+  // mirror values across table + card controls
+  $$(`[data-row="${r.sheetRow}"] [data-col]`).forEach(ct => {
+    const c = +ct.dataset.col;
+    const v = currentVal(r, c);
+    const inp = ct.querySelector('input,textarea,select');
+    if (inp && inp.value !== v && document.activeElement !== inp){
+      if (inp.tagName === 'SELECT'){
+        if ([...inp.options].some(o => o.value === v)) inp.value = v;
+      } else inp.value = v;
+    }
+    ct.classList.toggle('changed', c in r.edits);
+  });
+}
+
+function buildControl(tab, r, colIdx){
+  const box = document.createElement('div');
+  box.className = 'ctl' + (colIdx in r.edits ? ' changed' : '');
+  box.dataset.col = colIdx;
+  const val = currentVal(r, colIdx);
+
+  if (tab.id === 'quotes'){
+    if (colIdx === 13){ // follow up notes — textarea + quick log chips
+      const ta = document.createElement('textarea');
+      ta.value = val;
+      ta.placeholder = 'Notes…';
+      ta.addEventListener('input', () => setEdit(tab, r, colIdx, ta.value));
+      box.appendChild(ta);
+      box.appendChild(chipRow([
+        { l: '+ ' + todayMD() + ' Sent email', v: () => appendLine(ta, todayMD() + ' Sent email,') },
+        { l: '+ ' + todayMD() + ' Sent text',  v: () => appendLine(ta, todayMD() + ' Sent text:') },
+        { l: '+ ' + todayMD() + ' Called',     v: () => appendLine(ta, todayMD() + ' Called,') }
+      ], () => setEdit(tab, r, colIdx, ta.value)));
+      return box;
+    }
+    // K/L/M — date-style text input + chips
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = val;
+    inp.placeholder = 'e.g. ' + todayMD();
+    inp.autocomplete = 'off';
+    inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+    box.appendChild(inp);
+    box.appendChild(chipRow([
+      { l: todayMD(),  v: () => inp.value = todayMD() },
+      { l: 'Not Sent', v: () => inp.value = 'Not Sent' },
+      { l: 'X',        v: () => inp.value = 'X' }
+    ], () => setEdit(tab, r, colIdx, inp.value)));
+    return box;
+  }
+
+  // Tracker tab
+  const listOpts = state.options[colIdx];
+  if (listOpts && listOpts.length){
+    // dropdown from the sheet's live data validation + custom entry
+    buildSelect(box, tab, r, colIdx, listOpts, val);
+    return box;
+  }
+  // no validation on this column (J) — free text with suggestions
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = val;
+  inp.autocomplete = 'off';
+  inp.placeholder = 'Type…';
+  const dlId = 'dl-' + tab.id + '-' + colIdx;
+  ensureDatalist(dlId, state.suggest[colIdx] || []);
+  inp.setAttribute('list', dlId);
+  inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+  box.appendChild(inp);
+  return box;
+}
+
+function buildSelect(box, tab, r, colIdx, opts, val){
+  box.innerHTML = '';
+  const sel = document.createElement('select');
+  const all = [...opts];
+  if (val && !all.includes(val)) all.unshift(val); // keep off-list current value visible
+  sel.appendChild(new Option('— select —', ''));
+  all.forEach(o => sel.appendChild(new Option(o, o)));
+  sel.appendChild(new Option('✎ Type a custom answer…', '__custom__'));
+  sel.value = all.includes(val) ? val : (val === '' ? '' : val);
+  sel.addEventListener('change', () => {
+    if (sel.value === '__custom__'){ toCustomInput(box, tab, r, colIdx, opts); return; }
+    setEdit(tab, r, colIdx, sel.value);
+  });
+  box.appendChild(sel);
+}
+function toCustomInput(box, tab, r, colIdx, opts){
+  box.innerHTML = '';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = 'Custom answer…';
+  inp.autocomplete = 'off';
+  const dlId = 'dl-custom-' + colIdx;
+  ensureDatalist(dlId, [...new Set([...(opts || []), ...(state.suggest[colIdx] || [])])]);
+  inp.setAttribute('list', dlId);
+  inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+  box.appendChild(inp);
+  const back = document.createElement('button');
+  back.className = 'backlist';
+  back.type = 'button';
+  back.textContent = '↩ back to list';
+  back.addEventListener('click', () => {
+    buildSelect(box, tab, r, colIdx, opts, currentVal(r, colIdx));
+    box.classList.toggle('changed', colIdx in r.edits);
+  });
+  box.appendChild(back);
+  inp.focus();
+}
+function ensureDatalist(id, options){
+  let dl = document.getElementById(id);
+  if (!dl){ dl = document.createElement('datalist'); dl.id = id; document.body.appendChild(dl); }
+  dl.innerHTML = options.map(o => `<option value="${esc(o)}">`).join('');
+}
+function chipRow(chips, after){
+  const row = document.createElement('div');
+  row.className = 'chips';
+  chips.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = c.l;
+    b.addEventListener('click', () => { c.v(); after(); });
+    row.appendChild(b);
+  });
+  return row;
+}
+function appendLine(ta, text){
+  ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' + text : text;
+}
+
+/* =====================================================================
+   Save / revert
+   ===================================================================== */
+function revertRow(tab, sheetRow){
+  const r = state.data[tab.id].find(x => x.sheetRow === sheetRow);
+  if (!r) return;
+  r.edits = {};
+  renderAll();
+}
+
+async function saveRow(tab, sheetRow){
+  const r = state.data[tab.id].find(x => x.sheetRow === sheetRow);
+  if (!r || !Object.keys(r.edits).length || r.saving) return;
+  r.saving = true;
+  $$(`[data-save="${sheetRow}"]`).forEach(b => { b.classList.add('saving'); b.textContent = 'Saving…'; });
+
+  try {
+    // Row-shift protection: Wix / Apps Script may have inserted rows since load.
+    let target = r.sheetRow;
+    const chk = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A${target}`)}`);
+    const found = String(chk.values?.[0]?.[0] ?? '').trim();
+    if (found !== r.key){
+      const colA = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A2:A`)}`);
+      const idx = (colA.values || []).findIndex(x => String(x[0] ?? '').trim() === r.key);
+      if (idx < 0) throw new Error(`Row for ${tab.keyLabel} ${r.key} not found — refresh and try again`);
+      target = idx + 2;
+    }
+
+    const changes = Object.entries(r.edits);
+    const body = {
+      valueInputOption: 'USER_ENTERED',
+      data: changes.map(([c, v]) => ({
+        range: `'${tab.sheet}'!${colLetter(+c)}${target}`,
+        values: [[v]]
+      }))
+    };
+    await api('/values:batchUpdate', { method: 'POST', body: JSON.stringify(body) });
+
+    // Activity Log (best-effort, matches existing header: Timestamp, User, Action, Sheet, Row ID, Details)
+    if (CONFIG.ACTIVITY_LOG_SHEET){
+      const hdr = state.headers[tab.id] || [];
+      const details = changes.map(([c, v]) =>
+        `${hdr[+c] || colLetter(+c)}: "${(r.cells[+c] || '').slice(0, 60)}" → "${String(v).slice(0, 60)}"`).join(' | ');
+      const logBody = { values: [[new Date().toLocaleString(), state.email, 'Edit (Dashboard)', tab.sheet, r.key, details]] };
+      api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:F`)}:append?valueInputOption=USER_ENTERED`,
+        { method: 'POST', body: JSON.stringify(logBody) }).catch(() => {});
+    }
+
+    // commit locally
+    changes.forEach(([c, v]) => r.cells[+c] = v);
+    r.edits = {};
+    r.sheetRow = target;
+    toast(`Saved ${tab.keyLabel} ${r.key}`, 'ok');
+  } catch(e){
+    if (e.message !== 'auth') toast(e.message, 'err');
+  } finally {
+    r.saving = false;
+    renderAll();
+  }
+}
+
+/* =====================================================================
+   Toolbar / lifecycle
+   ===================================================================== */
+$('#searchBox').addEventListener('input', e => { state.search = e.target.value; renderAll(); });
+$('#btnRefresh').addEventListener('click', async () => {
+  if (hasUnsaved() && !confirm('You have unsaved edits — refreshing will discard them. Continue?')) return;
+  $('#btnRefresh').classList.add('spin');
+  await loadAll(true);
+  $('#btnRefresh').classList.remove('spin');
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.token && state.lastLoad &&
+      Date.now() - state.lastLoad > CONFIG.STALE_MS && !hasUnsaved()){
+    loadAll();
+  }
+});
+window.addEventListener('beforeunload', e => {
+  if (hasUnsaved()){ e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="gisReady()"></script>
+</body>
+</html>
