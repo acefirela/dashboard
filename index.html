@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ACE Fire LA — Quote Dashboard</title>
+<title>ACE Fire LA — Job Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,6 +17,7 @@
   --blue:#2B5FA3; --blue-bg:#EBF1F9;
   --radius:10px;
   --shadow:0 1px 2px rgba(20,22,26,.06), 0 4px 14px rgba(20,22,26,.05);
+  --drawer-w:460px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -25,62 +26,42 @@ body{
   background:var(--paper); color:var(--ink); font-size:14px; line-height:1.45;
   -webkit-font-smoothing:antialiased;
 }
+body.drawer-open{overflow:hidden}
 button{font-family:inherit}
 input,select,textarea{font-family:inherit;font-size:14px}
 a{color:var(--blue)}
 
 /* ============ Header ============ */
-header{
-  background:var(--ink); color:#fff;
-  position:sticky; top:0; z-index:50;
-}
+header{background:var(--ink); color:#fff; position:sticky; top:0; z-index:50}
 .hd-inner{
-  max-width:1440px; margin:0 auto; padding:10px 16px;
+  max-width:1080px; margin:0 auto; padding:10px 16px;
   display:flex; align-items:center; gap:12px; flex-wrap:wrap;
 }
 .brand{display:flex; align-items:baseline; gap:8px; margin-right:auto}
-.brand .ace{
-  font-family:'Barlow Condensed'; font-weight:700; font-size:24px; letter-spacing:.04em;
-  color:#fff; text-transform:uppercase;
-}
+.brand .ace{font-family:'Barlow Condensed'; font-weight:700; font-size:24px; letter-spacing:.04em; text-transform:uppercase}
 .brand .ace b{color:#E8534E; font-weight:700}
-.brand .sub{
-  font-family:'Barlow Condensed'; font-weight:500; font-size:15px; letter-spacing:.14em;
-  text-transform:uppercase; color:#9BA0AB;
-}
+.brand .sub{font-family:'Barlow Condensed'; font-weight:500; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:#9BA0AB}
 .hd-user{display:flex; align-items:center; gap:10px; font-size:12.5px; color:#C6CAD2}
-.hd-user .email{max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hd-user .email{max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .hd-btn{
   background:transparent; border:1px solid #464B55; color:#E8EAEE;
   border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
-  display:inline-flex; align-items:center; gap:6px;
+  display:inline-flex; align-items:center; gap:6px; min-height:34px;
 }
 .hd-btn:hover{background:#262A31; border-color:#5A5F6A}
-.hd-btn:disabled{opacity:.5; cursor:default}
 .hd-btn.spin svg{animation:rot 1s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
-/* safety stripe — signature accent */
-.stripe{
-  height:6px;
-  background:repeating-linear-gradient(-45deg, var(--red) 0 14px, var(--ink) 14px 28px);
-}
+.stripe{height:6px; background:repeating-linear-gradient(-45deg, var(--red) 0 14px, var(--ink) 14px 28px)}
 
-/* ============ Tab bar ============ */
-nav.tabs{
-  background:var(--card); border-bottom:1px solid var(--line);
-  position:sticky; top:0; z-index:40;
-}
-.tabs-inner{
-  max-width:1440px; margin:0 auto; padding:0 8px;
-  display:flex; gap:2px; overflow-x:auto; -webkit-overflow-scrolling:touch;
-}
+/* ============ Tabs / toolbar ============ */
+nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:40}
+.tabs-inner{max-width:1080px; margin:0 auto; padding:0 8px; display:flex; gap:2px}
 .tab{
   appearance:none; background:none; border:none; cursor:pointer;
-  font-family:'Barlow Condensed'; font-weight:600; font-size:18px; letter-spacing:.09em;
+  font-family:'Barlow Condensed'; font-weight:600; font-size:19px; letter-spacing:.09em;
   text-transform:uppercase; color:var(--muted);
-  padding:13px 16px 11px; border-bottom:3px solid transparent;
-  display:flex; align-items:center; gap:8px; white-space:nowrap;
-  min-height:48px;
+  padding:13px 18px 11px; border-bottom:3px solid transparent;
+  display:flex; align-items:center; gap:8px; min-height:50px;
 }
 .tab .cnt{
   font-family:'Inter'; font-size:11px; font-weight:700; letter-spacing:0;
@@ -89,56 +70,64 @@ nav.tabs{
 }
 .tab.active{color:var(--ink); border-bottom-color:var(--red)}
 .tab.active .cnt{background:var(--red-bg); color:var(--red-dk); border-color:#EFD2D1}
-.tab .ro{font-family:'Inter'; font-size:10px; letter-spacing:.05em; color:var(--muted); border:1px solid var(--line2); border-radius:4px; padding:1px 5px}
 
-/* ============ Toolbar ============ */
 .toolbar{
-  max-width:1440px; margin:0 auto; padding:14px 16px 4px;
+  max-width:1080px; margin:0 auto; padding:14px 16px 0;
   display:flex; gap:10px; align-items:center; flex-wrap:wrap;
 }
-.search{
-  flex:1; min-width:200px; max-width:420px; position:relative;
-}
+.search{flex:1; min-width:180px; max-width:420px; position:relative}
 .search input{
   width:100%; padding:10px 12px 10px 36px; border:1px solid var(--line2); border-radius:var(--radius);
   background:var(--card); font-size:14px; outline:none;
 }
 .search input:focus{border-color:var(--ink2)}
 .search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted)}
+select.sortsel{
+  border:1px solid var(--line2); border-radius:var(--radius); background:var(--card);
+  padding:9px 10px; font-size:13px; color:var(--ink2); outline:none; min-height:40px;
+}
 .meta-note{font-size:12px; color:var(--muted); margin-left:auto}
 
-/* ============ Main / table ============ */
-main{max-width:1440px; margin:0 auto; padding:10px 16px 90px}
-.tablewrap{
-  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-  box-shadow:var(--shadow); overflow:auto;
+.filters{
+  max-width:1080px; margin:0 auto; padding:10px 16px 2px;
+  display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
 }
-table{border-collapse:collapse; width:100%; min-width:900px}
-thead th{
-  font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px; letter-spacing:.08em;
-  text-transform:uppercase; color:var(--ink2); text-align:left;
-  padding:11px 10px; border-bottom:2px solid var(--line2);
-  background:#FAFAF8; position:sticky; top:0; z-index:5; white-space:nowrap;
+.fchip{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
+  font-size:12px; font-weight:600; border-radius:99px; padding:6px 13px; cursor:pointer;
+  white-space:nowrap; min-height:32px;
 }
-thead th.edit-col{color:var(--red-dk)}
-thead th.edit-col::after{content:"✎"; margin-left:5px; font-size:11px; opacity:.7}
-tbody td{
-  padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top;
-}
-tbody tr:last-child td{border-bottom:none}
-tbody tr.dirty{background:#FFFBEB}
-tbody tr:hover{background:#FAFAF8}
-tbody tr.dirty:hover{background:#FFF7DB}
+.fchip.active{background:var(--ink); border-color:var(--ink); color:#fff}
+.fchip .n{opacity:.65; font-weight:700; margin-left:4px}
 
-.qnum{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
-.qnum a{margin-left:5px; text-decoration:none; font-size:12px}
-.name-cell .nm{font-weight:600}
-.name-cell .ttl{color:var(--ink2); font-size:12.5px; margin-top:2px; max-width:340px}
-.contact{margin-top:3px; display:flex; gap:10px; font-size:12px}
-.contact a{text-decoration:none; color:var(--blue); white-space:nowrap}
-.money{font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap}
-.sub-line{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap}
-.notes-ro{font-size:12.5px; color:var(--ink2); max-width:300px; white-space:pre-wrap}
+/* ============ List (no horizontal scroll) ============ */
+main{max-width:1080px; margin:0 auto; padding:12px 16px 90px}
+.list{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); overflow:hidden;
+}
+.row{
+  display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  appearance:none; background:none; border:none; border-bottom:1px solid var(--line);
+  padding:12px 14px; cursor:pointer; font:inherit; color:inherit;
+}
+.row:last-child{border-bottom:none}
+.row:hover{background:#FAFAF8}
+.row.sel{background:var(--red-bg)}
+.r-main{flex:1; min-width:0}
+.r-top{display:flex; align-items:baseline; gap:8px; min-width:0}
+.r-q{font-family:'Barlow Condensed'; font-weight:700; font-size:17px; color:var(--red-dk); white-space:nowrap}
+.r-nm{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none}
+.r-ttl{color:var(--ink2); font-size:12.5px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.r-meta{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; align-items:center}
+.fu{
+  font-size:11.5px; color:var(--ink2); background:#F2F1ED; border-radius:6px; padding:2px 7px;
+  white-space:nowrap; font-variant-numeric:tabular-nums;
+}
+.fu.off{color:var(--muted); background:transparent; border:1px dashed var(--line2)}
+.chev{color:var(--line2); flex:none}
+.row:hover .chev{color:var(--muted)}
 
 .badge{
   display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px;
@@ -150,95 +139,139 @@ tbody tr.dirty:hover{background:#FFF7DB}
 .b-blue{background:var(--blue-bg); color:var(--blue)}
 .b-gray{background:#EFEEEA; color:var(--ink2)}
 
-/* editable cells */
-td.editable{background:#FDFCF9}
-tr.dirty td.editable{background:transparent}
-.ctl input[type=text], .ctl select, .ctl textarea{
-  width:100%; min-width:110px; padding:8px 9px;
-  border:1px solid var(--line2); border-radius:8px; background:#fff; outline:none;
+.empty{padding:48px 20px; text-align:center; color:var(--muted); font-size:14px}
+
+/* ============ Drawer ============ */
+#overlay{
+  position:fixed; inset:0; background:rgba(20,22,26,.45); z-index:60;
+  opacity:0; pointer-events:none; transition:opacity .2s;
 }
-.ctl textarea{min-width:220px; min-height:60px; resize:vertical; line-height:1.4}
+#overlay.on{opacity:1; pointer-events:auto}
+#drawer{
+  position:fixed; top:0; right:0; bottom:0; width:var(--drawer-w); max-width:100vw;
+  background:var(--card); z-index:70; display:flex; flex-direction:column;
+  box-shadow:-12px 0 40px rgba(0,0,0,.18);
+  transform:translateX(105%); transition:transform .22s ease;
+}
+#drawer.on{transform:translateX(0)}
+.d-head{
+  display:flex; align-items:center; gap:8px; padding:12px 14px;
+  border-bottom:1px solid var(--line); background:#FAFAF8;
+}
+.d-nav{display:flex; gap:4px}
+.icon-btn{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
+  border-radius:8px; width:36px; height:36px; cursor:pointer; font-size:16px;
+  display:flex; align-items:center; justify-content:center;
+}
+.icon-btn:hover{border-color:var(--ink2)}
+.icon-btn:disabled{opacity:.35; cursor:default}
+.d-title{flex:1; min-width:0; text-align:center}
+.d-title .q{font-family:'Barlow Condensed'; font-weight:700; font-size:20px; color:var(--red-dk)}
+.d-title .n{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.d-search{padding:10px 14px; border-bottom:1px solid var(--line); position:relative}
+.d-search input{
+  width:100%; padding:9px 30px 9px 34px; border:1px solid var(--line2); border-radius:8px;
+  outline:none; font-size:13.5px; background:var(--paper);
+}
+.d-search input:focus{border-color:var(--ink2); background:#fff}
+.d-search .mag{position:absolute; left:25px; top:50%; transform:translateY(-50%); color:var(--muted)}
+.d-search .clr{
+  position:absolute; right:22px; top:50%; transform:translateY(-50%);
+  appearance:none; border:none; background:none; color:var(--muted); cursor:pointer; font-size:15px;
+  display:none; padding:4px;
+}
+.d-search.has .clr{display:block}
+
+.d-body{flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch}
+.d-results .rrow{
+  display:flex; flex-direction:column; gap:1px; width:100%; text-align:left;
+  appearance:none; background:none; border:none; border-bottom:1px solid var(--line);
+  padding:10px 6px; cursor:pointer; font:inherit; color:inherit;
+}
+.d-results .rrow:hover{background:#FAFAF8}
+.d-results .t{font-weight:600; font-size:13.5px}
+.d-results .t b{color:var(--red-dk); font-family:'Barlow Condensed'; font-size:15px}
+.d-results .s{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.d-results .none{padding:18px 6px; color:var(--muted); font-size:13px; text-align:center}
+
+.d-actions{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.act-btn{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink);
+  border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:600; cursor:pointer;
+  text-decoration:none; display:inline-flex; align-items:center; gap:6px; min-height:38px;
+}
+.act-btn:hover{border-color:var(--red); color:var(--red-dk)}
+
+.d-sec{margin-bottom:18px}
+.d-sec h3{
+  font-family:'Barlow Condensed'; font-weight:600; font-size:15px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+  border-bottom:1px solid var(--line); padding-bottom:5px;
+}
+.info-grid{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:13.5px}
+.info-grid .k{color:var(--muted); white-space:nowrap}
+.info-grid .v{min-width:0; word-break:break-word}
+.d-field{margin-bottom:13px}
+.d-field label{
+  display:block; font-family:'Barlow Condensed'; font-weight:600; font-size:14px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--red-dk); margin-bottom:5px;
+}
+.ctl input[type=text], .ctl select, .ctl textarea{
+  width:100%; padding:10px; border:1px solid var(--line2); border-radius:8px; background:#fff; outline:none;
+}
+.ctl textarea{min-height:74px; resize:vertical; line-height:1.4}
 .ctl input:focus, .ctl select:focus, .ctl textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
 .ctl.changed input, .ctl.changed select, .ctl.changed textarea{border-color:var(--amber); background:#FFFDF4}
-.chips{display:flex; gap:5px; margin-top:5px; flex-wrap:wrap}
+.chips{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap}
 .chip{
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
-  font-size:11px; font-weight:600; border-radius:99px; padding:3px 9px; cursor:pointer;
+  font-size:11.5px; font-weight:600; border-radius:99px; padding:5px 11px; cursor:pointer; min-height:28px;
 }
 .chip:hover{border-color:var(--red); color:var(--red-dk)}
-.backlist{
-  appearance:none; border:none; background:none; color:var(--blue); font-size:11px;
-  cursor:pointer; padding:3px 2px; margin-top:3px; text-align:left;
-}
+.backlist{appearance:none; border:none; background:none; color:var(--blue); font-size:12px; cursor:pointer; padding:4px 2px; margin-top:3px}
 
-/* row save */
-.rowsave{
-  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
-  border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:700; cursor:default;
-  white-space:nowrap; min-height:36px;
+.log-item{border-bottom:1px dashed var(--line); padding:7px 0; font-size:12.5px}
+.log-item:last-child{border-bottom:none}
+.log-item .lt{color:var(--muted); font-size:11.5px; display:flex; gap:8px; flex-wrap:wrap}
+.log-item .ld{color:var(--ink2); margin-top:2px; word-break:break-word}
+.log-none{color:var(--muted); font-size:12.5px}
+
+.d-foot{
+  border-top:1px solid var(--line); background:#FAFAF8; padding:11px 14px;
+  display:flex; align-items:center; gap:12px; justify-content:flex-end;
+  padding-bottom:calc(11px + env(safe-area-inset-bottom));
 }
-tr.dirty .rowsave, .m-card.dirty .rowsave{
-  background:var(--red); border-color:var(--red); color:#fff; cursor:pointer;
-}
-tr.dirty .rowsave:hover, .m-card.dirty .rowsave:hover{background:var(--red-dk)}
-.rowsave.saving{opacity:.6; pointer-events:none}
 .revert{
-  appearance:none; border:none; background:none; color:var(--muted); font-size:11.5px;
-  cursor:pointer; padding:4px 2px; display:none; text-decoration:underline;
+  appearance:none; border:none; background:none; color:var(--muted); font-size:12.5px;
+  cursor:pointer; text-decoration:underline; display:none; margin-right:auto;
 }
-tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
+.d-foot.dirty .revert{display:block}
+.savebtn{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
+  border-radius:9px; padding:11px 26px; font-size:14px; font-weight:700; cursor:default; min-height:44px;
+}
+.d-foot.dirty .savebtn{background:var(--red); border-color:var(--red); color:#fff; cursor:pointer}
+.d-foot.dirty .savebtn:hover{background:var(--red-dk)}
+.savebtn.saving{opacity:.6; pointer-events:none}
 
-.empty{
-  padding:48px 20px; text-align:center; color:var(--muted); font-size:14px;
-}
-
-/* ============ Mobile cards ============ */
-.cards{display:none}
-.m-card{
-  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-  box-shadow:var(--shadow); padding:14px; margin-bottom:12px;
-}
-.m-card.dirty{border-color:#E7C87B; background:#FFFDF4}
-.m-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
-.m-head .nm{font-weight:700; font-size:15px}
-.m-head .qn{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; color:var(--red-dk); white-space:nowrap}
-.m-ttl{color:var(--ink2); font-size:13px; margin-top:3px}
-.m-meta{display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; align-items:center}
-.m-contact{display:flex; gap:16px; margin-top:8px; font-size:13px}
-.m-contact a{text-decoration:none; font-weight:600}
-.m-fields{margin-top:12px; border-top:1px dashed var(--line2); padding-top:10px;
-  display:grid; grid-template-columns:1fr; gap:10px}
-.m-field label{
-  display:block; font-family:'Barlow Condensed'; font-weight:600; font-size:13.5px;
-  letter-spacing:.09em; text-transform:uppercase; color:var(--ink2); margin-bottom:4px;
-}
-.m-field label.ed{color:var(--red-dk)}
-.m-field label.ed::after{content:" ✎"; font-size:10px}
-.m-field .ro-val{font-size:13.5px; color:var(--ink); white-space:pre-wrap}
-.m-actions{display:flex; gap:12px; align-items:center; margin-top:12px; justify-content:flex-end}
-.m-actions .rowsave{padding:10px 22px; font-size:13.5px}
-
-@media (max-width:880px){
-  .tablewrap{display:none}
-  .cards{display:block}
+@media (max-width:640px){
+  :root{--drawer-w:100vw}
   .brand .sub{display:none}
   .hd-user .email{display:none}
-  main{padding:8px 10px 90px}
-  .toolbar{padding:12px 10px 4px}
-  .meta-note{width:100%; margin-left:0}
+  main{padding:10px 10px 90px}
+  .toolbar{padding:12px 10px 0}
+  .filters{padding:10px 10px 2px}
+  .meta-note{display:none}
 }
 
-/* ============ Sign-in screen ============ */
-.gate{
-  min-height:calc(100vh - 60px); display:flex; align-items:center; justify-content:center; padding:20px;
-}
+/* ============ Sign-in gate ============ */
+.gate{min-height:calc(100vh - 60px); display:flex; align-items:center; justify-content:center; padding:20px}
 .gate-card{
   background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
   max-width:400px; width:100%; padding:34px 30px; text-align:center;
 }
-.gate-card .glogo{
-  font-family:'Barlow Condensed'; font-weight:700; font-size:30px; text-transform:uppercase; letter-spacing:.04em;
-}
+.gate-card .glogo{font-family:'Barlow Condensed'; font-weight:700; font-size:30px; text-transform:uppercase; letter-spacing:.04em}
 .gate-card .glogo b{color:var(--red)}
 .gate-card p{color:var(--muted); font-size:13.5px; margin:10px 0 24px}
 .gbtn{
@@ -250,25 +283,19 @@ tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
 .gbtn:disabled{opacity:.6; cursor:default}
 .gate-err{color:var(--red-dk); font-size:12.5px; margin-top:14px; display:none}
 
-/* ============ Toast ============ */
+/* ============ Toast / loading ============ */
 #toast{
   position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(80px);
   background:var(--ink); color:#fff; font-size:13.5px; font-weight:600;
   padding:12px 20px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.25);
-  transition:transform .25s ease; z-index:100; max-width:calc(100vw - 40px); text-align:center;
+  transition:transform .25s ease; z-index:110; max-width:calc(100vw - 40px); text-align:center;
 }
 #toast.show{transform:translateX(-50%) translateY(0)}
 #toast.err{background:var(--red-dk)}
 #toast.ok{background:var(--green)}
-
-.loading-bar{
-  position:fixed; top:0; left:0; right:0; height:3px; z-index:200; display:none;
-}
+.loading-bar{position:fixed; top:0; left:0; right:0; height:3px; z-index:200; display:none}
 .loading-bar.on{display:block}
-.loading-bar i{
-  display:block; height:100%; width:30%; background:var(--red); border-radius:3px;
-  animation:slide 1s ease-in-out infinite;
-}
+.loading-bar i{display:block; height:100%; width:30%; background:var(--red); border-radius:3px; animation:slide 1s ease-in-out infinite}
 @keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
 </style>
 </head>
@@ -280,7 +307,7 @@ tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
   <div class="hd-inner">
     <div class="brand">
       <span class="ace"><b>ACE</b> Fire LA</span>
-      <span class="sub">Quote Dashboard</span>
+      <span class="sub">Job Dashboard</span>
     </div>
     <div class="hd-user" id="hdUser" style="display:none">
       <span class="email" id="userEmail"></span>
@@ -298,7 +325,7 @@ tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
 <div class="gate" id="gate">
   <div class="gate-card">
     <div class="glogo"><b>ACE</b> Fire LA</div>
-    <p>Team quote dashboard. Sign in with your Google account (the one with access to the Wix quotes sheet).</p>
+    <p>Team job dashboard. Sign in with your Google account (the one with access to the Wix quotes sheet).</p>
     <button class="gbtn" id="btnSignin">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
       Sign in with Google
@@ -315,61 +342,80 @@ tr.dirty .revert, .m-card.dirty .revert{display:inline-block}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="text" id="searchBox" placeholder="Search quote #, name, title…" autocomplete="off">
     </div>
+    <select class="sortsel" id="sortSel"></select>
     <span class="meta-note" id="metaNote"></span>
   </div>
+  <div class="filters" id="filterBar"></div>
   <main id="main"></main>
 </div>
+
+<!-- Detail drawer -->
+<div id="overlay"></div>
+<aside id="drawer" aria-hidden="true">
+  <div class="d-head">
+    <div class="d-nav">
+      <button class="icon-btn" id="dPrev" title="Previous (←)">‹</button>
+      <button class="icon-btn" id="dNext" title="Next (→)">›</button>
+    </div>
+    <div class="d-title"><div class="q" id="dQuote"></div><div class="n" id="dName"></div></div>
+    <button class="icon-btn" id="dClose" title="Close (Esc)">✕</button>
+  </div>
+  <div class="d-search" id="dSearchWrap">
+    <svg class="mag" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="text" id="dSearch" placeholder="Jump to another record…" autocomplete="off">
+    <button class="clr" id="dSearchClr" title="Clear">✕</button>
+  </div>
+  <div class="d-body" id="dBody"></div>
+  <div class="d-foot" id="dFoot">
+    <button class="revert" id="dRevert">undo changes</button>
+    <button class="savebtn" id="dSave">Saved</button>
+  </div>
+</aside>
 
 <div id="toast"></div>
 
 <script>
 /* =====================================================================
-   CONFIG — edit these two values if the sheet or OAuth client changes
+   CONFIG
    ===================================================================== */
 const CONFIG = {
   CLIENT_ID: '974411831257-7ov5s0e5lvh5g4tetovdnl45iojibaa2.apps.googleusercontent.com',
   SPREADSHEET_ID: '1cxqn3ZHlIA6CaSHa73C_dCJdFFqd2Pm7uEKiU8n_lnQ',
   SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
-  ACTIVITY_LOG_SHEET: 'Activity Log',   // set to '' to disable edit logging
-  STALE_MS: 5 * 60 * 1000               // auto-refresh when returning to a stale tab
+  ACTIVITY_LOG_SHEET: 'Activity Log',  // '' disables logging + history section
+  SHOW_FINANCIALS: false,              // true would show quote totals again
+  STALE_MS: 5 * 60 * 1000
 };
 
-/* Tab definitions. colIdx are 0-based (A=0). */
+/* Column maps (0-based, A=0)
+   Quotes : A # | B Name | C Email | D Phone | E Title | F Link | G Exp date | H Total
+            I Days | J Status | K Sent Email | L Text | M Call | N Notes | O EmberDate | P EmberType
+   Tracker: A # | B Name | C Title | D Status | E Wix Status | F Invoice # | G Invoice Status
+            H EmberDate | I EmberType | J Report Submitted | K Notes | L Retest Report | M Retest Inv | N Job Status */
 const TABS = [
-  {
-    id: 'quotes', label: 'Quotes', sheet: 'Quotes', lastCol: 'Q', keyLabel: 'Quote #',
-    editable: [10, 11, 12, 13]   // K Sent Email, L Text, M Call, N follow up notes
-  },
-  {
-    id: 'tracker', label: 'Tracker', sheet: 'Tracker', lastCol: 'N', keyLabel: 'Quote',
-    editable: [9, 10, 11, 12, 13] // J..N
-  },
-  {
-    id: 'accepted', label: 'Accepted', sheet: 'Accepted', lastCol: 'N', keyLabel: 'Quote',
-    editable: [], readOnly: true
-  }
+  { id:'quotes',  label:'Quotes',  sheet:'Quotes',  lastCol:'Q', keyLabel:'Quote', editable:[10,11,12,13] },
+  { id:'tracker', label:'Tracker', sheet:'Tracker', lastCol:'N', keyLabel:'Quote', editable:[9,10,11,12,13] }
 ];
 
 /* =====================================================================
-   State
+   State / helpers
    ===================================================================== */
 const state = {
-  token: null,
-  email: '',
-  activeTab: 'quotes',
-  data: {},          // tabId -> [{key, sheetRow, cells[], edits{}, saving}]
-  headers: {},       // tabId -> [header strings]
-  options: {},       // tracker colIdx -> [dropdown options] (from live data validation)
-  suggest: {},       // tracker colIdx -> [suggestions from existing values]
-  lastLoad: 0,
-  search: ''
+  token:null, email:'', activeTab:'quotes',
+  data:{}, headers:{}, activity:[],
+  options:{}, suggest:{},
+  search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
+  drawerKey:null, drawerList:[], lastLoad:0
 };
-
 const $  = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const colLetter = i => String.fromCharCode(65 + i);
 const todayMD = () => { const d = new Date(); return (d.getMonth()+1) + '/' + d.getDate(); };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const activeTabDef = () => TABS.find(t => t.id === state.activeTab);
+const rowByKey = (tabId, key) => (state.data[tabId] || []).find(r => r.key === key);
+const isDirty = r => r && Object.keys(r.edits).length > 0;
+const hasUnsaved = () => TABS.some(t => (state.data[t.id] || []).some(isDirty));
 
 function toast(msg, kind){
   const t = $('#toast');
@@ -381,10 +427,9 @@ function toast(msg, kind){
 function loading(on){ $('#loadbar').classList.toggle('on', !!on); }
 
 /* =====================================================================
-   Auth (Google Identity Services token flow)
+   Auth (Google Identity Services)
    ===================================================================== */
-let tokenClient = null;
-let pendingTokenResolve = null;
+let tokenClient = null, pendingTokenResolve = null;
 
 function gisReady(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -397,39 +442,31 @@ function gisReady(){
         else onSignedIn();
       }
     },
-    error_callback: err => {
-      if (pendingTokenResolve){ pendingTokenResolve(false); pendingTokenResolve = null; }
+    error_callback: () => {
+      if (pendingTokenResolve){ pendingTokenResolve(false); pendingTokenResolve = null; return; }
       const g = $('#gateErr');
-      if (g && $('#gate').style.display !== 'none'){
-        g.style.display = 'block';
-        g.textContent = 'Sign-in was cancelled or blocked. Try again.';
-      }
+      g.style.display = 'block';
+      g.textContent = 'Sign-in was cancelled or blocked. Try again.';
       $('#btnSignin').disabled = false;
     }
   });
-  // Attempt silent sign-in if this browser signed in before
   const hint = localStorage.getItem('acefire_hint');
-  if (hint){
-    silentToken(hint).then(ok => { if (ok) onSignedIn(); });
-  }
+  if (hint) silentToken(hint).then(ok => { if (ok) onSignedIn(); });
 }
-
 function silentToken(hint){
   return new Promise(resolve => {
     pendingTokenResolve = resolve;
-    try { tokenClient.requestAccessToken({ prompt: '', hint: hint || state.email || undefined }); }
+    try { tokenClient.requestAccessToken({ prompt:'', hint: hint || state.email || undefined }); }
     catch(e){ pendingTokenResolve = null; resolve(false); }
     setTimeout(() => { if (pendingTokenResolve){ pendingTokenResolve = null; resolve(false); } }, 8000);
   });
 }
-
 $('#btnSignin').addEventListener('click', () => {
   $('#btnSignin').disabled = true;
   $('#gateErr').style.display = 'none';
-  tokenClient.requestAccessToken({ prompt: '' });
+  tokenClient.requestAccessToken({ prompt:'' });
   setTimeout(() => $('#btnSignin').disabled = false, 4000);
 });
-
 $('#btnSignout').addEventListener('click', () => {
   const tk = state.token;
   state.token = null;
@@ -437,17 +474,10 @@ $('#btnSignout').addEventListener('click', () => {
   if (tk){ try { google.accounts.oauth2.revoke(tk, () => {}); } catch(e){} }
   location.reload();
 });
-
 async function onSignedIn(){
   try {
-    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: 'Bearer ' + state.token }
-    });
-    if (r.ok){
-      const u = await r.json();
-      state.email = u.email || '';
-      localStorage.setItem('acefire_hint', state.email);
-    }
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers:{ Authorization:'Bearer ' + state.token } });
+    if (r.ok){ const u = await r.json(); state.email = u.email || ''; localStorage.setItem('acefire_hint', state.email); }
   } catch(e){}
   $('#gate').style.display = 'none';
   $('#app').style.display = 'block';
@@ -458,12 +488,12 @@ async function onSignedIn(){
 }
 
 /* =====================================================================
-   Sheets API helper with auto token refresh on 401
+   Sheets API wrapper (401 → silent refresh → retry)
    ===================================================================== */
 async function api(path, opts = {}, retry = true){
   const r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + CONFIG.SPREADSHEET_ID + path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}), Authorization: 'Bearer ' + state.token }
+    headers:{ 'Content-Type':'application/json', ...(opts.headers || {}), Authorization:'Bearer ' + state.token }
   });
   if (r.status === 401 && retry){
     const ok = await silentToken(state.email);
@@ -471,6 +501,7 @@ async function api(path, opts = {}, retry = true){
     toast('Session expired — sign in again', 'err');
     $('#gate').style.display = 'flex';
     $('#app').style.display = 'none';
+    closeDrawer();
     throw new Error('auth');
   }
   if (!r.ok){
@@ -482,40 +513,45 @@ async function api(path, opts = {}, retry = true){
 }
 
 /* =====================================================================
-   Load data + live dropdown options
+   Data loading
    ===================================================================== */
 async function loadAll(showToast){
   loading(true);
   try {
-    const ranges = TABS.map(t => encodeURIComponent(`'${t.sheet}'!A1:${t.lastCol}`)).join('&ranges=');
-    const res = await api(`/values:batchGet?ranges=${ranges}&valueRenderOption=FORMATTED_VALUE`);
-
+    const ranges = TABS.map(t => `'${t.sheet}'!A1:${t.lastCol}`);
+    if (CONFIG.ACTIVITY_LOG_SHEET) ranges.push(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A1:F`);
+    let res;
+    try {
+      res = await api('/values:batchGet?valueRenderOption=FORMATTED_VALUE&ranges=' + ranges.map(encodeURIComponent).join('&ranges='));
+    } catch(e){
+      if (e.message === 'auth') throw e;
+      // retry without activity log (tab may have been renamed)
+      res = await api('/values:batchGet?valueRenderOption=FORMATTED_VALUE&ranges=' + ranges.slice(0, TABS.length).map(encodeURIComponent).join('&ranges='));
+      res.valueRanges.push({ values: [] });
+    }
     TABS.forEach((t, i) => {
       const vals = (res.valueRanges[i] && res.valueRanges[i].values) || [];
-      const header = vals[0] || [];
-      const nCols = colIdxOf(t.lastCol) + 1;
-      state.headers[t.id] = header;
+      state.headers[t.id] = vals[0] || [];
+      const nCols = t.lastCol.charCodeAt(0) - 64;
       state.data[t.id] = vals.slice(1).map((row, j) => {
-        const cells = Array.from({ length: nCols }, (_, c) => row[c] !== undefined ? String(row[c]) : '');
-        return { key: cells[0].trim(), sheetRow: j + 2, cells, edits: {}, saving: false };
+        const cells = Array.from({ length:nCols }, (_, c) => row[c] !== undefined ? String(row[c]) : '');
+        return { key: cells[0].trim(), sheetRow: j + 2, cells, edits:{}, saving:false };
       }).filter(r => r.cells.some(c => c !== ''));
     });
+    state.activity = ((res.valueRanges[TABS.length] || {}).values || []).slice(1);
 
     await loadTrackerOptions();
     state.lastLoad = Date.now();
     renderAll();
+    if (state.drawerKey) renderDrawer();
     if (showToast) toast('Data refreshed', 'ok');
   } catch(e){
     if (e.message !== 'auth') toast('Load failed: ' + e.message, 'err');
-  } finally {
-    loading(false);
-  }
+  } finally { loading(false); }
 }
-const colIdxOf = L => L.charCodeAt(0) - 65;
 
-/* Read the Tracker tab's own data-validation lists so dropdown options
-   always match the sheet. Column J has no validation → suggestions from
-   existing values instead. */
+/* Dropdown options come from the sheet's own data validation (Tracker J2:N2)
+   so editing the lists in Sheets updates the app automatically. */
 async function loadTrackerOptions(){
   state.options = {}; state.suggest = {};
   try {
@@ -523,29 +559,68 @@ async function loadTrackerOptions(){
     const res = await api(`?ranges=${rng}&fields=${encodeURIComponent('sheets(data(startColumn,rowData(values(dataValidation))))')}`);
     const d = res.sheets?.[0]?.data?.[0];
     const startCol = d?.startColumn ?? 9;
-    const vals = d?.rowData?.[0]?.values || [];
-    vals.forEach((v, i) => {
+    (d?.rowData?.[0]?.values || []).forEach((v, i) => {
       const cond = v?.dataValidation?.condition;
-      if (cond && (cond.type === 'ONE_OF_LIST') && cond.values){
+      if (cond && cond.type === 'ONE_OF_LIST' && cond.values){
         state.options[startCol + i] = cond.values.map(x => x.userEnteredValue).filter(Boolean);
       }
     });
-  } catch(e){ /* fall back to suggestions */ }
-
-  // Suggestions from existing column values (used for J, and merged into datalists)
-  const rows = state.data.tracker || [];
+  } catch(e){}
   for (const c of TABS[1].editable){
     const seen = new Map();
-    rows.forEach(r => {
+    (state.data.tracker || []).forEach(r => {
       const v = (r.cells[c] || '').trim();
       if (v) seen.set(v, (seen.get(v) || 0) + 1);
     });
-    state.suggest[c] = [...seen.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 12);
+    state.suggest[c] = [...seen.entries()].sort((a,b) => b[1]-a[1]).map(x => x[0]).slice(0, 12);
   }
 }
 
 /* =====================================================================
-   Rendering
+   Filters / sort
+   ===================================================================== */
+const daysNum = r => { const n = parseInt(String(r.cells[8]).replace(/[^\-0-9]/g,''),10); return isNaN(n) ? null : n; };
+const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim().toLowerCase(); return v === '' || v === 'not sent'; });
+
+function filterDefs(tab){
+  if (tab.id === 'quotes'){
+    return [
+      { id:'all',     label:'All',           fn:() => true },
+      { id:'active',  label:'Active',        fn:r => { const d = daysNum(r); return d === null || d >= 0; } },
+      { id:'exp7',    label:'Expiring ≤7d',  fn:r => { const d = daysNum(r); return d !== null && d >= 0 && d <= 7; } },
+      { id:'expired', label:'Expired',       fn:r => { const d = daysNum(r); return d !== null && d < 0; } },
+      { id:'nofu',    label:'No follow-up',  fn:noFollowUp }
+    ];
+  }
+  const defs = [{ id:'all', label:'All', fn:() => true },
+                { id:'__blank', label:'No job status', fn:r => !(r.cells[13]||'').trim() }];
+  (state.options[13] || []).forEach(o =>
+    defs.push({ id:'js:' + o, label:o, fn:r => (r.cells[13]||'').trim() === o }));
+  return defs;
+}
+function sortDefs(tab){
+  const base = [{ id:'sheet', label:'Sheet order' }, { id:'newest', label:'Newest quote #' }];
+  if (tab.id === 'quotes') base.splice(1, 0, { id:'expiring', label:'Expiring first' });
+  return base;
+}
+function visibleRows(tab){
+  let rows = state.data[tab.id] || [];
+  const fdef = filterDefs(tab).find(f => f.id === state.filter[tab.id]) || filterDefs(tab)[0];
+  rows = rows.filter(fdef.fn);
+  const q = state.search.trim().toLowerCase();
+  if (q) rows = rows.filter(r => searchText(tab, r).includes(q));
+  const s = state.sort[tab.id];
+  if (s === 'newest') rows = [...rows].sort((a,b) => (parseInt(b.key)||0) - (parseInt(a.key)||0));
+  else if (s === 'expiring') rows = [...rows].sort((a,b) => (daysNum(a) ?? 9e9) - (daysNum(b) ?? 9e9));
+  return rows;
+}
+function searchText(tab, r){
+  const skip = (tab.id === 'quotes' && !CONFIG.SHOW_FINANCIALS) ? [7] : [];
+  return r.cells.filter((_, i) => !skip.includes(i)).join(' ').toLowerCase();
+}
+
+/* =====================================================================
+   Rendering — main list
    ===================================================================== */
 function buildTabBar(){
   const bar = $('#tabbar');
@@ -553,9 +628,8 @@ function buildTabBar(){
   TABS.forEach(t => {
     const b = document.createElement('button');
     b.className = 'tab' + (state.activeTab === t.id ? ' active' : '');
-    b.innerHTML = `${t.label} <span class="cnt" data-cnt="${t.id}">–</span>` + (t.readOnly ? ' <span class="ro">view</span>' : '');
+    b.innerHTML = `${t.label} <span class="cnt" data-cnt="${t.id}">–</span>`;
     b.addEventListener('click', () => {
-      if (hasUnsaved() && state.activeTab !== t.id && !confirm('You have unsaved edits on this tab. Switch anyway?')) return;
       state.activeTab = t.id;
       $$('.tab').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
@@ -564,263 +638,314 @@ function buildTabBar(){
     bar.appendChild(b);
   });
 }
-function hasUnsaved(){
-  return (state.data[state.activeTab] || []).some(r => Object.keys(r.edits).length);
-}
 
 function renderAll(){
+  const tab = activeTabDef();
   TABS.forEach(t => {
     const el = document.querySelector(`[data-cnt="${t.id}"]`);
     if (el) el.textContent = (state.data[t.id] || []).length;
   });
   $('#metaNote').textContent = state.lastLoad
-    ? 'Updated ' + new Date(state.lastLoad).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : '';
-  const tab = TABS.find(t => t.id === state.activeTab);
-  const rows = filteredRows(tab);
+    ? 'Updated ' + new Date(state.lastLoad).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }) : '';
+
+  // sort select
+  const sel = $('#sortSel');
+  sel.innerHTML = sortDefs(tab).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+  sel.value = state.sort[tab.id];
+
+  // filter chips with counts
+  const fb = $('#filterBar');
+  fb.innerHTML = '';
+  const all = state.data[tab.id] || [];
+  filterDefs(tab).forEach(f => {
+    const n = all.filter(f.fn).length;
+    if (f.id !== 'all' && n === 0) return;
+    const b = document.createElement('button');
+    b.className = 'fchip' + (state.filter[tab.id] === f.id ? ' active' : '');
+    b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
+    b.addEventListener('click', () => { state.filter[tab.id] = f.id; renderAll(); });
+    fb.appendChild(b);
+  });
+
+  renderList();
+}
+
+function renderList(){
+  const tab = activeTabDef();
+  const rows = visibleRows(tab);
   const main = $('#main');
   main.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'list';
   if (!rows.length){
-    main.innerHTML = `<div class="tablewrap"><div class="empty">${state.search ? 'No rows match your search.' : 'No rows in this tab yet.'}</div></div>
-                      <div class="cards"><div class="m-card empty">${state.search ? 'No rows match your search.' : 'No rows yet.'}</div></div>`;
+    list.innerHTML = `<div class="empty">${state.search || state.filter[tab.id] !== 'all' ? 'Nothing matches the current search / filter.' : 'No rows in this tab yet.'}</div>`;
+    main.appendChild(list);
     return;
   }
-  main.appendChild(renderTable(tab, rows));
-  main.appendChild(renderCards(tab, rows));
+  rows.forEach(r => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'row' + (state.drawerKey === r.key && $('#drawer').classList.contains('on') ? ' sel' : '');
+    b.dataset.key = r.key;
+    b.innerHTML = `
+      <div class="r-main">
+        <div class="r-top">
+          <span class="r-q">#${esc(r.key)}</span>
+          <span class="r-nm">${esc(r.cells[1])}</span>
+          ${isDirty(r) ? '<span class="r-dot" title="Unsaved edits"></span>' : ''}
+        </div>
+        <div class="r-ttl">${esc(tab.id === 'quotes' ? r.cells[4] : r.cells[2])}</div>
+        <div class="r-meta">${rowMeta(tab, r)}</div>
+      </div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg>`;
+    b.addEventListener('click', () => openDrawer(r.key));
+    list.appendChild(b);
+  });
+  main.appendChild(list);
 }
 
-function filteredRows(tab){
-  const rows = state.data[tab.id] || [];
-  const q = state.search.trim().toLowerCase();
-  if (!q) return rows;
-  return rows.filter(r => r.cells.join(' ').toLowerCase().includes(q));
-}
-
-/* ---- column plans per tab (desktop table) ---- */
-function tablePlan(tab){
-  if (tab.id === 'quotes') return [
-    { h: '#',        render: r => qnumCell(r, 0, 5) },
-    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[4], r.cells[2], r.cells[3]) },
-    { h: 'Total',    render: r => `<span class="money">${esc(r.cells[7])}</span>` },
-    { h: 'Expires',  render: r => expCell(r.cells[6], r.cells[8]) },
-    { h: 'Status',   render: r => r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '' },
-    { h: 'Sent Email', edit: 10 }, { h: 'Text', edit: 11 }, { h: 'Call', edit: 12 },
-    { h: 'Follow-up Notes', edit: 13 },
-    { h: 'Ember',    render: r => emberCell(r.cells[14], r.cells[15]) },
-    { h: '',         render: r => saveCell(r) }
-  ];
-  if (tab.id === 'tracker') return [
-    { h: '#',        render: r => `<span class="qnum">${esc(r.cells[0])}</span>` },
-    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[2]) },
-    { h: 'Status',   render: r => statusBadge(r.cells[3]) },
-    { h: 'Wix',      render: r => wixBadge(r.cells[4]) },
-    { h: 'Invoice',  render: r => invCell(r.cells[5], r.cells[6]) },
-    { h: 'Ember',    render: r => emberCell(r.cells[7], r.cells[8]) },
-    { h: 'Report Submitted', edit: 9 }, { h: 'Notes', edit: 10 },
-    { h: 'Retest Report', edit: 11 }, { h: 'Retest Invoice', edit: 12 }, { h: 'Job Status', edit: 13 },
-    { h: '',         render: r => saveCell(r) }
-  ];
-  return [ // accepted (read-only)
-    { h: '#',        render: r => qnumCell(r, 0, 5) },
-    { h: 'Customer', render: r => nameCell(r.cells[1], r.cells[4], r.cells[2], r.cells[3]) },
-    { h: 'Total',    render: r => `<span class="money">${esc(r.cells[6])}</span>` },
-    { h: 'Status',   render: r => statusBadge(r.cells[7]) },
-    { h: 'Wix',      render: r => wixBadge(r.cells[8]) },
-    { h: 'Invoice #',render: r => esc(r.cells[9]) },
-    { h: 'Invoice Status', render: r => invStatusBadge(r.cells[10]) },
-    { h: 'Paid Date',render: r => esc(r.cells[11]) },
-    { h: 'Ember',    render: r => emberCell(r.cells[12], r.cells[13]) }
-  ];
-}
-
-/* ---- small cell renderers ---- */
-function qnumCell(r, keyIdx, linkIdx){
-  const link = (r.cells[linkIdx] || '').trim();
-  return `<span class="qnum">${esc(r.cells[keyIdx])}${/^https?:\/\//.test(link) ? ` <a href="${esc(link)}" target="_blank" rel="noopener" title="Open in Wix">↗</a>` : ''}</span>`;
-}
-function nameCell(name, title, email, phone){
-  let h = `<div class="name-cell"><div class="nm">${esc(name)}</div>`;
-  if (title) h += `<div class="ttl">${esc(title)}</div>`;
-  const links = [];
-  if (phone && phone.trim()) links.push(`<a href="tel:${esc(phone.trim())}">📞 ${esc(phone.trim())}</a>`);
-  if (email && email.trim()) links.push(`<a href="mailto:${esc(email.trim())}">✉ ${esc(email.trim())}</a>`);
-  if (links.length) h += `<div class="contact">${links.join('')}</div>`;
-  return h + '</div>';
-}
-function expCell(exp, days){
-  const n = parseInt(String(days).replace(/[^\-0-9]/g, ''), 10);
-  let cls = 'b-gray', label = esc(days);
-  if (!isNaN(n)){
-    if (n < 0){ cls = 'b-red'; label = 'Expired ' + Math.abs(n) + 'd'; }
-    else if (n <= 7){ cls = 'b-amber'; label = n + 'd left'; }
-    else { cls = 'b-green'; label = n + 'd left'; }
+function rowMeta(tab, r){
+  if (tab.id === 'quotes'){
+    const parts = [ daysBadge(r) ];
+    if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
+    parts.push(fuTag('✉', r.cells[10]), fuTag('💬', r.cells[11]), fuTag('📞', r.cells[12]));
+    if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
+    return parts.filter(Boolean).join('');
   }
-  const d = exp ? String(exp).slice(0, 10) : '';
-  return `<span class="badge ${cls}">${label}</span>${d ? `<div class="sub-line">${esc(d)}</div>` : ''}`;
+  const parts = [ statusBadge(r.cells[3]), wixBadge(r.cells[4]) ];
+  if (r.cells[13]) parts.push(`<span class="badge b-amber">${esc(r.cells[13])}</span>`);
+  parts.push(invStatusBadge(r.cells[6]));
+  if (r.cells[8]) parts.push(`<span class="badge b-blue">${esc(r.cells[8])}${r.cells[7] ? ' · ' + esc(r.cells[7]) : ''}</span>`);
+  return parts.filter(Boolean).join('');
 }
-function emberCell(date, type){
-  if (!date && !type) return '<span class="sub-line">—</span>';
-  return `${type ? `<span class="badge b-blue">${esc(type)}</span>` : ''}${date ? `<div class="sub-line">${esc(date)}</div>` : ''}`;
+function fuTag(icon, v){
+  const t = (v || '').trim();
+  if (!t || /^not sent$/i.test(t)) return `<span class="fu off">${icon} —</span>`;
+  return `<span class="fu">${icon} ${esc(t.length > 10 ? t.slice(0,10) + '…' : t)}</span>`;
 }
-function invCell(num, status){
-  return `${num ? `<b>${esc(num)}</b>` : '<span class="sub-line">—</span>'}${status ? '<div>' + invStatusBadge(status) + '</div>' : ''}`;
+function daysBadge(r){
+  const n = daysNum(r);
+  if (n === null) return r.cells[8] ? `<span class="badge b-gray">${esc(r.cells[8])}</span>` : '';
+  if (n < 0)  return `<span class="badge b-red">Expired ${Math.abs(n)}d</span>`;
+  if (n <= 7) return `<span class="badge b-amber">${n}d left</span>`;
+  return `<span class="badge b-green">${n}d left</span>`;
 }
 function statusBadge(v){
   if (!v) return '';
-  const m = { 'Completed': 'b-green', 'Confirmed': 'b-blue', 'Scheduled': 'b-blue', 'In Progress': 'b-amber', 'Unconfirmed': 'b-gray', 'Cancelled': 'b-red' };
-  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
+  const m = { 'Completed':'b-green','Confirmed':'b-blue','Scheduled':'b-blue','In Progress':'b-amber','Unconfirmed':'b-gray','Cancelled':'b-red' };
+  return `<span class="badge ${m[v]||'b-gray'}">${esc(v)}</span>`;
 }
 function wixBadge(v){
   if (!v) return '';
-  const m = { 'Paid': 'b-green', 'Invoiced': 'b-amber', 'Accepted': 'b-blue' };
-  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
+  const m = { 'Paid':'b-green','Invoiced':'b-amber','Accepted':'b-blue' };
+  return `<span class="badge ${m[v]||'b-gray'}">${esc(v)}</span>`;
 }
 function invStatusBadge(v){
   if (!v) return '';
-  const m = { 'Paid': 'b-green', 'Sent': 'b-blue', 'Overdue': 'b-red', 'Not Sent': 'b-gray' };
-  return `<span class="badge ${m[v] || 'b-gray'}">${esc(v)}</span>`;
-}
-function saveCell(r){
-  return `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
-    <button class="rowsave" data-save="${r.sheetRow}">${Object.keys(r.edits).length ? 'Save' : 'Saved'}</button>
-    <button class="revert" data-revert="${r.sheetRow}">undo</button></div>`;
+  const m = { 'Paid':'b-green','Sent':'b-blue','Overdue':'b-red','Not Sent':'b-gray' };
+  return `<span class="badge ${m[v]||'b-gray'}">Inv: ${esc(v)}</span>`;
 }
 
-/* ---- desktop table ---- */
-function renderTable(tab, rows){
-  const wrap = document.createElement('div');
-  wrap.className = 'tablewrap';
-  const plan = tablePlan(tab);
-  const table = document.createElement('table');
-  table.innerHTML = `<thead><tr>${plan.map(c =>
-    `<th class="${c.edit !== undefined ? 'edit-col' : ''}">${esc(c.h)}</th>`).join('')}</tr></thead>`;
-  const tb = document.createElement('tbody');
+/* =====================================================================
+   Drawer
+   ===================================================================== */
+function openDrawer(key){
+  state.drawerKey = key;
+  state.drawerList = visibleRows(activeTabDef()).map(r => r.key);
+  $('#dSearch').value = '';
+  $('#dSearchWrap').classList.remove('has');
+  renderDrawer();
+  $('#drawer').classList.add('on');
+  $('#overlay').classList.add('on');
+  document.body.classList.add('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  renderList();
+}
+function closeDrawer(){
+  $('#drawer').classList.remove('on');
+  $('#overlay').classList.remove('on');
+  document.body.classList.remove('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  renderList();
+}
+$('#dClose').addEventListener('click', closeDrawer);
+$('#overlay').addEventListener('click', closeDrawer);
+$('#dPrev').addEventListener('click', () => stepDrawer(-1));
+$('#dNext').addEventListener('click', () => stepDrawer(1));
+document.addEventListener('keydown', e => {
+  if (!$('#drawer').classList.contains('on')) return;
+  const typing = /input|textarea|select/i.test(document.activeElement?.tagName || '');
+  if (e.key === 'Escape'){ typing ? document.activeElement.blur() : closeDrawer(); }
+  if (typing) return;
+  if (e.key === 'ArrowLeft') stepDrawer(-1);
+  if (e.key === 'ArrowRight') stepDrawer(1);
+});
+function stepDrawer(dir){
+  const i = state.drawerList.indexOf(state.drawerKey);
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= state.drawerList.length) return;
+  state.drawerKey = state.drawerList[j];
+  $('#dSearch').value = '';
+  $('#dSearchWrap').classList.remove('has');
+  renderDrawer();
+  renderList();
+}
 
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.dataset.row = r.sheetRow;
-    if (Object.keys(r.edits).length) tr.classList.add('dirty');
-    plan.forEach(c => {
-      const td = document.createElement('td');
-      if (c.edit !== undefined){
-        td.className = 'editable';
-        td.appendChild(buildControl(tab, r, c.edit));
-      } else {
-        td.innerHTML = c.render(r);
-      }
-      tr.appendChild(td);
+/* drawer search — jump to any record in the active tab */
+$('#dSearch').addEventListener('input', () => {
+  const q = $('#dSearch').value;
+  $('#dSearchWrap').classList.toggle('has', !!q);
+  q.trim() ? renderDrawerResults(q.trim().toLowerCase()) : renderDrawer();
+});
+$('#dSearchClr').addEventListener('click', () => {
+  $('#dSearch').value = '';
+  $('#dSearchWrap').classList.remove('has');
+  renderDrawer();
+});
+function renderDrawerResults(q){
+  const tab = activeTabDef();
+  const hits = (state.data[tab.id] || []).filter(r => searchText(tab, r).includes(q)).slice(0, 25);
+  const body = $('#dBody');
+  body.innerHTML = '<div class="d-results"></div>';
+  const box = body.firstChild;
+  if (!hits.length){ box.innerHTML = '<div class="none">No matches in this tab.</div>'; return; }
+  hits.forEach(r => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rrow';
+    b.innerHTML = `<span class="t"><b>#${esc(r.key)}</b> ${esc(r.cells[1])}</span>
+                   <span class="s">${esc(tab.id === 'quotes' ? r.cells[4] : r.cells[2])}</span>`;
+    b.addEventListener('click', () => {
+      state.drawerKey = r.key;
+      $('#dSearch').value = '';
+      $('#dSearchWrap').classList.remove('has');
+      renderDrawer();
+      renderList();
     });
-    tb.appendChild(tr);
+    box.appendChild(b);
   });
-  table.appendChild(tb);
-  wrap.appendChild(table);
-  bindRowActions(wrap, tab);
-  return wrap;
+  $('#dFoot').className = 'd-foot';
 }
 
-/* ---- mobile cards ---- */
-function cardMeta(tab, r){
-  if (tab.id === 'quotes') return [
-    `<span class="money">${esc(r.cells[7])}</span>`, expCell(r.cells[6], r.cells[8]),
-    r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '',
-    emberCell(r.cells[14], r.cells[15])
-  ];
-  if (tab.id === 'tracker') return [
-    statusBadge(r.cells[3]), wixBadge(r.cells[4]),
-    r.cells[5] ? `<span class="badge b-gray">Inv ${esc(r.cells[5])}</span>` : '',
-    invStatusBadge(r.cells[6]), emberCell(r.cells[7], r.cells[8])
-  ];
-  return [
-    `<span class="money">${esc(r.cells[6])}</span>`, statusBadge(r.cells[7]), wixBadge(r.cells[8]),
-    r.cells[9] ? `<span class="badge b-gray">Inv ${esc(r.cells[9])}</span>` : '',
-    invStatusBadge(r.cells[10]), r.cells[11] ? `<span class="sub-line">Paid ${esc(r.cells[11])}</span>` : ''
-  ];
-}
-function renderCards(tab, rows){
-  const wrap = document.createElement('div');
-  wrap.className = 'cards';
+function renderDrawer(){
+  const tab = activeTabDef();
+  const r = rowByKey(tab.id, state.drawerKey);
+  const body = $('#dBody');
+  if (!r){ body.innerHTML = '<div class="empty">Record not found — it may have been removed. Refresh the data.</div>'; syncFoot(null); return; }
+
+  $('#dQuote').textContent = '#' + r.key;
+  $('#dName').textContent = r.cells[1];
+  const i = state.drawerList.indexOf(r.key);
+  $('#dPrev').disabled = i <= 0;
+  $('#dNext').disabled = i < 0 || i >= state.drawerList.length - 1;
+
+  body.innerHTML = '';
+
+  /* quick actions */
+  const acts = document.createElement('div');
+  acts.className = 'd-actions';
+  const email = tab.id === 'quotes' ? (r.cells[2]||'').trim() : '';
+  const phone = tab.id === 'quotes' ? (r.cells[3]||'').trim() : '';
+  const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
+  if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="tel:${esc(phone)}">📞 Call</a>`);
+  if (email) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="mailto:${esc(email)}">✉ Email</a>`);
+  if (/^https?:\/\//.test(link)) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="${esc(link)}" target="_blank" rel="noopener">↗ Wix quote</a>`);
+  const otherId = tab.id === 'quotes' ? 'tracker' : 'quotes';
+  if (rowByKey(otherId, r.key)){
+    const jb = document.createElement('button');
+    jb.className = 'act-btn';
+    jb.textContent = (otherId === 'tracker' ? '⇄ Open in Tracker' : '⇄ Open in Quotes');
+    jb.addEventListener('click', () => {
+      state.activeTab = otherId;
+      $$('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab')[TABS.findIndex(t => t.id === otherId)].classList.add('active');
+      renderAll();
+      openDrawer(r.key);
+    });
+    acts.appendChild(jb);
+  }
+  if (acts.children.length) body.appendChild(acts);
+
+  /* details (read-only, no financials) */
+  const info = document.createElement('div');
+  info.className = 'd-sec';
+  info.innerHTML = '<h3>Details</h3>';
+  const grid = document.createElement('div');
+  grid.className = 'info-grid';
+  const add = (k, vHtml) => { if (vHtml) grid.insertAdjacentHTML('beforeend', `<div class="k">${k}</div><div class="v">${vHtml}</div>`); };
+  const title = tab.id === 'quotes' ? r.cells[4] : r.cells[2];
+  add('Job', esc(title));
+  if (tab.id === 'quotes'){
+    add('Expires', `${daysBadge(r)}${r.cells[6] ? ` <span style="color:var(--muted);font-size:12px">${esc(String(r.cells[6]).slice(0,10))}</span>` : ''}`);
+    add('Status', r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '');
+    add('Ember', (r.cells[14] || r.cells[15]) ? `${r.cells[15] ? `<span class="badge b-blue">${esc(r.cells[15])}</span> ` : ''}${esc(r.cells[14])}` : '');
+    add('Email', email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : '');
+    add('Phone', phone ? `<a href="tel:${esc(phone)}">${esc(phone)}</a>` : '');
+  } else {
+    add('Status', statusBadge(r.cells[3]));
+    add('Wix', wixBadge(r.cells[4]));
+    add('Invoice #', esc(r.cells[5]));
+    add('Invoice', invStatusBadge(r.cells[6]));
+    add('Ember', (r.cells[7] || r.cells[8]) ? `${r.cells[8] ? `<span class="badge b-blue">${esc(r.cells[8])}</span> ` : ''}${esc(r.cells[7])}` : '');
+  }
+  info.appendChild(grid);
+  body.appendChild(info);
+
+  /* editable fields */
+  const ed = document.createElement('div');
+  ed.className = 'd-sec';
+  ed.innerHTML = '<h3>Team updates</h3>';
   const hdr = state.headers[tab.id] || [];
-  rows.forEach(r => {
-    const card = document.createElement('div');
-    card.className = 'm-card' + (Object.keys(r.edits).length ? ' dirty' : '');
-    card.dataset.row = r.sheetRow;
-
-    const name = r.cells[1], title = tab.id === 'tracker' ? r.cells[2] : r.cells[4];
-    const email = tab.id === 'tracker' ? '' : r.cells[2];
-    const phone = tab.id === 'tracker' ? '' : r.cells[3];
-    const link  = tab.id === 'tracker' ? '' : (r.cells[5] || '');
-
-    let h = `<div class="m-head"><div><div class="nm">${esc(name)}</div></div>
-      <div class="qn">#${esc(r.cells[0])}${/^https?:\/\//.test(link.trim()) ? ` <a href="${esc(link.trim())}" target="_blank" rel="noopener" style="font-size:13px">↗</a>` : ''}</div></div>`;
-    if (title) h += `<div class="m-ttl">${esc(title)}</div>`;
-    h += `<div class="m-meta">${cardMeta(tab, r).filter(Boolean).join('')}</div>`;
-    const links = [];
-    if (phone && phone.trim()) links.push(`<a href="tel:${esc(phone.trim())}">📞 Call</a>`);
-    if (email && email.trim()) links.push(`<a href="mailto:${esc(email.trim())}">✉ Email</a>`);
-    if (links.length) h += `<div class="m-contact">${links.join('')}</div>`;
-    card.innerHTML = h;
-
-    if (tab.editable.length){
-      const grid = document.createElement('div');
-      grid.className = 'm-fields';
-      tab.editable.forEach(colIdx => {
-        const f = document.createElement('div');
-        f.className = 'm-field';
-        const lb = document.createElement('label');
-        lb.className = 'ed';
-        lb.textContent = hdr[colIdx] || colLetter(colIdx);
-        f.appendChild(lb);
-        f.appendChild(buildControl(tab, r, colIdx));
-        grid.appendChild(f);
-      });
-      card.appendChild(grid);
-      const act = document.createElement('div');
-      act.className = 'm-actions';
-      act.innerHTML = `<button class="revert" data-revert="${r.sheetRow}">undo changes</button>
-        <button class="rowsave" data-save="${r.sheetRow}">${Object.keys(r.edits).length ? 'Save' : 'Saved'}</button>`;
-      card.appendChild(act);
-    }
-    wrap.appendChild(card);
+  tab.editable.forEach(colIdx => {
+    const f = document.createElement('div');
+    f.className = 'd-field';
+    const lb = document.createElement('label');
+    lb.textContent = hdr[colIdx] || colLetter(colIdx);
+    f.appendChild(lb);
+    f.appendChild(buildControl(tab, r, colIdx));
+    ed.appendChild(f);
   });
-  bindRowActions(wrap, tab);
-  return wrap;
-}
+  body.appendChild(ed);
 
-function bindRowActions(root, tab){
-  root.querySelectorAll('[data-save]').forEach(b =>
-    b.addEventListener('click', () => saveRow(tab, +b.dataset.save)));
-  root.querySelectorAll('[data-revert]').forEach(b =>
-    b.addEventListener('click', () => revertRow(tab, +b.dataset.revert)));
+  /* recent activity for this record */
+  if (CONFIG.ACTIVITY_LOG_SHEET){
+    const sec = document.createElement('div');
+    sec.className = 'd-sec';
+    sec.innerHTML = '<h3>Recent activity</h3>';
+    const entries = state.activity
+      .filter(a => String(a[4] ?? '').trim() === r.key)
+      .slice(-5).reverse();
+    if (!entries.length) sec.insertAdjacentHTML('beforeend', '<div class="log-none">No logged activity for this record yet.</div>');
+    entries.forEach(a => {
+      sec.insertAdjacentHTML('beforeend', `
+        <div class="log-item">
+          <div class="lt"><span>${esc(a[0] || '')}</span><span>${esc(String(a[1] || '').split('@')[0])}</span>${a[3] ? `<span class="badge b-gray">${esc(a[3])}</span>` : ''}</div>
+          <div class="ld">${esc(a[5] || a[2] || '')}</div>
+        </div>`);
+    });
+    body.appendChild(sec);
+  }
+
+  syncFoot(r);
 }
 
 /* =====================================================================
    Editable controls
    ===================================================================== */
-function currentVal(r, colIdx){
-  return colIdx in r.edits ? r.edits[colIdx] : (r.cells[colIdx] || '');
-}
+const currentVal = (r, c) => c in r.edits ? r.edits[c] : (r.cells[c] || '');
 function setEdit(tab, r, colIdx, val){
-  const orig = r.cells[colIdx] || '';
-  if (val === orig) delete r.edits[colIdx];
+  if (val === (r.cells[colIdx] || '')) delete r.edits[colIdx];
   else r.edits[colIdx] = val;
-  syncRowUI(r);
+  $$(`#dBody [data-col="${colIdx}"]`).forEach(ct => ct.classList.toggle('changed', colIdx in r.edits));
+  syncFoot(r);
+  renderList();
 }
-function syncRowUI(r){
-  const dirty = Object.keys(r.edits).length > 0;
-  $$(`[data-row="${r.sheetRow}"]`).forEach(el => el.classList.toggle('dirty', dirty));
-  $$(`[data-save="${r.sheetRow}"]`).forEach(b => { if (!r.saving) b.textContent = dirty ? 'Save' : 'Saved'; });
-  // mirror values across table + card controls
-  $$(`[data-row="${r.sheetRow}"] [data-col]`).forEach(ct => {
-    const c = +ct.dataset.col;
-    const v = currentVal(r, c);
-    const inp = ct.querySelector('input,textarea,select');
-    if (inp && inp.value !== v && document.activeElement !== inp){
-      if (inp.tagName === 'SELECT'){
-        if ([...inp.options].some(o => o.value === v)) inp.value = v;
-      } else inp.value = v;
-    }
-    ct.classList.toggle('changed', c in r.edits);
-  });
+function syncFoot(r){
+  const foot = $('#dFoot');
+  foot.className = 'd-foot' + (isDirty(r) ? ' dirty' : '');
+  const btn = $('#dSave');
+  if (!btn.classList.contains('saving')) btn.textContent = isDirty(r) ? 'Save changes' : 'Saved';
 }
 
 function buildControl(tab, r, colIdx){
@@ -830,67 +955,60 @@ function buildControl(tab, r, colIdx){
   const val = currentVal(r, colIdx);
 
   if (tab.id === 'quotes'){
-    if (colIdx === 13){ // follow up notes — textarea + quick log chips
+    if (colIdx === 13){ // follow-up notes
       const ta = document.createElement('textarea');
       ta.value = val;
       ta.placeholder = 'Notes…';
       ta.addEventListener('input', () => setEdit(tab, r, colIdx, ta.value));
       box.appendChild(ta);
       box.appendChild(chipRow([
-        { l: '+ ' + todayMD() + ' Sent email', v: () => appendLine(ta, todayMD() + ' Sent email,') },
-        { l: '+ ' + todayMD() + ' Sent text',  v: () => appendLine(ta, todayMD() + ' Sent text:') },
-        { l: '+ ' + todayMD() + ' Called',     v: () => appendLine(ta, todayMD() + ' Called,') }
+        { l:'+ ' + todayMD() + ' Sent email', v:() => appendLine(ta, todayMD() + ' Sent email,') },
+        { l:'+ ' + todayMD() + ' Sent text',  v:() => appendLine(ta, todayMD() + ' Sent text:') },
+        { l:'+ ' + todayMD() + ' Called',     v:() => appendLine(ta, todayMD() + ' Called,') }
       ], () => setEdit(tab, r, colIdx, ta.value)));
       return box;
     }
-    // K/L/M — date-style text input + chips
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.value = val;
-    inp.placeholder = 'e.g. ' + todayMD();
-    inp.autocomplete = 'off';
+    const inp = mkInput(val, 'e.g. ' + todayMD());
     inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveActive(); });
     box.appendChild(inp);
     box.appendChild(chipRow([
-      { l: todayMD(),  v: () => inp.value = todayMD() },
-      { l: 'Not Sent', v: () => inp.value = 'Not Sent' },
-      { l: 'X',        v: () => inp.value = 'X' }
+      { l: todayMD(),  v:() => inp.value = todayMD() },
+      { l:'Not Sent',  v:() => inp.value = 'Not Sent' },
+      { l:'X',         v:() => inp.value = 'X' }
     ], () => setEdit(tab, r, colIdx, inp.value)));
     return box;
   }
 
-  // Tracker tab
+  // Tracker
   const listOpts = state.options[colIdx];
   if (listOpts && listOpts.length){
-    // dropdown from the sheet's live data validation + custom entry
     buildSelect(box, tab, r, colIdx, listOpts, val);
     return box;
   }
-  // no validation on this column (J) — free text with suggestions
-  const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.value = val;
-  inp.autocomplete = 'off';
-  inp.placeholder = 'Type…';
-  const dlId = 'dl-' + tab.id + '-' + colIdx;
+  const inp = mkInput(val, 'Type…');
+  const dlId = 'dl-' + colIdx;
   ensureDatalist(dlId, state.suggest[colIdx] || []);
   inp.setAttribute('list', dlId);
   inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveActive(); });
   box.appendChild(inp);
   return box;
 }
-
+function mkInput(val, ph){
+  const i = document.createElement('input');
+  i.type = 'text'; i.value = val; i.placeholder = ph; i.autocomplete = 'off';
+  return i;
+}
 function buildSelect(box, tab, r, colIdx, opts, val){
   box.innerHTML = '';
   const sel = document.createElement('select');
   const all = [...opts];
-  if (val && !all.includes(val)) all.unshift(val); // keep off-list current value visible
+  if (val && !all.includes(val)) all.unshift(val);
   sel.appendChild(new Option('— select —', ''));
   all.forEach(o => sel.appendChild(new Option(o, o)));
   sel.appendChild(new Option('✎ Type a custom answer…', '__custom__'));
-  sel.value = all.includes(val) ? val : (val === '' ? '' : val);
+  sel.value = all.includes(val) ? val : '';
   sel.addEventListener('change', () => {
     if (sel.value === '__custom__'){ toCustomInput(box, tab, r, colIdx, opts); return; }
     setEdit(tab, r, colIdx, sel.value);
@@ -899,20 +1017,15 @@ function buildSelect(box, tab, r, colIdx, opts, val){
 }
 function toCustomInput(box, tab, r, colIdx, opts){
   box.innerHTML = '';
-  const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.placeholder = 'Custom answer…';
-  inp.autocomplete = 'off';
+  const inp = mkInput('', 'Custom answer…');
   const dlId = 'dl-custom-' + colIdx;
-  ensureDatalist(dlId, [...new Set([...(opts || []), ...(state.suggest[colIdx] || [])])]);
+  ensureDatalist(dlId, [...new Set([...(opts||[]), ...(state.suggest[colIdx]||[])])]);
   inp.setAttribute('list', dlId);
   inp.addEventListener('input', () => setEdit(tab, r, colIdx, inp.value));
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(tab, r.sheetRow); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveActive(); });
   box.appendChild(inp);
   const back = document.createElement('button');
-  back.className = 'backlist';
-  back.type = 'button';
-  back.textContent = '↩ back to list';
+  back.className = 'backlist'; back.type = 'button'; back.textContent = '↩ back to list';
   back.addEventListener('click', () => {
     buildSelect(box, tab, r, colIdx, opts, currentVal(r, colIdx));
     box.classList.toggle('changed', colIdx in r.edits);
@@ -930,85 +1043,91 @@ function chipRow(chips, after){
   row.className = 'chips';
   chips.forEach(c => {
     const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'chip';
-    b.textContent = c.l;
+    b.type = 'button'; b.className = 'chip'; b.textContent = c.l;
     b.addEventListener('click', () => { c.v(); after(); });
     row.appendChild(b);
   });
   return row;
 }
 function appendLine(ta, text){
-  ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' + text : text;
+  ta.value = ta.value.trim() ? ta.value.replace(/\s+$/,'') + '\n' + text : text;
 }
 
 /* =====================================================================
    Save / revert
    ===================================================================== */
-function revertRow(tab, sheetRow){
-  const r = state.data[tab.id].find(x => x.sheetRow === sheetRow);
+$('#dSave').addEventListener('click', saveActive);
+$('#dRevert').addEventListener('click', () => {
+  const r = rowByKey(state.activeTab, state.drawerKey);
   if (!r) return;
   r.edits = {};
-  renderAll();
-}
+  renderDrawer();
+  renderList();
+});
 
-async function saveRow(tab, sheetRow){
-  const r = state.data[tab.id].find(x => x.sheetRow === sheetRow);
-  if (!r || !Object.keys(r.edits).length || r.saving) return;
+async function saveActive(){
+  const tab = activeTabDef();
+  const r = rowByKey(tab.id, state.drawerKey);
+  if (!r || !isDirty(r) || r.saving) return;
   r.saving = true;
-  $$(`[data-save="${sheetRow}"]`).forEach(b => { b.classList.add('saving'); b.textContent = 'Saving…'; });
+  const btn = $('#dSave');
+  btn.classList.add('saving');
+  btn.textContent = 'Saving…';
 
   try {
-    // Row-shift protection: Wix / Apps Script may have inserted rows since load.
+    // Row-shift protection: Wix / Apps Script may insert rows at any time.
     let target = r.sheetRow;
     const chk = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A${target}`)}`);
-    const found = String(chk.values?.[0]?.[0] ?? '').trim();
-    if (found !== r.key){
+    if (String(chk.values?.[0]?.[0] ?? '').trim() !== r.key){
       const colA = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A2:A`)}`);
       const idx = (colA.values || []).findIndex(x => String(x[0] ?? '').trim() === r.key);
-      if (idx < 0) throw new Error(`Row for ${tab.keyLabel} ${r.key} not found — refresh and try again`);
+      if (idx < 0) throw new Error(`Row for quote ${r.key} not found — refresh and try again`);
       target = idx + 2;
     }
 
     const changes = Object.entries(r.edits);
-    const body = {
-      valueInputOption: 'USER_ENTERED',
-      data: changes.map(([c, v]) => ({
-        range: `'${tab.sheet}'!${colLetter(+c)}${target}`,
-        values: [[v]]
-      }))
-    };
-    await api('/values:batchUpdate', { method: 'POST', body: JSON.stringify(body) });
+    await api('/values:batchUpdate', {
+      method:'POST',
+      body: JSON.stringify({
+        valueInputOption:'USER_ENTERED',
+        data: changes.map(([c, v]) => ({ range:`'${tab.sheet}'!${colLetter(+c)}${target}`, values:[[v]] }))
+      })
+    });
 
-    // Activity Log (best-effort, matches existing header: Timestamp, User, Action, Sheet, Row ID, Details)
+    // Activity log (best effort) — matches header: Timestamp, User, Action, Sheet, Row ID, Details
     if (CONFIG.ACTIVITY_LOG_SHEET){
       const hdr = state.headers[tab.id] || [];
       const details = changes.map(([c, v]) =>
-        `${hdr[+c] || colLetter(+c)}: "${(r.cells[+c] || '').slice(0, 60)}" → "${String(v).slice(0, 60)}"`).join(' | ');
-      const logBody = { values: [[new Date().toLocaleString(), state.email, 'Edit (Dashboard)', tab.sheet, r.key, details]] };
+        `${hdr[+c] || colLetter(+c)}: "${(r.cells[+c]||'').slice(0,60)}" → "${String(v).slice(0,60)}"`).join(' | ');
+      const entry = [new Date().toLocaleString(), state.email, 'Edit (Dashboard)', tab.sheet, r.key, details];
+      state.activity.push(entry);
       api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:F`)}:append?valueInputOption=USER_ENTERED`,
-        { method: 'POST', body: JSON.stringify(logBody) }).catch(() => {});
+        { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
     }
 
-    // commit locally
     changes.forEach(([c, v]) => r.cells[+c] = v);
     r.edits = {};
     r.sheetRow = target;
-    toast(`Saved ${tab.keyLabel} ${r.key}`, 'ok');
+    toast('Saved quote ' + r.key, 'ok');
+    renderDrawer();
+    renderList();
   } catch(e){
     if (e.message !== 'auth') toast(e.message, 'err');
   } finally {
     r.saving = false;
-    renderAll();
+    btn.classList.remove('saving');
+    syncFoot(rowByKey(tab.id, state.drawerKey));
   }
 }
 
 /* =====================================================================
    Toolbar / lifecycle
    ===================================================================== */
-$('#searchBox').addEventListener('input', e => { state.search = e.target.value; renderAll(); });
+$('#searchBox').addEventListener('input', e => { state.search = e.target.value; renderList(); });
+$('#sortSel').addEventListener('change', e => { state.sort[state.activeTab] = e.target.value; renderList(); });
 $('#btnRefresh').addEventListener('click', async () => {
   if (hasUnsaved() && !confirm('You have unsaved edits — refreshing will discard them. Continue?')) return;
+  TABS.forEach(t => (state.data[t.id] || []).forEach(r => r.edits = {}));
   $('#btnRefresh').classList.add('spin');
   await loadAll(true);
   $('#btnRefresh').classList.remove('spin');
