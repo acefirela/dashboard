@@ -74,37 +74,52 @@ nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:s
 .tab.active{color:var(--ink); border-bottom-color:var(--red)}
 .tab.active .cnt{background:var(--red-bg); color:var(--red-dk); border-color:#EFD2D1}
 .viewtog{
-  margin-left:auto; margin-right:8px; display:flex; border:1px solid var(--line2);
-  border-radius:9px; overflow:hidden; background:var(--paper);
+  margin-left:auto; margin-right:8px; display:flex; gap:3px;
+  border-radius:11px; background:#E9E8E3; padding:3px;
 }
 .viewtog button{
-  appearance:none; border:none; background:none; cursor:pointer; color:var(--muted);
-  font-size:12.5px; font-weight:700; padding:8px 13px; display:flex; align-items:center; gap:6px;
-  min-height:38px;
+  appearance:none; border:none; background:none; cursor:pointer; color:var(--ink2);
+  font-family:'Barlow Condensed'; font-weight:700; font-size:14.5px; letter-spacing:.1em;
+  text-transform:uppercase; padding:7px 14px; border-radius:8px;
+  display:flex; align-items:center; gap:6px; min-height:34px;
 }
 .viewtog button.active{background:var(--ink); color:#fff}
 
-/* ============ Summary strip ============ */
-.summary{
-  max-width:1180px; margin:0 auto; padding:12px 16px;
-  display:grid; grid-template-columns:repeat(6, 1fr); gap:8px;
+/* ============ Attention bar + KPI cards ============ */
+.summary{max-width:1180px; margin:0 auto; padding:12px 16px 4px}
+.attn{
+  background:var(--ink); color:#DDE0E6; border-radius:12px;
+  padding:10px 16px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  box-shadow:var(--shadow);
 }
-.sum{
-  appearance:none; font:inherit; cursor:pointer; text-align:center;
-  background:var(--card); border:1px solid var(--line); border-radius:10px;
-  padding:9px 4px 7px; color:var(--ink2); box-shadow:var(--shadow);
+.attn .tag{
+  display:flex; align-items:center; gap:8px; font-family:'Barlow Condensed';
+  font-weight:700; font-size:14.5px; letter-spacing:.13em; text-transform:uppercase; color:#fff;
 }
-.sum b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:24px; line-height:1.1; color:var(--ink)}
-.sum span{font-size:10.5px; font-weight:600; letter-spacing:.02em}
-.sum i{
-  display:block; font-style:normal; font-size:8.5px; font-weight:700;
-  letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-top:2px; opacity:.8;
+.attn .dot{width:8px; height:8px; border-radius:50%; background:#E8534E; box-shadow:0 0 0 3px rgba(232,83,78,.25)}
+.attn button.stat{
+  appearance:none; border:none; background:none; color:#C9CDD5; font:inherit; font-size:13px;
+  display:flex; align-items:baseline; gap:6px; cursor:pointer; padding:2px 0;
 }
-.sum.t-red b{color:var(--red-dk)} .sum.t-red{border-color:#EFD2D1; background:var(--red-bg)}
-.sum.t-amber b{color:var(--amber)} .sum.t-amber{border-color:#E7C87B; background:var(--amber-bg)}
-.sum.zero{opacity:.55; background:var(--card); border-color:var(--line)}
-.sum.zero b{color:var(--muted)}
-.sum.active{outline:2px solid var(--ink); outline-offset:-1px}
+.attn button.stat b{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; line-height:1}
+.attn button.stat:hover{color:#fff; text-decoration:underline}
+.attn .s-red b{color:#F0716C}
+.attn .s-amber b{color:#EFB35A}
+.kpis{display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:10px}
+.kpi{
+  appearance:none; font:inherit; cursor:pointer; text-align:left;
+  background:var(--card); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
+  padding:12px 14px 11px; box-shadow:var(--shadow);
+}
+.kpi .lbl{font-family:'Barlow Condensed'; font-weight:700; font-size:13.5px; letter-spacing:.12em; text-transform:uppercase}
+.kpi b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:34px; line-height:1.05; margin:2px 0 1px}
+.kpi .sub{font-size:11.5px; color:var(--muted)}
+.kpi.t-red{border-left-color:var(--red)} .kpi.t-red .lbl, .kpi.t-red b{color:var(--red-dk)}
+.kpi.t-amber{border-left-color:#E0A93E} .kpi.t-amber .lbl, .kpi.t-amber b{color:var(--amber)}
+.kpi.t-blue{border-left-color:var(--blue)} .kpi.t-blue .lbl, .kpi.t-blue b{color:var(--blue)}
+.kpi.zero{opacity:.6}
+.kpi.zero b{color:var(--muted)}
+.kpi.active{outline:2px solid var(--ink); outline-offset:-1px}
 
 /* ============ Toolbar / filters ============ */
 .toolbar{
@@ -135,11 +150,15 @@ select.sortsel{
 }
 .fchip{
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
-  font-size:12px; font-weight:600; border-radius:99px; padding:7px 13px; cursor:pointer;
-  white-space:nowrap; min-height:36px;
+  font-size:12.5px; font-weight:600; border-radius:99px; padding:8px 14px; cursor:pointer;
+  white-space:nowrap; min-height:38px; display:inline-flex; align-items:center;
 }
 .fchip.active{background:var(--ink); border-color:var(--ink); color:#fff}
-.fchip .n{opacity:.65; font-weight:700; margin-left:4px}
+.fchip .n{
+  font-weight:700; margin-left:7px; font-size:10.5px;
+  background:#F0EFEA; color:var(--muted); border-radius:99px; padding:1px 7px;
+}
+.fchip.active .n{background:#3A3E46; color:#E8EAEE}
 .banner{max-width:1180px; margin:10px auto 0; padding:0 16px; display:none}
 .banner.on{display:block}
 .banner .inner{
@@ -448,7 +467,8 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
 .nextbtn:disabled{opacity:.4; cursor:default}
 
 @media (max-width:880px){
-  .summary{grid-template-columns:repeat(3, 1fr); padding:10px 10px 0}
+  .summary{padding:10px 10px 0}
+  .kpis{grid-template-columns:repeat(2, 1fr)}
 }
 @media (max-width:640px){
   :root{--drawer-w:100vw}
@@ -539,8 +559,8 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
     <div class="tabs-inner">
       <span id="tabbar" style="display:flex;gap:2px" role="tablist"></span>
       <div class="viewtog" id="viewTog" role="group" aria-label="View mode">
-        <button data-v="list" aria-label="List view">☰ <span>List</span></button>
-        <button data-v="board" aria-label="Board view">▦ <span>Board</span></button>
+        <button data-v="list" aria-label="Work queue list view">☰ <span>Work Queue</span></button>
+        <button data-v="board" aria-label="Pipeline board view">▦ <span>Pipeline Board</span></button>
       </div>
     </div>
   </nav>
@@ -878,13 +898,19 @@ function filterDefs(tab){
     ];
   }
   return [
-    { id:'all',      label:'All',                     fn:() => true },
-    { id:'notsched', label:'Not scheduled',           fn:r => !(r.cells[7]||'').trim() },
-    { id:'noreport', label:'No report',               fn:r => !(r.cells[9]||'').trim() },
-    { id:'compninv', label:'Completed · not invoiced',fn:r => low(r.cells[3]) === 'completed' && ['','not sent'].includes(low(r.cells[6])) },
-    { id:'unpaid',   label:'Invoice unpaid',          fn:r => ['sent','overdue'].includes(low(r.cells[6])) },
-    { id:'retest',   label:'Retest pending',          fn:r => ['pending','awaiting approval','scheduled'].includes(low(r.cells[11])) },
-    { id:'nojob',    label:'No job status',           fn:r => !(r.cells[13]||'').trim() }
+    { id:'all',        label:'All',              fn:() => true },
+    { id:'needs',      label:'Needs action',     fn:r =>
+        !(r.cells[7]||'').trim() || !(r.cells[9]||'').trim() ||
+        low(r.cells[6]) === 'overdue' ||
+        (low(r.cells[3]) === 'completed' && ['','not sent'].includes(low(r.cells[6]))) },
+    { id:'notsched',   label:'To schedule',      fn:r => !(r.cells[7]||'').trim() },
+    { id:'noreport',   label:'Reports to send',  fn:r => !(r.cells[9]||'').trim() },
+    { id:'compninv',   label:'Ready to invoice', fn:r => low(r.cells[3]) === 'completed' && ['','not sent'].includes(low(r.cells[6])) },
+    { id:'awaitpay',   label:'Awaiting payment', fn:r => low(r.cells[6]) === 'sent' },
+    { id:'overdueinv', label:'Overdue invoices', fn:r => low(r.cells[6]) === 'overdue' },
+    { id:'retest',     label:'Retest / repair',  fn:r => ['pending','awaiting approval','scheduled'].includes(low(r.cells[11])) },
+    { id:'paid',       label:'Paid',             fn:r => low(r.cells[6]) === 'paid' },
+    { id:'nojob',      label:'No job status',    fn:r => !(r.cells[13]||'').trim() }
   ];
 }
 function sortDefs(tab){
@@ -967,41 +993,67 @@ function buildTabBar(){
   }));
 }
 
-/* Summary tiles: tap → jump to that tab + filter */
-const SUM_TILES = [
-  { tab:'quotes',  filter:'exp7',     label:'Expiring ≤7d',  tone:'amber' },
-  { tab:'quotes',  filter:'expired',  label:'Expired',       tone:'red'   },
-  { tab:'quotes',  filter:'nofu',     label:'No follow-up',  tone:'amber' },
-  { tab:'tracker', filter:'unpaid',   label:'Inv unpaid',    tone:'red'   },
-  { tab:'tracker', filter:'retest',   label:'Retest',        tone:'amber' },
-  { tab:'tracker', filter:'notsched', label:'Not scheduled', tone:''      }
+/* Attention bar (Quotes follow-up urgency) + KPI cards (Tracker ops) — all tappable */
+const ATTN_STATS = [
+  { tab:'quotes', filter:'expired', label:'expired quotes', tone:'s-red' },
+  { tab:'quotes', filter:'exp7',    label:'expiring ≤7d',   tone:'s-amber' },
+  { tab:'quotes', filter:'nofu',    label:'no follow-up',   tone:'s-amber' }
 ];
+const KPI_TILES = [
+  { tab:'tracker', filter:'overdueinv', label:'Overdue invoices', sub:'sent, past due — chase',   tone:'red' },
+  { tab:'tracker', filter:'noreport',   label:'Reports to send',  sub:'no report submitted yet',  tone:'amber' },
+  { tab:'tracker', filter:'compninv',   label:'Ready to invoice', sub:'work done, not invoiced',  tone:'blue' },
+  { tab:'tracker', filter:'notsched',   label:'To schedule',      sub:'no Ember date set',        tone:'amber' }
+];
+function countFor(tabId, filterId){
+  const tab = TABS.find(t => t.id === tabId);
+  const def = filterDefs(tab).find(f => f.id === filterId);
+  return def ? (state.data[tabId] || []).filter(def.fn).length : 0;
+}
+function jumpTo(tabId, filterId){
+  state.activeTab = tabId;
+  state.filter[tabId] = filterId;
+  if (tabId === 'tracker') state.trackerStatus = '';
+  $$('.tab').forEach((x, i) => {
+    const on = TABS[i].id === tabId;
+    x.classList.toggle('active', on);
+    x.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  renderAll();
+}
 function renderSummary(){
   const box = $('#summary');
   box.innerHTML = '';
-  SUM_TILES.forEach(tl => {
-    const tab = TABS.find(t => t.id === tl.tab);
-    const def = filterDefs(tab).find(f => f.id === tl.filter);
-    const n = (state.data[tab.id] || []).filter(def.fn).length;
+
+  const bar = document.createElement('div');
+  bar.className = 'attn';
+  bar.innerHTML = '<span class="tag"><span class="dot" aria-hidden="true"></span>Needs attention</span>';
+  ATTN_STATS.forEach(st => {
+    const n = countFor(st.tab, st.filter);
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'sum' + (n === 0 ? ' zero' : (tl.tone ? ' t-' + tl.tone : '')) +
-      (state.activeTab === tl.tab && state.filter[tl.tab] === tl.filter ? ' active' : '');
-    b.setAttribute('aria-label', `${tl.label}: ${n} — show these ${tab.label.toLowerCase()}`);
-    b.innerHTML = `<b>${n}</b><span>${esc(tl.label)}</span><i>${esc(tab.label)}</i>`;
-    b.addEventListener('click', () => {
-      state.activeTab = tl.tab;
-      state.filter[tl.tab] = tl.filter;
-      if (tl.tab === 'tracker') state.trackerStatus = '';
-      $$('.tab').forEach((x, i) => {
-        const on = TABS[i].id === tl.tab;
-        x.classList.toggle('active', on);
-        x.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
-      renderAll();
-    });
-    box.appendChild(b);
+    b.className = 'stat ' + st.tone;
+    b.setAttribute('aria-label', `${n} ${st.label} — show these`);
+    b.innerHTML = `<b>${n}</b> ${esc(st.label)}`;
+    b.addEventListener('click', () => jumpTo(st.tab, st.filter));
+    bar.appendChild(b);
   });
+  box.appendChild(bar);
+
+  const grid = document.createElement('div');
+  grid.className = 'kpis';
+  KPI_TILES.forEach(tl => {
+    const n = countFor(tl.tab, tl.filter);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'kpi t-' + tl.tone + (n === 0 ? ' zero' : '') +
+      (state.activeTab === tl.tab && state.filter[tl.tab] === tl.filter ? ' active' : '');
+    b.setAttribute('aria-label', `${tl.label}: ${n} — show these`);
+    b.innerHTML = `<span class="lbl">${esc(tl.label)}</span><b>${n}</b><span class="sub">${esc(tl.sub)}</span>`;
+    b.addEventListener('click', () => jumpTo(tl.tab, tl.filter));
+    grid.appendChild(b);
+  });
+  box.appendChild(grid);
 }
 
 function renderAll(){
