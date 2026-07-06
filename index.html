@@ -86,7 +86,7 @@ nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:s
 
 /* ============ Summary strip ============ */
 .summary{
-  max-width:1180px; margin:0 auto; padding:12px 16px 0;
+  max-width:1180px; margin:0 auto; padding:12px 16px;
   display:grid; grid-template-columns:repeat(6, 1fr); gap:8px;
 }
 .sum{
@@ -96,6 +96,10 @@ nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:s
 }
 .sum b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:24px; line-height:1.1; color:var(--ink)}
 .sum span{font-size:10.5px; font-weight:600; letter-spacing:.02em}
+.sum i{
+  display:block; font-style:normal; font-size:8.5px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-top:2px; opacity:.8;
+}
 .sum.t-red b{color:var(--red-dk)} .sum.t-red{border-color:#EFD2D1; background:var(--red-bg)}
 .sum.t-amber b{color:var(--amber)} .sum.t-amber{border-color:#E7C87B; background:var(--amber-bg)}
 .sum.zero{opacity:.55; background:var(--card); border-color:var(--line)}
@@ -206,6 +210,10 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
   display:flex; gap:6px; align-items:center; overflow-x:auto; padding:2px 2px 10px;
   -webkit-overflow-scrolling:touch;
 }
+.bjump .glabel{
+  flex:none; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted);
+}
 .jchip{
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
   font-size:11.5px; font-weight:600; border-radius:99px; padding:5px 11px; cursor:pointer;
@@ -267,23 +275,33 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
 }
 .bcol.can-scroll .bfade{display:block}
 
-/* collapsed empty column spine */
-.bcol.collapsed{
-  width:42px; min-height:150px; cursor:pointer; align-items:center; padding:10px 0;
-  background:#F1F0EB;
+/* empty-status rail: all empty columns stack as horizontal-label stubs */
+.bcol.rail{background:#F1F0EB; width:232px}
+.rail-list{overflow-y:auto; padding:4px 8px 12px; display:flex; flex-direction:column; gap:6px}
+.stub{
+  display:flex; align-items:center; gap:8px;
+  background:var(--card); border:1px dashed var(--line2); border-radius:8px;
+  padding:10px 11px; cursor:pointer; min-height:40px;
 }
-.bcol.collapsed:hover{background:#ECEBE4; border-color:var(--line2)}
-.bcol.collapsed .clabel{
-  writing-mode:vertical-rl; transform:rotate(180deg);
-  font-family:'Barlow Condensed'; font-weight:600; font-size:13.5px; letter-spacing:.09em;
-  text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:8px;
-  max-height:200px; overflow:hidden;
+.stub .lbl{
+  flex:1; font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px;
+  letter-spacing:.07em; text-transform:uppercase; color:var(--ink2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.bcol.collapsed .n{
-  font-family:'Inter'; font-size:10px; font-weight:700; letter-spacing:0;
-  background:var(--card); border:1px solid var(--line2); color:var(--muted);
-  border-radius:99px; padding:0 6px; writing-mode:horizontal-tb; transform:none; margin-bottom:6px;
+.stub .n{
+  font-size:10.5px; font-weight:700; background:var(--paper); border:1px solid var(--line);
+  color:var(--muted); border-radius:99px; padding:0 7px;
 }
+.stub .plus{color:var(--muted); font-size:13px}
+.stub:hover{border-color:var(--red)}
+.stub:hover .lbl, .stub:hover .plus{color:var(--red-dk)}
+.stub.dropok{outline:2px dashed var(--red); outline-offset:-2px; background:var(--red-bg)}
+.colx{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
+  border-radius:6px; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;
+  margin-left:auto; flex:none;
+}
+.colx:hover{color:var(--ink); border-color:var(--ink2)}
 
 .bcard{
   background:var(--card); border:1px solid var(--line); border-radius:9px;
@@ -516,6 +534,7 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
 
 <!-- App -->
 <div id="app" style="display:none">
+  <div class="summary" id="summary"></div>
   <nav class="tabs" aria-label="Sections">
     <div class="tabs-inner">
       <span id="tabbar" style="display:flex;gap:2px" role="tablist"></span>
@@ -525,7 +544,6 @@ main{max-width:1180px; margin:0 auto; padding:12px 16px 90px}
       </div>
     </div>
   </nav>
-  <div class="summary" id="summary"></div>
   <div class="toolbar">
     <div class="search">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -970,7 +988,7 @@ function renderSummary(){
     b.className = 'sum' + (n === 0 ? ' zero' : (tl.tone ? ' t-' + tl.tone : '')) +
       (state.activeTab === tl.tab && state.filter[tl.tab] === tl.filter ? ' active' : '');
     b.setAttribute('aria-label', `${tl.label}: ${n} — show these ${tab.label.toLowerCase()}`);
-    b.innerHTML = `<b>${n}</b><span>${esc(tl.label)}</span>`;
+    b.innerHTML = `<b>${n}</b><span>${esc(tl.label)}</span><i>${esc(tab.label)}</i>`;
     b.addEventListener('click', () => {
       state.activeTab = tl.tab;
       state.filter[tl.tab] = tl.filter;
@@ -1193,6 +1211,11 @@ function invStatusBadge(v){
   const m = { 'Paid':'b-green','Sent':'b-blue','Overdue':'b-red','Not Sent':'b-gray' };
   return `<span class="badge ${m[v]||'b-gray'}">Inv: ${esc(v)}</span>`;
 }
+function invShort(v){
+  if (!v) return '';
+  const m = { 'Paid':'b-green','Sent':'b-blue','Overdue':'b-red','Not Sent':'b-gray' };
+  return `<span class="badge ${m[v]||'b-gray'}">${esc(v)}</span>`;
+}
 
 /* =====================================================================
    Board view (kanban)
@@ -1229,37 +1252,42 @@ function renderBoard(){
   }
 }
 
-/* ---- desktop board: jump strip + collapsible empty columns ---- */
+/* ---- desktop board: populated columns + one rail of empty-status stubs ---- */
 function renderBoardDesktop(main, tab, cols, grouped){
-  // jump strip
+  const isOpen = c => (grouped[c.id]||[]).length > 0 || state.showEmpty || state.expandedCols[tab.id].has(c.id);
+  const openCols = cols.filter(isOpen);
+  const railCols = cols.filter(c => !isOpen(c));
+
+  // "Go to" strip — navigation only; never filters, never expands
   const strip = document.createElement('div');
   strip.className = 'bjump';
-  cols.forEach(cdef => {
-    const n = (grouped[cdef.id] || []).length;
-    const j = document.createElement('button');
-    j.type = 'button';
-    j.className = 'jchip' + (n === 0 ? ' dim' : '');
-    j.setAttribute('aria-label', `Jump to ${cdef.label} column (${n})`);
-    j.innerHTML = `${esc(cdef.label)}<span class="n">${n}</span>`;
-    j.addEventListener('click', () => {
-      if (n === 0 && !state.showEmpty) state.expandedCols[tab.id].add(cdef.id);
-      renderContent();
-      requestAnimationFrame(() => {
-        const el = document.querySelector(`[data-colid="${CSS.escape(cdef.id)}"]`);
-        if (el){
-          el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'start' });
-          el.classList.add('pulse');
-          setTimeout(() => el.classList.remove('pulse'), 1200);
-        }
-      });
+  if (openCols.length > 1 || railCols.length){
+    strip.insertAdjacentHTML('beforeend', '<span class="glabel">Go to:</span>');
+    openCols.forEach(cdef => {
+      const n = (grouped[cdef.id] || []).length;
+      const j = document.createElement('button');
+      j.type = 'button';
+      j.className = 'jchip';
+      j.setAttribute('aria-label', `Scroll to ${cdef.label} column (${n})`);
+      j.innerHTML = `${esc(cdef.label)}<span class="n">${n}</span>`;
+      j.addEventListener('click', () => scrollToCol(cdef.id));
+      strip.appendChild(j);
     });
-    strip.appendChild(j);
-  });
+    if (railCols.length){
+      const j = document.createElement('button');
+      j.type = 'button';
+      j.className = 'jchip dim';
+      j.setAttribute('aria-label', `Scroll to empty statuses (${railCols.length})`);
+      j.innerHTML = `Empty<span class="n">${railCols.length}</span>`;
+      j.addEventListener('click', () => scrollToCol('__rail'));
+      strip.appendChild(j);
+    }
+  }
   const tEmpty = document.createElement('button');
   tEmpty.type = 'button';
   tEmpty.className = 'jtog';
   tEmpty.setAttribute('aria-pressed', state.showEmpty ? 'true' : 'false');
-  tEmpty.textContent = state.showEmpty ? 'Hide empty' : 'Show empty';
+  tEmpty.textContent = state.showEmpty ? 'Tuck empty into rail' : 'Open all empty';
   tEmpty.addEventListener('click', () => {
     state.showEmpty = !state.showEmpty;
     localStorage.setItem('acefire_showempty', state.showEmpty ? '1' : '0');
@@ -1271,13 +1299,55 @@ function renderBoardDesktop(main, tab, cols, grouped){
 
   const board = document.createElement('div');
   board.className = 'board ' + state.density;
-  cols.forEach(cdef => {
-    const items = grouped[cdef.id] || [];
-    const collapsed = items.length === 0 && !state.showEmpty && !state.expandedCols[tab.id].has(cdef.id);
-    board.appendChild(buildColumn(tab, cdef, items, collapsed));
-  });
+  openCols.forEach(cdef => board.appendChild(buildColumn(tab, cdef, grouped[cdef.id] || [])));
+  if (railCols.length) board.appendChild(buildRail(tab, railCols));
   main.appendChild(board);
   markScrollableCols(board);
+}
+function scrollToCol(id){
+  const el = document.querySelector(`[data-colid="${CSS.escape(id)}"]`);
+  if (el){
+    el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'start' });
+    el.classList.add('pulse');
+    setTimeout(() => el.classList.remove('pulse'), 1200);
+  }
+}
+function buildRail(tab, railCols){
+  const rail = document.createElement('div');
+  rail.className = 'bcol rail';
+  rail.dataset.colid = '__rail';
+  rail.innerHTML = `<div class="bcol-h"><span class="lbl">Empty statuses</span><span class="n">${railCols.length}</span></div>`;
+  const list = document.createElement('div');
+  list.className = 'rail-list';
+  railCols.forEach(cdef => {
+    const stub = document.createElement('div');
+    stub.className = 'stub';
+    stub.setAttribute('role', 'button');
+    stub.tabIndex = 0;
+    stub.dataset.colid = cdef.id;
+    stub.title = 'Drop a card here to set this status · click to open as a column';
+    stub.setAttribute('aria-label', `${cdef.label}, empty — drop a card to set this status, or open as a column`);
+    stub.innerHTML = `<span class="lbl">${esc(cdef.label)}</span><span class="n">0</span><span class="plus" aria-hidden="true">＋</span>`;
+    if (cdef.drop !== null && cdef.drop !== undefined){
+      stub.addEventListener('dragover', e => { e.preventDefault(); stub.classList.add('dropok'); e.dataTransfer.dropEffect = 'move'; });
+      stub.addEventListener('dragleave', () => stub.classList.remove('dropok'));
+      stub.addEventListener('drop', e => {
+        e.preventDefault();
+        stub.classList.remove('dropok');
+        handleDrop(tab, cdef, e.dataTransfer.getData('text/plain'));
+      });
+    }
+    const expand = () => {
+      state.expandedCols[tab.id].add(cdef.id);
+      renderContent();
+      requestAnimationFrame(() => scrollToCol(cdef.id));
+    };
+    stub.addEventListener('click', expand);
+    stub.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); expand(); } });
+    list.appendChild(stub);
+  });
+  rail.appendChild(list);
+  return rail;
 }
 
 /* ---- mobile board: one column at a time + stepper ---- */
@@ -1318,7 +1388,7 @@ function renderBoardMobile(main, tab, cols, grouped){
   const board = document.createElement('div');
   board.className = 'board mobile1 ' + state.density;
   const cdef = cols[idx];
-  board.appendChild(buildColumn(tab, cdef, grouped[cdef.id] || [], false));
+  board.appendChild(buildColumn(tab, cdef, grouped[cdef.id] || []));
   main.appendChild(board);
   markScrollableCols(board);
 }
@@ -1343,9 +1413,10 @@ function densityToggle(compactBtn){
   return d;
 }
 
-function buildColumn(tab, cdef, items, collapsed){
+function buildColumn(tab, cdef, items){
   const col = document.createElement('div');
   col.dataset.colid = cdef.id;
+  col.className = 'bcol';
 
   const droppable = cdef.drop !== null && cdef.drop !== undefined;
   if (droppable){
@@ -1358,30 +1429,21 @@ function buildColumn(tab, cdef, items, collapsed){
     });
   }
 
-  if (collapsed){
-    col.className = 'bcol collapsed';
-    col.setAttribute('role', 'button');
-    col.tabIndex = 0;
-    col.setAttribute('aria-label', `${cdef.label} column, empty — expand`);
-    col.title = `${cdef.label} (0) — click to expand`;
-    col.innerHTML = `<span class="n">0</span><span class="clabel">${esc(cdef.label)}</span>`;
-    const expand = () => { state.expandedCols[tab.id].add(cdef.id); renderContent(); };
-    col.addEventListener('click', expand);
-    col.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); expand(); } });
-    return col;
-  }
-
-  col.className = 'bcol';
   const head = document.createElement('div');
   head.className = 'bcol-h';
   head.innerHTML = `<span class="lbl">${esc(cdef.label)}</span><span class="n">${items.length}</span>` +
     (cdef.hint ? `<span class="hint">${esc(cdef.hint)}</span>` : '');
   if (cdef.hint) head.title = cdef.hint;
-  // empty-but-expanded columns can be re-collapsed from the header
-  if (!items.length && !state.showEmpty){
-    head.style.cursor = 'pointer';
-    head.title = 'Click to collapse';
-    head.addEventListener('click', () => { state.expandedCols[tab.id].delete(cdef.id); renderContent(); });
+  // an empty column opened from the rail gets a tuck-back button
+  if (!items.length && !state.showEmpty && state.expandedCols[tab.id].has(cdef.id)){
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'colx';
+    x.textContent = '−';
+    x.title = 'Tuck back into the empty rail';
+    x.setAttribute('aria-label', `Collapse ${cdef.label} back into the empty rail`);
+    x.addEventListener('click', () => { state.expandedCols[tab.id].delete(cdef.id); renderContent(); });
+    head.appendChild(x);
   }
   col.appendChild(head);
 
@@ -1415,7 +1477,7 @@ function buildColumn(tab, cdef, items, collapsed){
 
 function markScrollableCols(board){
   requestAnimationFrame(() => {
-    board.querySelectorAll('.bcol:not(.collapsed)').forEach(col => {
+    board.querySelectorAll('.bcol').forEach(col => {
       const box = col.querySelector('.bcol-cards');
       if (box && box.scrollHeight > box.clientHeight + 4) col.classList.add('can-scroll');
     });
@@ -1434,7 +1496,7 @@ function boardCard(tab, r){
   // one inline mini-chip on line 1; full meta row only in comfortable density
   const mini = tab.id === 'quotes'
     ? daysBadge(r)
-    : (statusBadge(r.cells[3]) || invStatusBadge(r.cells[6]));
+    : (statusBadge(r.cells[3]) || invShort(r.cells[6]));
   const meta = tab.id === 'quotes'
     ? [r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '', r.cells[15] ? `<span class="badge b-blue">${esc(r.cells[15])}</span>` : '']
     : [wixBadge(r.cells[4]), invStatusBadge(r.cells[6]), r.cells[7] ? `<span class="badge b-blue">${esc(r.cells[7])}</span>` : ''];
