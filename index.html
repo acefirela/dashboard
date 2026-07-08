@@ -616,7 +616,10 @@ const CONFIG = {
   SHOW_FINANCIALS: false,
   STALE_MS: 5 * 60 * 1000,
   COMPANY_PHONE: '(818) 739-9849',
-  AI_WEBHOOK_URL: 'https://kato01.app.n8n.cloud/webhook/renewal-outreach'   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
+  ARCHIVE_SHEET: 'Archive',   // paid rows moved here by Apps Script keep feeding the Renewals radar
+  QUOTES_ARCHIVE_SHEET: 'Quotes Archive',   // expired quotes moved here keep customer contact info available
+  CUSTOMERS_SHEET: 'Customers',   // auto-maintained directory (Apps Script) — primary contact source for renewals
+  AI_WEBHOOK_URL: ''   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
 };
 
 /* Column maps (0-based, A=0)
@@ -638,7 +641,7 @@ const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'))
    ===================================================================== */
 const state = {
   token:null, email:'', activeTab:'quotes',
-  data:{}, headers:{}, dupes:{},
+  data:{}, headers:{}, dupes:{}, archive:[], qarchive:[], customers:{},
   activity:[], activityLoaded:false,
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
@@ -697,6 +700,9 @@ function saveCache(){
     localStorage.setItem('acefire_cache_v1', JSON.stringify({
       ts: state.lastLoad, headers: state.headers, options: state.options,
       suggest: state.suggest, dupes: state.dupes,
+      archive: state.archive.map(r => r.cells),
+      qarchive: state.qarchive.map(r => r.cells),
+      customers: state.customers,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
@@ -713,6 +719,9 @@ function hydrateCache(){
     state.options = p.options || {};
     state.suggest = p.suggest || {};
     state.dupes = p.dupes || {};
+    state.archive = (p.archive || []).map(cells => ({ cells }));
+    state.qarchive = (p.qarchive || []).map(cells => ({ cells }));
+    state.customers = p.customers || {};
     state.lastLoad = p.ts || 0;
     return true;
   } catch(e){ return false; }
@@ -841,6 +850,31 @@ async function loadAll(showToast){
     });
 
     await loadTrackerOptions();
+
+    // service history (archived paid jobs) — optional tab, powers the Renewals radar
+    try {
+      const ar = await api(`/values/${encodeURIComponent(`'${CONFIG.ARCHIVE_SHEET}'!A2:N`)}`);
+      state.archive = (ar.values || []).map(row =>
+        ({ cells: Array.from({ length:14 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
+    } catch(e){ state.archive = []; }
+
+    // archived expired quotes — optional tab, keeps contact info for renewal outreach
+    try {
+      const qa = await api(`/values/${encodeURIComponent(`'${CONFIG.QUOTES_ARCHIVE_SHEET}'!A2:Q`)}`);
+      state.qarchive = (qa.values || []).map(row =>
+        ({ cells: Array.from({ length:17 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
+    } catch(e){ state.qarchive = []; }
+
+    // customer directory — optional tab maintained by Apps Script (Name | Email | Phone)
+    try {
+      const cu = await api(`/values/${encodeURIComponent(`'${CONFIG.CUSTOMERS_SHEET}'!A2:C`)}`);
+      state.customers = {};
+      (cu.values || []).forEach(row => {
+        const k = normName(row[0]);
+        if (k) state.customers[k] = { email: String(row[1]||'').trim(), phone: String(row[2]||'').trim() };
+      });
+    } catch(e){ state.customers = {}; }
+
     state.lastLoad = Date.now();
     saveCache();
     renderAll();
@@ -1758,29 +1792,32 @@ function computeRenewals(){
   const tracker = state.data.tracker || [];
   const quotes = state.data.quotes || [];
 
-  // latest completed job per customer + category + cycle
+  // latest service per customer + category + cycle — from live completed jobs AND archived (paid) history
+  const sources = [];
+  tracker.forEach(r => { if (low(r.cells[3]) === 'completed') sources.push({ cells:r.cells, src:r }); });
+  (state.archive || []).forEach(r => sources.push({ cells:r.cells, src:null }));
+
   const best = new Map();
-  tracker.forEach(r => {
-    if (low(r.cells[3]) !== 'completed') return;
-    const d = parseDate(r.cells[7]);
+  sources.forEach(({ cells, src }) => {
+    const d = parseDate(cells[7]);
     if (!d) return;
-    const text = (r.cells[2] || '') + ' ' + (r.cells[8] || '');
+    const text = (cells[2] || '') + ' ' + (cells[8] || '');
     const cyc = cycleOf(text);
     if (!cyc) return;                       // repairs / service calls have no cycle keyword
     const cat = catOf(text);
-    const key = normName(r.cells[1]) + '|' + cat + '|' + cyc.months;
+    const key = normName(cells[1]) + '|' + cat + '|' + cyc.months;
     const prev = best.get(key);
-    if (!prev || d > prev.last) best.set(key, { src:r, last:d, cyc, cat });
+    if (!prev || d > prev.last) best.set(key, { src, srcKey:String(cells[0]||'').trim(), name:cells[1], last:d, cyc, cat });
   });
 
-  const list = [...best.values()].map(({ src, last, cyc, cat }) => {
-    const nm = normName(src.cells[1]);
+  const list = [...best.values()].map(({ src, srcKey, name, last, cyc, cat }) => {
+    const nm = normName(name);
     const due = addMonths(last, cyc.months);
     const days = Math.round((due - today) / DAY);
 
     // already scheduled again? (future tracker job, same customer + category)
     const upcoming = tracker.some(r => {
-      if (r.uid === src.uid || low(r.cells[3]) === 'cancelled') return false;
+      if ((src && r.uid === src.uid) || low(r.cells[3]) === 'cancelled') return false;
       const d2 = parseDate(r.cells[7]);
       return d2 && d2 > today && normName(r.cells[1]) === nm &&
              catOf((r.cells[2]||'') + ' ' + (r.cells[8]||'')) === cat;
@@ -1796,15 +1833,23 @@ function computeRenewals(){
       if (!quote || quoteNum(q.key) > quoteNum(quote.key)) quote = q;
     });
 
-    // contact info lives on the Quotes tab — grab the customer's latest
+    // contact info: Customers directory first, then newest live quote, then archived quotes
     let email = '', phone = '';
-    quotes.forEach(q => {
-      if (normName(q.cells[1]) !== nm) return;
-      if (!email && (q.cells[2]||'').includes('@')) email = q.cells[2].trim();
-      if (!phone && (q.cells[3]||'').trim()) phone = q.cells[3].trim();
-    });
+    const hit = state.customers[nm];
+    if (hit){ email = hit.email || ''; phone = hit.phone || ''; }
+    const contactScan = rows => {
+      for (let i = rows.length - 1; i >= 0; i--){
+        const q = rows[i];
+        if (normName(q.cells[1]) !== nm) continue;
+        if (!email && (q.cells[2]||'').includes('@')) email = q.cells[2].trim();
+        if (!phone && (q.cells[3]||'').trim()) phone = q.cells[3].trim();
+        if (email && phone) break;
+      }
+    };
+    if (!email || !phone) contactScan(quotes);
+    if (!email || !phone) contactScan(state.qarchive || []);
 
-    return { name: src.cells[1], cat, cyc, last, due, days, src, upcoming, quote, email, phone };
+    return { name, cat, cyc, last, due, days, src, srcKey, upcoming, quote, email, phone };
   }).sort((a, b) => a.due - b.due);
 
   _ren = { ts: state.lastLoad, list };
@@ -1824,7 +1869,7 @@ function renderRenewals(){
   const fn = buckets[state.renBucket] || buckets.d30;
   let items = computeRenewals().filter(fn);
   const q = state.search.trim().toLowerCase();
-  if (q) items = items.filter(x => (x.name + ' ' + x.cat + ' ' + x.cyc.label + ' ' + x.src.key).toLowerCase().includes(q));
+  if (q) items = items.filter(x => (x.name + ' ' + x.cat + ' ' + x.cyc.label + ' ' + x.srcKey).toLowerCase().includes(q));
 
   const list = document.createElement('div');
   list.className = 'list';
@@ -1852,7 +1897,7 @@ function renderRenewals(){
           <span class="badge b-gray">${esc(x.cyc.label)}</span>
           <span class="r-side">${dueBadge}</span>
         </div>
-        <div class="r-ttl">${esc(x.cat)} — last serviced ${fmtFull(x.last)} · job #${esc(x.src.key)}</div>
+        <div class="r-ttl">${esc(x.cat)} — last serviced ${fmtFull(x.last)} · job #${esc(x.srcKey)}${x.src ? '' : ' (archived)'}</div>
         <div class="r-meta">
           <button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>
           ${x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : ''}
@@ -1861,8 +1906,16 @@ function renderRenewals(){
         </div>
       </div>
       <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
-    row.addEventListener('click', () => openDrawer(x.src.uid));
-    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(x.src.uid); } });
+    if (x.src){
+      row.addEventListener('click', () => openDrawer(x.src.uid));
+      row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(x.src.uid); } });
+    } else {
+      row.removeAttribute('role');
+      row.removeAttribute('tabindex');
+      row.style.cursor = 'default';
+      const ch = row.querySelector('.chev');
+      if (ch) ch.remove();
+    }
     row.querySelectorAll('[data-act]').forEach(el => {
       el.addEventListener('click', e => {
         e.stopPropagation();
