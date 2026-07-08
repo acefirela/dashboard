@@ -347,6 +347,11 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   .toolbar{padding:10px 10px 0}
   .filters{padding:10px 10px 2px}
   .banner{padding:0 10px}
+  /* tab bar: compact + scrolls within itself — never breaks page width */
+  .tabs-inner{overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .tabs-inner::-webkit-scrollbar{display:none}
+  .tab{font-size:16.5px; padding:11px 12px 9px; gap:6px; min-height:46px; flex:none; white-space:nowrap}
+  .tab .cnt{font-size:10px; padding:1px 6px}
   /* compact attention bar: one scrollable line + All stats toggle */
   .attn{flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; gap:14px; padding:9px 12px}
   .attn .tag{font-size:13px; letter-spacing:.1em}
