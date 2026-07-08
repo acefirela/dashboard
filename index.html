@@ -114,18 +114,6 @@ nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:s
 }
 .tab.active{color:var(--ink); border-bottom-color:var(--red)}
 .tab.active .cnt{background:var(--red-bg); color:var(--red-dk); border-color:#EFD2D1}
-.viewtog{
-  margin-left:auto; margin-right:8px; display:flex; gap:3px;
-  border-radius:11px; background:#E9E8E3; padding:3px;
-}
-.viewtog button{
-  appearance:none; border:none; background:none; cursor:pointer; color:var(--ink2);
-  font-family:'Barlow Condensed'; font-weight:700; font-size:14.5px; letter-spacing:.1em;
-  text-transform:uppercase; padding:7px 14px; border-radius:8px;
-  display:flex; align-items:center; gap:6px; min-height:34px;
-}
-.viewtog button.active{background:var(--ink); color:#fff}
-
 /* ============ Toolbar / filters ============ */
 .toolbar{
   max-width:none; margin:0 auto; padding:12px 16px 0;
@@ -164,7 +152,6 @@ select.sortsel{
   background:#F0EFEA; color:var(--muted); border-radius:99px; padding:1px 7px;
 }
 .fchip.active .n{background:#3A3E46; color:#E8EAEE}
-.fchip.stagechip{border-color:var(--red); color:var(--red-dk)}
 .banner{max-width:none; margin:10px auto 0; padding:0 16px; display:none}
 .banner.on{display:block}
 .banner .inner{
@@ -230,113 +217,6 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .skel i:nth-child(1){width:45%} .skel i:nth-child(2){width:70%} .skel i:nth-child(3){width:30%}
 @keyframes shim{to{background-position:-200% 0}}
 @media (prefers-reduced-motion: reduce){ .skel i,.loading-bar i,#drawer{animation:none; transition:none} }
-
-/* ============ Overview (Tracker insights) ============ */
-.ov-sec{margin-bottom:24px}
-.ov-head{display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap}
-.ov-head h2{
-  font-family:'Barlow Condensed'; font-weight:700; font-size:19px; letter-spacing:.09em;
-  text-transform:uppercase; color:var(--ink); margin:0;
-}
-.ov-head .sub{font-size:12px; color:var(--muted)}
-.cfgbtn{
-  margin-left:auto; appearance:none; border:1px solid var(--line2); background:var(--card);
-  color:var(--ink2); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;
-}
-.cfgbtn:hover{border-color:var(--ink2)}
-.wcfg{
-  background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
-  padding:10px 14px; margin-bottom:10px; display:flex; gap:16px; flex-wrap:wrap;
-}
-.wcfg label{display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--ink2); cursor:pointer}
-.widgets{display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:12px}
-.widget{
-  background:var(--card); border:1px solid var(--line); border-radius:12px;
-  box-shadow:var(--shadow); padding:14px 16px; min-width:0;
-}
-.widget h4{
-  margin:0 0 9px; font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px;
-  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
-}
-.wg-num{font-family:'Barlow Condensed'; font-weight:700; font-size:38px; line-height:1; color:var(--ink)}
-.wg-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:9px}
-.wg-bar{height:11px; border-radius:99px; background:#EFEEEA; overflow:hidden; display:flex; margin:9px 0 7px}
-.wg-bar i{height:100%}
-.wg-legend{display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; color:var(--ink2)}
-.wg-legend b{font-weight:700}
-.wg-legend .sw{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; vertical-align:baseline}
-.wg-pct{font-family:'Barlow Condensed'; font-weight:700; font-size:30px; line-height:1}
-.wg-sub{font-size:11.5px; color:var(--muted); margin-top:2px}
-.wg-list{display:flex; flex-direction:column}
-.wg-item{
-  appearance:none; display:flex; align-items:center; gap:8px; padding:7px 0;
-  border:none; border-bottom:1px dashed var(--line); background:none;
-  width:100%; text-align:left; cursor:pointer; font:inherit; color:inherit;
-}
-.wg-item:last-child{border-bottom:none}
-.wg-item:hover .nm{color:var(--ink)}
-.wg-item .d{font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink2); width:48px; flex:none; font-size:12px}
-.wg-item .q{font-family:'Barlow Condensed'; color:var(--red-dk); font-weight:700; flex:none; font-size:14px}
-.wg-item .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; color:var(--ink2)}
-.wg-item .badge{flex:none; font-size:10px; padding:1px 6px}
-.wg-none{color:var(--muted); font-size:12.5px}
-
-/* pipeline */
-.pipe{display:grid; grid-template-columns:repeat(auto-fit, minmax(122px, 1fr)); gap:8px}
-.pipe-card{
-  appearance:none; font:inherit; text-align:left; cursor:pointer;
-  background:var(--card); border:1px solid var(--line); border-top-width:4px; border-radius:10px;
-  padding:10px 12px; box-shadow:var(--shadow);
-}
-.pipe-card b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:26px; line-height:1.05; color:var(--ink)}
-.pipe-card span{
-  display:block; font-family:'Barlow Condensed'; font-size:13px; font-weight:600;
-  letter-spacing:.07em; text-transform:uppercase; color:var(--ink2); margin-top:1px;
-}
-.pipe-card.t-red{border-top-color:var(--red)} .pipe-card.t-red b{color:var(--red-dk)}
-.pipe-card.t-amber{border-top-color:#E0A93E} .pipe-card.t-amber b{color:var(--amber)}
-.pipe-card.t-blue{border-top-color:var(--blue)} .pipe-card.t-blue b{color:var(--blue)}
-.pipe-card.t-green{border-top-color:var(--green)} .pipe-card.t-green b{color:var(--green)}
-.pipe-card.t-gray{border-top-color:var(--line2)}
-.pipe-card.zero{opacity:.5}
-.pipe-card:hover{border-color:var(--ink2)}
-.pipe-card.active{outline:2px solid var(--ink); outline-offset:-1px}
-.pipebar{display:flex; height:12px; border-radius:99px; overflow:hidden; background:#EFEEEA; margin-top:10px}
-.pipebar i{height:100%}
-
-/* gantt */
-.gantt{
-  background:var(--card); border:1px solid var(--line); border-radius:12px;
-  box-shadow:var(--shadow); padding:12px 14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
-}
-.g-inner{min-width:680px}
-.g-axis{position:relative; height:20px; margin-left:190px; border-bottom:1px solid var(--line)}
-.g-axis .tick{position:absolute; top:2px; font-size:10px; color:var(--muted); transform:translateX(-50%); white-space:nowrap}
-.g-body{position:relative}
-.g-overlay{position:absolute; left:190px; right:0; top:0; bottom:0; pointer-events:none}
-.g-overlay .vline{position:absolute; top:0; bottom:0; width:1px; background:var(--line); opacity:.7}
-.g-overlay .todayline{position:absolute; top:0; bottom:0; width:2px; background:var(--red); opacity:.5}
-.g-row{display:flex; align-items:center; height:30px; cursor:pointer}
-.g-row:hover{background:#FAFAF8}
-.g-lbl{width:190px; flex:none; display:flex; gap:6px; align-items:baseline; min-width:0; padding-right:10px}
-.g-lbl .q{font-family:'Barlow Condensed'; font-weight:700; color:var(--red-dk); font-size:14px; white-space:nowrap}
-.g-lbl .nm{font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2)}
-.g-track{position:relative; flex:1; height:100%}
-.g-bar{position:absolute; top:9px; height:12px; border-radius:99px; background:#E0A93E; min-width:6px}
-.g-bar.gb-red{background:var(--red)}
-.g-dia{
-  position:absolute; top:9px; width:11px; height:11px; transform:translateX(-50%) rotate(45deg);
-  border-radius:3px; background:var(--green);
-}
-.g-dia.up{background:var(--blue)}
-.g-age{
-  position:absolute; top:8px; font-size:10px; font-weight:700; color:var(--ink2);
-  white-space:nowrap; padding-left:5px;
-}
-.g-note{font-size:11.5px; color:var(--muted); margin-top:9px}
-.g-leg{display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--ink2); margin-top:6px}
-.g-leg .sw{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px}
-.g-leg .dm{transform:rotate(45deg); border-radius:2px}
 
 /* ============ Drawer ============ */
 #overlay{
@@ -488,8 +368,6 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
     overflow:hidden; margin-top:3px;
   }
   .r-meta{margin-top:8px}
-  .viewtog button span{display:none}
-  .pipe{grid-template-columns:repeat(2, 1fr)}
 }
 
 /* ============ Larger type + padding on desktop ============ */
@@ -519,20 +397,6 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   .badge{font-size:12.5px}
   .fu{font-size:12.5px; min-height:28px}
   .empty{font-size:15px}
-  .ov-head h2{font-size:22px}
-  .ov-head .sub{font-size:13px}
-  .widget h4{font-size:15.5px}
-  .wg-num{font-size:42px}
-  .wg-pct{font-size:33px}
-  .wg-legend{font-size:12.5px}
-  .wg-item .nm{font-size:13.5px}
-  .wg-item .d{font-size:13px}
-  .pipe-card b{font-size:30px}
-  .pipe-card span{font-size:14px}
-  .g-lbl .q{font-size:15px}
-  .g-lbl .nm{font-size:13px}
-  .g-axis .tick{font-size:11px}
-  .g-note,.g-leg{font-size:12.5px}
   .d-title .q{font-size:23px}
   .d-title .n{font-size:13px}
   .d-search input{font-size:14.5px}
@@ -563,9 +427,6 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   select.sortsel{padding:10px 12px}
   .fchip{padding:9px 16px}
   .fu{padding:4px 10px}
-  .widget{padding:18px 20px}
-  .pipe-card{padding:13px 15px}
-  .gantt{padding:16px 18px}
   .d-head{padding:14px 16px}
   .d-search{padding:12px 16px}
   .d-body{padding:18px}
@@ -650,12 +511,7 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   <nav class="tabs" aria-label="Sections">
     <div class="tabs-inner">
       <span id="tabbar" style="display:flex;gap:2px" role="tablist"></span>
-      <div class="viewtog" id="viewTog" role="group" aria-label="View mode">
-        <button data-v="list" aria-label="Work queue list view">☰ <span>Work Queue</span></button>
-        <button data-v="overview" aria-label="Overview: KPIs, pipeline and timelines">▦ <span>Overview</span></button>
-      </div>
-    </div>
-  </nav>
+      
   <div class="toolbar">
     <div class="search">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -707,10 +563,7 @@ const CONFIG = {
   ACTIVITY_LOG_SHEET: 'Activity Log',
   ACTIVITY_MAX: 1500,
   SHOW_FINANCIALS: false,
-  STALE_MS: 5 * 60 * 1000,
-  GANTT_PAST_DAYS: 30,
-  GANTT_FUTURE_DAYS: 45,
-  GANTT_MAX_ROWS: 30
+  STALE_MS: 5 * 60 * 1000
 };
 
 /* Column maps (0-based, A=0)
@@ -733,15 +586,7 @@ const state = {
   activity:[], activityLoaded:false,
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
-  trackerStatus:'', stageFilter:'',
-  view: (() => {
-    const v = JSON.parse(localStorage.getItem('acefire_view') || '{}');
-    return { quotes:'list', tracker: v.tracker === 'overview' ? 'overview' : 'list' };
-  })(),
-  widgets: JSON.parse(localStorage.getItem('acefire_widgets') || 'null') ||
-           ['active','completion','upcoming','aging','invoices','retest'],
-  wcfgOpen:false,
-  statsOpen:false,
+  trackerStatus:'',
   drawerUid:null, drawerList:[], lastLoad:0
 };
 const $  = s => document.querySelector(s);
@@ -1037,9 +882,6 @@ function visibleRows(tab){
   if (tab.id === 'tracker' && state.trackerStatus){
     rows = rows.filter(r => (r.cells[3]||'').trim() === state.trackerStatus);
   }
-  if (tab.id === 'tracker' && state.stageFilter){
-    rows = rows.filter(r => stageAuto(r) === state.stageFilter);
-  }
   const q = state.search.trim().toLowerCase();
   if (q) rows = rows.filter(r => searchText(tab, r).includes(q));
   const s = state.sort[tab.id];
@@ -1050,31 +892,6 @@ function visibleRows(tab){
 function searchText(tab, r){
   const skip = (tab.id === 'quotes' && !CONFIG.SHOW_FINANCIALS) ? [7] : [];
   return r.cells.filter((_, i) => !skip.includes(i)).join(' ').toLowerCase();
-}
-
-/* Auto-derived pipeline stage — computed from status, report & invoice fields.
-   Fire-protection flow: schedule → service → report → invoice → payment. */
-const STAGES = [
-  { id:'tosched', label:'To schedule',   tone:'amber', sub:'no Ember date' },
-  { id:'sched',   label:'Scheduled',     tone:'blue',  sub:'service date set' },
-  { id:'inprog',  label:'In progress',   tone:'amber', sub:'on site / active' },
-  { id:'report',  label:'Report due',    tone:'amber', sub:'done, no report' },
-  { id:'ready',   label:'Ready to invoice', tone:'blue', sub:'report sent' },
-  { id:'sent',    label:'Awaiting payment', tone:'blue', sub:'invoice sent' },
-  { id:'overdue', label:'Overdue',       tone:'red',   sub:'payment late' },
-  { id:'paid',    label:'Paid',          tone:'green', sub:'closed out' }
-];
-function stageAuto(r){
-  const st = low(r.cells[3]);
-  if (st === 'cancelled') return null;
-  const inv = low(r.cells[6]);
-  if (inv === 'paid') return 'paid';
-  if (inv === 'overdue') return 'overdue';
-  if (inv === 'sent') return 'sent';
-  if (st === 'completed') return (r.cells[9]||'').trim() ? 'ready' : 'report';
-  if (st === 'in progress') return 'inprog';
-  if ((r.cells[7]||'').trim()) return 'sched';
-  return 'tosched';
 }
 
 /* =====================================================================
@@ -1098,11 +915,6 @@ function buildTabBar(){
     });
     bar.appendChild(b);
   });
-  $$('#viewTog button').forEach(b => b.addEventListener('click', () => {
-    state.view.tracker = b.dataset.v === 'overview' ? 'overview' : 'list';
-    localStorage.setItem('acefire_view', JSON.stringify(state.view));
-    renderAll();
-  }));
 }
 
 /* Attention bar (4 most urgent) + KPI cards — all tappable */
@@ -1128,7 +940,7 @@ function countFor(tabId, filterId){
 function jumpTo(tabId, filterId){
   state.activeTab = tabId;
   state.filter[tabId] = filterId;
-  if (tabId === 'tracker'){ state.trackerStatus = ''; state.stageFilter = ''; state.view.tracker = 'list'; }
+  if (tabId === 'tracker') state.trackerStatus = '';
   $$('.tab').forEach((x, i) => {
     const on = TABS[i].id === tabId;
     x.classList.toggle('active', on);
@@ -1187,26 +999,12 @@ function renderAll(){
   updateStale();
   renderSummary();
 
-  // view toggle: Tracker only (Quotes is always the work queue)
-  const vt = $('#viewTog');
-  if (tab.id === 'tracker'){
-    vt.style.display = '';
-    $$('#viewTog button').forEach(b =>
-      b.classList.toggle('active', (state.view.tracker === 'overview') === (b.dataset.v === 'overview')));
-  } else {
-    vt.style.display = 'none';
-  }
-
-  const isOverview = tab.id === 'tracker' && state.view.tracker === 'overview';
-
   const sel = $('#sortSel');
   sel.innerHTML = sortDefs(tab).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
   sel.value = state.sort[tab.id];
-  sel.style.display = isOverview ? 'none' : '';
-  $('.search') && ($('.search').style.display = isOverview ? 'none' : '');
 
   const ss = $('#statusSel');
-  if (tab.id === 'tracker' && !isOverview){
+  if (tab.id === 'tracker'){
     const opts = state.options[3] || [];
     const present = [...new Set((state.data.tracker||[]).map(r => (r.cells[3]||'').trim()).filter(Boolean))];
     const all = [...new Set([...opts, ...present])];
@@ -1219,32 +1017,20 @@ function renderAll(){
 
   const fb = $('#filterBar');
   fb.innerHTML = '';
-  if (!isOverview){
-    const all = state.data[tab.id] || [];
-    filterDefs(tab).forEach(f => {
-      const n = all.filter(f.fn).length;
-      if (f.id !== 'all' && n === 0) return;
-      const b = document.createElement('button');
-      b.className = 'fchip' + (state.filter[tab.id] === f.id ? ' active' : '');
-      b.setAttribute('aria-pressed', state.filter[tab.id] === f.id ? 'true' : 'false');
-      b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
-      b.addEventListener('click', () => { state.filter[tab.id] = f.id; state.stageFilter = ''; renderAll(); });
-      fb.appendChild(b);
-    });
-    // active pipeline-stage filter (set from Overview) shows as a removable chip
-    if (tab.id === 'tracker' && state.stageFilter){
-      const st = STAGES.find(s => s.id === state.stageFilter);
-      const b = document.createElement('button');
-      b.className = 'fchip active stagechip';
-      b.innerHTML = `Stage: ${esc(st ? st.label : state.stageFilter)} ✕`;
-      b.setAttribute('aria-label', 'Clear pipeline stage filter');
-      b.addEventListener('click', () => { state.stageFilter = ''; renderAll(); });
-      fb.appendChild(b);
-    }
-  }
+  const all = state.data[tab.id] || [];
+  filterDefs(tab).forEach(f => {
+    const n = all.filter(f.fn).length;
+    if (f.id !== 'all' && n === 0) return;
+    const b = document.createElement('button');
+    b.className = 'fchip' + (state.filter[tab.id] === f.id ? ' active' : '');
+    b.setAttribute('aria-pressed', state.filter[tab.id] === f.id ? 'true' : 'false');
+    b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
+    b.addEventListener('click', () => { state.filter[tab.id] = f.id; renderAll(); });
+    fb.appendChild(b);
+  });
 
   const dupes = state.dupes[tab.id] || [];
-  $('#dupeBanner').classList.toggle('on', dupes.length > 0 && !isOverview);
+  $('#dupeBanner').classList.toggle('on', dupes.length > 0);
   if (dupes.length){
     $('#dupeText').textContent = `⚠ Duplicate quote #s on ${tab.label}: ${dupes.join(', ')} — saves verify the exact row first, but clean these up in the sheet.`;
   }
@@ -1252,9 +1038,7 @@ function renderAll(){
   renderContent();
 }
 function renderContent(){
-  const tab = activeTabDef();
-  if (tab.id === 'tracker' && state.view.tracker === 'overview') renderOverview();
-  else renderList();
+  renderList();
 }
 
 function updateStale(){
@@ -1279,7 +1063,7 @@ $('#metaNote').addEventListener('click', () => $('#btnRefresh').click());
 /* ---- list view ---- */
 function emptyMsg(tab){
   if (state.search) return 'No matches for your search.';
-  if (state.filter[tab.id] !== 'all' || (tab.id === 'tracker' && (state.trackerStatus || state.stageFilter)))
+  if (state.filter[tab.id] !== 'all' || (tab.id === 'tracker' && state.trackerStatus))
     return 'All clear here 🎉 — nothing matches this view.';
   return 'No rows in this tab yet.';
 }
@@ -1418,331 +1202,6 @@ function invStatusBadge(v){
 }
 
 /* =====================================================================
-   Overview: KPI widgets + auto pipeline + Gantt (Tracker only)
-   ===================================================================== */
-const WIDGET_DEFS = [
-  { id:'active',     label:'Active jobs' },
-  { id:'completion', label:'Completion & payment rate' },
-  { id:'upcoming',   label:'Upcoming service' },
-  { id:'aging',      label:'Past date · not completed' },
-  { id:'invoices',   label:'Invoice pipeline' },
-  { id:'retest',     label:'Retest & compliance' }
-];
-
-function ovSection(title, sub){
-  const sec = document.createElement('section');
-  sec.className = 'ov-sec';
-  const head = document.createElement('div');
-  head.className = 'ov-head';
-  head.innerHTML = `<h2>${esc(title)}</h2>` + (sub ? `<span class="sub">${esc(sub)}</span>` : '');
-  sec.appendChild(head);
-  return sec;
-}
-
-function renderOverview(){
-  const main = $('#main');
-  main.innerHTML = '';
-  const rows = (state.data.tracker || []).filter(r => low(r.cells[3]) !== 'cancelled');
-
-  /* --- 1. KPI widgets (customizable) --- */
-  const sec1 = ovSection('Operations snapshot', 'live from the Tracker sheet');
-  const cfg = document.createElement('button');
-  cfg.type = 'button';
-  cfg.className = 'cfgbtn';
-  cfg.textContent = state.wcfgOpen ? 'Done' : '⚙ Customize';
-  cfg.setAttribute('aria-expanded', state.wcfgOpen ? 'true' : 'false');
-  cfg.addEventListener('click', () => { state.wcfgOpen = !state.wcfgOpen; renderContent(); });
-  sec1.querySelector('.ov-head').appendChild(cfg);
-
-  if (state.wcfgOpen){
-    const panel = document.createElement('div');
-    panel.className = 'wcfg';
-    WIDGET_DEFS.forEach(w => {
-      const lb = document.createElement('label');
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = state.widgets.includes(w.id);
-      cb.addEventListener('change', () => {
-        state.widgets = cb.checked
-          ? [...state.widgets, w.id]
-          : state.widgets.filter(x => x !== w.id);
-        localStorage.setItem('acefire_widgets', JSON.stringify(state.widgets));
-        renderContent();
-      });
-      lb.appendChild(cb);
-      lb.appendChild(document.createTextNode(w.label));
-      panel.appendChild(lb);
-    });
-    sec1.appendChild(panel);
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'widgets';
-  WIDGET_DEFS.filter(w => state.widgets.includes(w.id)).forEach(w => {
-    grid.appendChild(WIDGET_RENDER[w.id](rows));
-  });
-  if (!grid.children.length) grid.innerHTML = '<div class="wg-none">No widgets enabled — open ⚙ Customize.</div>';
-  sec1.appendChild(grid);
-  main.appendChild(sec1);
-
-  /* --- 2. Auto pipeline --- */
-  const sec2 = ovSection('Job pipeline', 'auto-derived from status, report & invoice fields — tap a stage to open that list');
-  const counts = {};
-  STAGES.forEach(s => counts[s.id] = 0);
-  rows.forEach(r => { const s = stageAuto(r); if (s) counts[s]++; });
-  const pipe = document.createElement('div');
-  pipe.className = 'pipe';
-  STAGES.forEach(s => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pipe-card t-' + s.tone + (counts[s.id] === 0 ? ' zero' : '') +
-      (state.stageFilter === s.id ? ' active' : '');
-    b.title = s.sub;
-    b.setAttribute('aria-label', `${s.label}: ${counts[s.id]} jobs — open list`);
-    b.innerHTML = `<b>${counts[s.id]}</b><span>${esc(s.label)}</span>`;
-    b.addEventListener('click', () => {
-      state.stageFilter = s.id;
-      state.filter.tracker = 'all';
-      state.trackerStatus = '';
-      state.view.tracker = 'list';
-      localStorage.setItem('acefire_view', JSON.stringify(state.view));
-      renderAll();
-    });
-    pipe.appendChild(b);
-  });
-  sec2.appendChild(pipe);
-  const total = Object.values(counts).reduce((a,b) => a+b, 0) || 1;
-  const bar = document.createElement('div');
-  bar.className = 'pipebar';
-  const toneColor = { red:'var(--red)', amber:'#E0A93E', blue:'var(--blue)', green:'var(--green)', gray:'var(--line2)' };
-  bar.innerHTML = STAGES.map(s =>
-    `<i style="width:${(counts[s.id]/total*100).toFixed(1)}%;background:${toneColor[s.tone]}" title="${esc(s.label)}: ${counts[s.id]}"></i>`).join('');
-  sec2.appendChild(bar);
-  main.appendChild(sec2);
-
-  /* --- 3. Gantt / timelines --- */
-  const sec3 = ovSection('Timelines', 'Ember service dates — bars show open jobs aging since their date');
-  sec3.appendChild(renderGantt(rows));
-  main.appendChild(sec3);
-}
-
-/* ---- widgets ---- */
-const WIDGET_RENDER = {
-  active(rows){
-    const w = widgetShell('Active jobs');
-    const open = rows.filter(r => !['completed'].includes(low(r.cells[3])) && low(r.cells[6]) !== 'paid');
-    w.insertAdjacentHTML('beforeend', `<div class="wg-num">${open.length}</div>`);
-    const byStatus = {};
-    open.forEach(r => { const s = (r.cells[3]||'').trim() || '—'; byStatus[s] = (byStatus[s]||0) + 1; });
-    const chips = Object.entries(byStatus).sort((a,b) => b[1]-a[1]).slice(0, 5)
-      .map(([s, n]) => statusBadge(s).replace('</span>', ` ${n}</span>`)).join('');
-    w.insertAdjacentHTML('beforeend', `<div class="wg-chips">${chips}</div>`);
-    return w;
-  },
-  completion(rows){
-    const w = widgetShell('Completion & payment rate');
-    const done = rows.filter(r => low(r.cells[3]) === 'completed').length;
-    const pct = rows.length ? Math.round(done / rows.length * 100) : 0;
-    const invoiced = rows.filter(r => ['sent','overdue','paid'].includes(low(r.cells[6])));
-    const paid = invoiced.filter(r => low(r.cells[6]) === 'paid').length;
-    const ppct = invoiced.length ? Math.round(paid / invoiced.length * 100) : 0;
-    w.insertAdjacentHTML('beforeend', `
-      <div class="wg-pct" style="color:var(--green)">${pct}%</div>
-      <div class="wg-sub">${done} of ${rows.length} jobs completed</div>
-      <div class="wg-bar"><i style="width:${pct}%;background:var(--green)"></i></div>
-      <div class="wg-pct" style="color:var(--blue);font-size:24px">${ppct}%</div>
-      <div class="wg-sub">${paid} of ${invoiced.length} invoices paid</div>
-      <div class="wg-bar"><i style="width:${ppct}%;background:var(--blue)"></i></div>`);
-    return w;
-  },
-  upcoming(rows){
-    const w = widgetShell('Upcoming service');
-    const today = startOfDay(new Date());
-    const items = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
-      .filter(x => x.d && x.d >= today)
-      .sort((a,b) => a.d - b.d).slice(0, 6);
-    if (!items.length){
-      w.insertAdjacentHTML('beforeend', '<div class="wg-none">Nothing on the calendar yet.</div>');
-      return w;
-    }
-    const list = document.createElement('div');
-    list.className = 'wg-list';
-    items.forEach(({ r, d }) => list.appendChild(wgItem(fmtMD(d), r, r.cells[8] ? `<span class="badge b-blue">${esc(r.cells[8])}</span>` : '')));
-    w.appendChild(list);
-    return w;
-  },
-  aging(rows){
-    const w = widgetShell('Past date · not completed');
-    const today = startOfDay(new Date());
-    const items = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
-      .filter(x => x.d && x.d < today && low(x.r.cells[3]) !== 'completed' && low(x.r.cells[6]) !== 'paid')
-      .sort((a,b) => a.d - b.d);
-    w.insertAdjacentHTML('beforeend', `<div class="wg-num" style="color:${items.length ? 'var(--amber)' : 'var(--green)'}">${items.length}</div>`);
-    if (!items.length){
-      w.insertAdjacentHTML('beforeend', '<div class="wg-none">All serviced jobs are wrapped up 🎉</div>');
-      return w;
-    }
-    const list = document.createElement('div');
-    list.className = 'wg-list';
-    items.slice(0, 5).forEach(({ r, d }) => {
-      const days = Math.round((today - d) / DAY);
-      list.appendChild(wgItem(days + 'd ago', r, statusBadge(r.cells[3])));
-    });
-    w.appendChild(list);
-    return w;
-  },
-  invoices(rows){
-    const w = widgetShell('Invoice pipeline');
-    const c = { notsent:0, sent:0, overdue:0, paid:0 };
-    rows.forEach(r => {
-      const v = low(r.cells[6]);
-      if (v === 'sent') c.sent++;
-      else if (v === 'overdue') c.overdue++;
-      else if (v === 'paid') c.paid++;
-      else c.notsent++;
-    });
-    const total = rows.length || 1;
-    w.insertAdjacentHTML('beforeend', `
-      <div class="wg-bar">
-        <i style="width:${c.notsent/total*100}%;background:var(--line2)"></i>
-        <i style="width:${c.sent/total*100}%;background:var(--blue)"></i>
-        <i style="width:${c.overdue/total*100}%;background:var(--red)"></i>
-        <i style="width:${c.paid/total*100}%;background:var(--green)"></i>
-      </div>
-      <div class="wg-legend">
-        <span><span class="sw" style="background:var(--line2)"></span>Not sent <b>${c.notsent}</b></span>
-        <span><span class="sw" style="background:var(--blue)"></span>Sent <b>${c.sent}</b></span>
-        <span><span class="sw" style="background:var(--red)"></span>Overdue <b>${c.overdue}</b></span>
-        <span><span class="sw" style="background:var(--green)"></span>Paid <b>${c.paid}</b></span>
-      </div>`);
-    return w;
-  },
-  retest(rows){
-    const w = widgetShell('Retest & compliance');
-    const byL = {};
-    rows.forEach(r => { const v = (r.cells[11]||'').trim(); if (v) byL[v] = (byL[v]||0) + 1; });
-    const entries = Object.entries(byL).sort((a,b) => b[1]-a[1]);
-    if (!entries.length){
-      w.insertAdjacentHTML('beforeend', '<div class="wg-none">No retest activity recorded.</div>');
-      return w;
-    }
-    const cls = v => {
-      const t = low(v);
-      if (['pending','awaiting approval','scheduled'].includes(t)) return 'b-amber';
-      if (['approved','completed','passed'].includes(t)) return 'b-green';
-      return 'b-gray';
-    };
-    w.insertAdjacentHTML('beforeend', `<div class="wg-chips">${entries.map(([v, n]) =>
-      `<span class="badge ${cls(v)}">${esc(v)} ${n}</span>`).join('')}</div>`);
-    const pend = rows.filter(r => ['pending','awaiting approval','scheduled'].includes(low(r.cells[11])));
-    if (pend.length){
-      const list = document.createElement('div');
-      list.className = 'wg-list';
-      list.style.marginTop = '8px';
-      pend.slice(0, 4).forEach(r => list.appendChild(wgItem('', r, `<span class="badge b-amber">${esc(r.cells[11])}</span>`)));
-      w.appendChild(list);
-    }
-    return w;
-  }
-};
-function widgetShell(title){
-  const w = document.createElement('div');
-  w.className = 'widget';
-  w.innerHTML = `<h4>${esc(title)}</h4>`;
-  return w;
-}
-function wgItem(dTxt, r, badgeHtml){
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'wg-item';
-  b.innerHTML = `${dTxt ? `<span class="d">${esc(dTxt)}</span>` : ''}<span class="q">#${esc(r.key)}</span><span class="nm">${esc(r.cells[1])}</span>${badgeHtml || ''}`;
-  b.addEventListener('click', () => openDrawer(r.uid));
-  return b;
-}
-
-/* ---- Gantt ---- */
-function renderGantt(rows){
-  const today = startOfDay(new Date());
-  const start = addDays(today, -CONFIG.GANTT_PAST_DAYS);
-  const end = addDays(today, CONFIG.GANTT_FUTURE_DAYS);
-  const span = end - start;
-  const pct = d => Math.max(0, Math.min(100, (d - start) / span * 100));
-
-  const all = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
-    .filter(x => x.d && low(x.r.cells[6]) !== 'paid')
-    .filter(x => x.d <= end && (x.d >= start || low(x.r.cells[3]) !== 'completed'))
-    .sort((a,b) => a.d - b.d);
-  const shown = all.slice(0, CONFIG.GANTT_MAX_ROWS);
-
-  const box = document.createElement('div');
-  box.className = 'gantt';
-  if (!shown.length){
-    box.innerHTML = '<div class="wg-none">No jobs with Ember dates in this window yet — dates appear here automatically.</div>';
-    return box;
-  }
-  const inner = document.createElement('div');
-  inner.className = 'g-inner';
-
-  // weekly axis ticks
-  const axis = document.createElement('div');
-  axis.className = 'g-axis';
-  const firstTick = addDays(start, (7 - start.getDay()) % 7);
-  for (let t = firstTick; t <= end; t = addDays(t, 7)){
-    axis.insertAdjacentHTML('beforeend', `<span class="tick" style="left:${pct(t)}%">${fmtMD(t)}</span>`);
-  }
-  inner.appendChild(axis);
-
-  const body = document.createElement('div');
-  body.className = 'g-body';
-  const overlay = document.createElement('div');
-  overlay.className = 'g-overlay';
-  for (let t = firstTick; t <= end; t = addDays(t, 7)){
-    overlay.insertAdjacentHTML('beforeend', `<span class="vline" style="left:${pct(t)}%"></span>`);
-  }
-  overlay.insertAdjacentHTML('beforeend', `<span class="todayline" style="left:${pct(today)}%" title="Today"></span>`);
-  body.appendChild(overlay);
-
-  shown.forEach(({ r, d }) => {
-    const row = document.createElement('div');
-    row.className = 'g-row';
-    row.setAttribute('role', 'button');
-    row.tabIndex = 0;
-    row.setAttribute('aria-label', `Quote ${r.key}, ${r.cells[1]} — open details`);
-    const done = low(r.cells[3]) === 'completed';
-    const track = document.createElement('div');
-    track.className = 'g-track';
-    if (done){
-      track.innerHTML = `<span class="g-dia" style="left:${pct(d)}%" title="Completed ${fmtMD(d)}"></span>`;
-    } else if (d > today){
-      track.innerHTML = `<span class="g-dia up" style="left:${pct(d)}%" title="Scheduled ${fmtMD(d)}"></span>`;
-    } else {
-      const st = stageAuto(r);
-      const l = pct(d < start ? start : d), rgt = pct(today);
-      const days = Math.round((today - d) / DAY);
-      track.innerHTML = `<span class="g-bar${st === 'overdue' ? ' gb-red' : ''}" style="left:${l}%;width:${Math.max(rgt - l, 1)}%" title="Open ${days}d since ${fmtMD(d)}"></span>
-        <span class="g-age" style="left:${rgt}%">${days}d</span>`;
-    }
-    row.innerHTML = `<div class="g-lbl"><span class="q">#${esc(r.key)}</span><span class="nm">${esc(r.cells[1])}</span></div>`;
-    row.appendChild(track);
-    row.addEventListener('click', () => openDrawer(r.uid));
-    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(r.uid); } });
-    body.appendChild(row);
-  });
-  inner.appendChild(body);
-  box.appendChild(inner);
-
-  box.insertAdjacentHTML('beforeend', `
-    <div class="g-leg">
-      <span><span class="sw" style="background:#E0A93E"></span>Open since service date</span>
-      <span><span class="sw" style="background:var(--red)"></span>Open + invoice overdue</span>
-      <span><span class="sw dm" style="background:var(--blue)"></span>Upcoming service</span>
-      <span><span class="sw dm" style="background:var(--green)"></span>Completed</span>
-    </div>` +
-    (all.length > shown.length ? `<div class="g-note">Showing ${shown.length} of ${all.length} dated jobs (window: last ${CONFIG.GANTT_PAST_DAYS}d → next ${CONFIG.GANTT_FUTURE_DAYS}d). Paid jobs are hidden.</div>` : ''));
-  return box;
-}
-
-/* =====================================================================
    Drawer
    ===================================================================== */
 function openDrawer(uid){
@@ -1756,7 +1215,7 @@ function openDrawer(uid){
   $('#overlay').classList.add('on');
   document.body.classList.add('drawer-open');
   $('#drawer').setAttribute('aria-hidden', 'false');
-  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
+  renderContent();
 }
 function closeDrawer(){
   $('#drawer').classList.remove('on');
@@ -1786,7 +1245,7 @@ function stepDrawer(dir){
   $('#dSearch').value = '';
   $('#dSearchWrap').classList.remove('has');
   renderDrawer();
-  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
+  renderContent();
 }
 
 $('#dSearch').addEventListener('input', () => {
@@ -1817,7 +1276,7 @@ function renderDrawerResults(q){
       $('#dSearch').value = '';
       $('#dSearchWrap').classList.remove('has');
       renderDrawer();
-      if (!(tab.id === 'tracker' && state.view.tracker === 'overview')) renderContent();
+      renderContent();
     });
     box.appendChild(b);
   });
@@ -1878,9 +1337,6 @@ function renderDrawer(){
     add('Invoice #', esc(r.cells[5]));
     add('Invoice', invStatusBadge(r.cells[6]));
     add('Ember', (r.cells[7] || r.cells[8]) ? `${r.cells[8] ? `<span class="badge b-blue">${esc(r.cells[8])}</span> ` : ''}${esc(r.cells[7])}` : '');
-    const st = stageAuto(r);
-    const sdef = STAGES.find(s => s.id === st);
-    if (sdef) add('Stage', `<span class="badge b-${sdef.tone === 'gray' ? 'gray' : sdef.tone}">${esc(sdef.label)}</span>`);
   }
   info.appendChild(grid);
   body.appendChild(info);
@@ -1967,7 +1423,7 @@ function setEdit(tab, r, colIdx, val){
   else r.edits[colIdx] = val;
   $$(`#dBody [data-col="${colIdx}"]`).forEach(ct => ct.classList.toggle('changed', colIdx in r.edits));
   syncFoot(r);
-  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
+  renderContent();
 }
 function syncFoot(r){
   const foot = $('#dFoot');
@@ -2142,7 +1598,7 @@ $('#dRevert').addEventListener('click', () => {
   if (!r) return;
   r.edits = {};
   renderDrawer();
-  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
+  renderContent();
 });
 
 async function saveActive(){
