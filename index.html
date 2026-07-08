@@ -31,7 +31,7 @@ button{font-family:inherit}
 input,select,textarea{font-family:inherit;font-size:14px}
 a{color:var(--blue)}
 :focus-visible{outline:2px solid var(--blue); outline-offset:2px; border-radius:4px}
-.row:focus-visible,.bcard:focus-visible{outline-offset:-2px}
+.row:focus-visible{outline-offset:-2px}
 .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
 
 /* ============ Header (scrolls away; tabs stay sticky) ============ */
@@ -55,6 +55,47 @@ h1.ace b{color:#E8534E; font-weight:700}
 .hd-btn.spin svg{animation:rot 1s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 .stripe{height:6px; background:repeating-linear-gradient(-45deg, var(--red) 0 14px, var(--ink) 14px 28px)}
+
+/* ============ Attention bar + KPI cards ============ */
+.summary{max-width:none; margin:0 auto; padding:12px 16px 4px}
+.attn{
+  background:var(--ink); color:#DDE0E6; border-radius:12px;
+  padding:10px 16px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  box-shadow:var(--shadow);
+}
+.attn .tag{
+  display:flex; align-items:center; gap:8px; font-family:'Barlow Condensed';
+  font-weight:700; font-size:14.5px; letter-spacing:.13em; text-transform:uppercase; color:#fff;
+}
+.attn .dot{width:8px; height:8px; border-radius:50%; background:#E8534E; box-shadow:0 0 0 3px rgba(232,83,78,.25)}
+.attn button.stat{
+  appearance:none; border:none; background:none; color:#C9CDD5; font:inherit; font-size:13px;
+  display:flex; align-items:baseline; gap:6px; cursor:pointer; padding:2px 0;
+}
+.attn button.stat b{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; line-height:1}
+.attn button.stat:hover{color:#fff; text-decoration:underline}
+.attn .s-red b{color:#F0716C}
+.attn .s-amber b{color:#EFB35A}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:10px}
+.statsbtn{
+  display:none; appearance:none; border:1px solid #464B55; background:transparent; color:#C9CDD5;
+  border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
+  margin-left:auto; white-space:nowrap; flex:none;
+}
+.kpi{
+  appearance:none; font:inherit; cursor:pointer; text-align:left;
+  background:var(--card); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
+  padding:12px 14px 11px; box-shadow:var(--shadow);
+}
+.kpi .lbl{font-family:'Barlow Condensed'; font-weight:700; font-size:13.5px; letter-spacing:.12em; text-transform:uppercase}
+.kpi b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:34px; line-height:1.05; margin:2px 0 1px}
+.kpi .sub{font-size:11.5px; color:var(--muted)}
+.kpi.t-red{border-left-color:var(--red)} .kpi.t-red .lbl, .kpi.t-red b{color:var(--red-dk)}
+.kpi.t-amber{border-left-color:#E0A93E} .kpi.t-amber .lbl, .kpi.t-amber b{color:var(--amber)}
+.kpi.t-blue{border-left-color:var(--blue)} .kpi.t-blue .lbl, .kpi.t-blue b{color:var(--blue)}
+.kpi.zero{opacity:.6}
+.kpi.zero b{color:var(--muted)}
+.kpi.active{outline:2px solid var(--ink); outline-offset:-1px}
 
 /* ============ Tabs (sticky) ============ */
 nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:45}
@@ -84,42 +125,6 @@ nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:s
   display:flex; align-items:center; gap:6px; min-height:34px;
 }
 .viewtog button.active{background:var(--ink); color:#fff}
-
-/* ============ Attention bar + KPI cards ============ */
-.summary{max-width:none; margin:0 auto; padding:12px 16px 4px}
-.attn{
-  background:var(--ink); color:#DDE0E6; border-radius:12px;
-  padding:10px 16px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;
-  box-shadow:var(--shadow);
-}
-.attn .tag{
-  display:flex; align-items:center; gap:8px; font-family:'Barlow Condensed';
-  font-weight:700; font-size:14.5px; letter-spacing:.13em; text-transform:uppercase; color:#fff;
-}
-.attn .dot{width:8px; height:8px; border-radius:50%; background:#E8534E; box-shadow:0 0 0 3px rgba(232,83,78,.25)}
-.attn button.stat{
-  appearance:none; border:none; background:none; color:#C9CDD5; font:inherit; font-size:13px;
-  display:flex; align-items:baseline; gap:6px; cursor:pointer; padding:2px 0;
-}
-.attn button.stat b{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; line-height:1}
-.attn button.stat:hover{color:#fff; text-decoration:underline}
-.attn .s-red b{color:#F0716C}
-.attn .s-amber b{color:#EFB35A}
-.kpis{display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:10px}
-.kpi{
-  appearance:none; font:inherit; cursor:pointer; text-align:left;
-  background:var(--card); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
-  padding:12px 14px 11px; box-shadow:var(--shadow);
-}
-.kpi .lbl{font-family:'Barlow Condensed'; font-weight:700; font-size:13.5px; letter-spacing:.12em; text-transform:uppercase}
-.kpi b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:34px; line-height:1.05; margin:2px 0 1px}
-.kpi .sub{font-size:11.5px; color:var(--muted)}
-.kpi.t-red{border-left-color:var(--red)} .kpi.t-red .lbl, .kpi.t-red b{color:var(--red-dk)}
-.kpi.t-amber{border-left-color:#E0A93E} .kpi.t-amber .lbl, .kpi.t-amber b{color:var(--amber)}
-.kpi.t-blue{border-left-color:var(--blue)} .kpi.t-blue .lbl, .kpi.t-blue b{color:var(--blue)}
-.kpi.zero{opacity:.6}
-.kpi.zero b{color:var(--muted)}
-.kpi.active{outline:2px solid var(--ink); outline-offset:-1px}
 
 /* ============ Toolbar / filters ============ */
 .toolbar{
@@ -159,6 +164,7 @@ select.sortsel{
   background:#F0EFEA; color:var(--muted); border-radius:99px; padding:1px 7px;
 }
 .fchip.active .n{background:#3A3E46; color:#E8EAEE}
+.fchip.stagechip{border-color:var(--red); color:var(--red-dk)}
 .banner{max-width:none; margin:10px auto 0; padding:0 16px; display:none}
 .banner.on{display:block}
 .banner .inner{
@@ -185,6 +191,7 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-warn{box-shadow:inset 4px 0 0 #E0A93E}
 .r-main{flex:1; min-width:0}
 .r-top{display:flex; align-items:baseline; gap:8px; min-width:0}
+.r-top .r-side{margin-left:auto; flex:none; padding-left:8px}
 .r-q{font-family:'Barlow Condensed'; font-weight:700; font-size:16.5px; color:var(--red-dk); white-space:nowrap}
 .r-nm{font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; align-self:center}
@@ -224,132 +231,112 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 @keyframes shim{to{background-position:-200% 0}}
 @media (prefers-reduced-motion: reduce){ .skel i,.loading-bar i,#drawer{animation:none; transition:none} }
 
-/* ============ Board toolbar (jump strip / mobile nav) ============ */
-.bjump{
-  display:flex; gap:6px; align-items:center; overflow-x:auto; padding:2px 2px 10px;
-  -webkit-overflow-scrolling:touch;
+/* ============ Overview (Tracker insights) ============ */
+.ov-sec{margin-bottom:24px}
+.ov-head{display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap}
+.ov-head h2{
+  font-family:'Barlow Condensed'; font-weight:700; font-size:19px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink); margin:0;
 }
-.bjump .glabel{
-  flex:none; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--muted);
+.ov-head .sub{font-size:12px; color:var(--muted)}
+.cfgbtn{
+  margin-left:auto; appearance:none; border:1px solid var(--line2); background:var(--card);
+  color:var(--ink2); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;
 }
-.jchip{
-  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
-  font-size:11.5px; font-weight:600; border-radius:99px; padding:5px 11px; cursor:pointer;
-  white-space:nowrap; min-height:30px;
+.cfgbtn:hover{border-color:var(--ink2)}
+.wcfg{
+  background:var(--card); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  padding:10px 14px; margin-bottom:10px; display:flex; gap:16px; flex-wrap:wrap;
 }
-.jchip:hover{border-color:var(--ink2)}
-.jchip .n{opacity:.6; font-weight:700; margin-left:4px}
-.jchip.dim{opacity:.55}
-.jtog{
-  appearance:none; border:1px solid var(--line2); background:var(--paper); color:var(--muted);
-  font-size:11.5px; font-weight:700; border-radius:8px; padding:6px 11px; cursor:pointer;
-  white-space:nowrap; min-height:30px;
+.wcfg label{display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--ink2); cursor:pointer}
+.widgets{display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:12px}
+.widget{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:var(--shadow); padding:14px 16px; min-width:0;
 }
-.jtog:hover{color:var(--ink)}
-.jtog:first-of-type{margin-left:auto}
-.mnav{
-  display:flex; gap:8px; align-items:center; padding:2px 0 10px;
+.widget h4{
+  margin:0 0 9px; font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
 }
-.mnav select{
-  flex:1; border:1px solid var(--line2); border-radius:9px; background:var(--card);
-  padding:10px; font-size:14px; font-weight:600; outline:none; min-height:44px;
+.wg-num{font-family:'Barlow Condensed'; font-weight:700; font-size:38px; line-height:1; color:var(--ink)}
+.wg-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:9px}
+.wg-bar{height:11px; border-radius:99px; background:#EFEEEA; overflow:hidden; display:flex; margin:9px 0 7px}
+.wg-bar i{height:100%}
+.wg-legend{display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; color:var(--ink2)}
+.wg-legend b{font-weight:700}
+.wg-legend .sw{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; vertical-align:baseline}
+.wg-pct{font-family:'Barlow Condensed'; font-weight:700; font-size:30px; line-height:1}
+.wg-sub{font-size:11.5px; color:var(--muted); margin-top:2px}
+.wg-list{display:flex; flex-direction:column}
+.wg-item{
+  appearance:none; display:flex; align-items:center; gap:8px; padding:7px 0;
+  border:none; border-bottom:1px dashed var(--line); background:none;
+  width:100%; text-align:left; cursor:pointer; font:inherit; color:inherit;
 }
-.mnav .icon-btn{width:44px; height:44px; flex:none}
+.wg-item:last-child{border-bottom:none}
+.wg-item:hover .nm{color:var(--ink)}
+.wg-item .d{font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink2); width:48px; flex:none; font-size:12px}
+.wg-item .q{font-family:'Barlow Condensed'; color:var(--red-dk); font-weight:700; flex:none; font-size:14px}
+.wg-item .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; color:var(--ink2)}
+.wg-item .badge{flex:none; font-size:10px; padding:1px 6px}
+.wg-none{color:var(--muted); font-size:12.5px}
 
-/* ============ Kanban board ============ */
-.board{
-  display:flex; gap:10px; align-items:flex-start; overflow-x:auto; padding-bottom:14px;
-  -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
+/* pipeline */
+.pipe{display:grid; grid-template-columns:repeat(auto-fit, minmax(122px, 1fr)); gap:8px}
+.pipe-card{
+  appearance:none; font:inherit; text-align:left; cursor:pointer;
+  background:var(--card); border:1px solid var(--line); border-top-width:4px; border-radius:10px;
+  padding:10px 12px; box-shadow:var(--shadow);
 }
-.bcol{
-  flex:none; width:208px; background:#EDECE7; border:1px solid var(--line);
-  border-radius:12px; scroll-snap-align:start; max-height:calc(100vh - 200px);
-  display:flex; flex-direction:column; position:relative;
+.pipe-card b{display:block; font-family:'Barlow Condensed'; font-weight:700; font-size:26px; line-height:1.05; color:var(--ink)}
+.pipe-card span{
+  display:block; font-family:'Barlow Condensed'; font-size:13px; font-weight:600;
+  letter-spacing:.07em; text-transform:uppercase; color:var(--ink2); margin-top:1px;
 }
-.board.compact .bcol{width:192px}
-.board.mobile1{overflow-x:hidden}
-.board.mobile1 .bcol{width:100%; max-height:calc(100vh - 250px)}
-.bcol.dropok{outline:2px dashed var(--red); outline-offset:-2px; background:#F6EAE9}
-.bcol.pulse{outline:2px solid var(--red); outline-offset:-2px}
-.bcol-h{
-  padding:9px 11px 7px; display:flex; align-items:center; gap:7px;
-  font-family:'Barlow Condensed'; font-weight:600; font-size:15px; letter-spacing:.07em;
-  text-transform:uppercase; color:var(--ink2); flex:none; min-width:0;
-}
-.bcol-h .lbl{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.bcol-h .n{
-  font-family:'Inter'; font-size:11px; font-weight:700; letter-spacing:0; flex:none;
-  background:var(--card); border:1px solid var(--line2); color:var(--muted);
-  border-radius:99px; padding:0 7px;
-}
-.bcol-h .hint{font-family:'Inter'; font-size:9.5px; letter-spacing:0; text-transform:none; color:var(--muted); font-weight:500; margin-left:auto; flex:none}
-.board.compact .bcol-h .hint{display:none}
-.bcol-cards{overflow-y:auto; padding:2px 8px 26px; display:flex; flex-direction:column; gap:7px}
-.board.compact .bcol-cards{gap:6px; padding:2px 6px 26px}
-.bfade{
-  position:absolute; bottom:0; left:1px; right:1px; height:26px; pointer-events:none;
-  background:linear-gradient(rgba(237,236,231,0), #EDECE7 78%);
-  border-radius:0 0 12px 12px; display:none;
-}
-.bcol.can-scroll .bfade{display:block}
+.pipe-card.t-red{border-top-color:var(--red)} .pipe-card.t-red b{color:var(--red-dk)}
+.pipe-card.t-amber{border-top-color:#E0A93E} .pipe-card.t-amber b{color:var(--amber)}
+.pipe-card.t-blue{border-top-color:var(--blue)} .pipe-card.t-blue b{color:var(--blue)}
+.pipe-card.t-green{border-top-color:var(--green)} .pipe-card.t-green b{color:var(--green)}
+.pipe-card.t-gray{border-top-color:var(--line2)}
+.pipe-card.zero{opacity:.5}
+.pipe-card:hover{border-color:var(--ink2)}
+.pipe-card.active{outline:2px solid var(--ink); outline-offset:-1px}
+.pipebar{display:flex; height:12px; border-radius:99px; overflow:hidden; background:#EFEEEA; margin-top:10px}
+.pipebar i{height:100%}
 
-/* empty-status rail: all empty columns stack as horizontal-label stubs */
-.bcol.rail{background:#F1F0EB; width:232px}
-.rail-list{overflow-y:auto; padding:4px 8px 12px; display:flex; flex-direction:column; gap:6px}
-.stub{
-  display:flex; align-items:center; gap:8px;
-  background:var(--card); border:1px dashed var(--line2); border-radius:8px;
-  padding:10px 11px; cursor:pointer; min-height:40px;
+/* gantt */
+.gantt{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:var(--shadow); padding:12px 14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
 }
-.stub .lbl{
-  flex:1; font-family:'Barlow Condensed'; font-weight:600; font-size:14.5px;
-  letter-spacing:.07em; text-transform:uppercase; color:var(--ink2);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+.g-inner{min-width:680px}
+.g-axis{position:relative; height:20px; margin-left:190px; border-bottom:1px solid var(--line)}
+.g-axis .tick{position:absolute; top:2px; font-size:10px; color:var(--muted); transform:translateX(-50%); white-space:nowrap}
+.g-body{position:relative}
+.g-overlay{position:absolute; left:190px; right:0; top:0; bottom:0; pointer-events:none}
+.g-overlay .vline{position:absolute; top:0; bottom:0; width:1px; background:var(--line); opacity:.7}
+.g-overlay .todayline{position:absolute; top:0; bottom:0; width:2px; background:var(--red); opacity:.5}
+.g-row{display:flex; align-items:center; height:30px; cursor:pointer}
+.g-row:hover{background:#FAFAF8}
+.g-lbl{width:190px; flex:none; display:flex; gap:6px; align-items:baseline; min-width:0; padding-right:10px}
+.g-lbl .q{font-family:'Barlow Condensed'; font-weight:700; color:var(--red-dk); font-size:14px; white-space:nowrap}
+.g-lbl .nm{font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2)}
+.g-track{position:relative; flex:1; height:100%}
+.g-bar{position:absolute; top:9px; height:12px; border-radius:99px; background:#E0A93E; min-width:6px}
+.g-bar.gb-red{background:var(--red)}
+.g-dia{
+  position:absolute; top:9px; width:11px; height:11px; transform:translateX(-50%) rotate(45deg);
+  border-radius:3px; background:var(--green);
 }
-.stub .n{
-  font-size:10.5px; font-weight:700; background:var(--paper); border:1px solid var(--line);
-  color:var(--muted); border-radius:99px; padding:0 7px;
+.g-dia.up{background:var(--blue)}
+.g-age{
+  position:absolute; top:8px; font-size:10px; font-weight:700; color:var(--ink2);
+  white-space:nowrap; padding-left:5px;
 }
-.stub .plus{color:var(--muted); font-size:13px}
-.stub:hover{border-color:var(--red)}
-.stub:hover .lbl, .stub:hover .plus{color:var(--red-dk)}
-.stub.dropok{outline:2px dashed var(--red); outline-offset:-2px; background:var(--red-bg)}
-.colx{
-  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
-  border-radius:6px; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;
-  margin-left:auto; flex:none;
-}
-.colx:hover{color:var(--ink); border-color:var(--ink2)}
-
-.bcard{
-  background:var(--card); border:1px solid var(--line); border-radius:9px;
-  padding:8px 9px; cursor:pointer; box-shadow:0 1px 2px rgba(20,22,26,.05);
-  text-align:left; font:inherit; color:inherit; width:100%;
-}
-.board.compact .bcard{padding:6px 8px}
-.bcard:hover{border-color:var(--line2); box-shadow:var(--shadow)}
-.bcard.dragging{opacity:.4}
-.bcard.saving{opacity:.5; pointer-events:none}
-.bcard .t{display:flex; align-items:baseline; gap:6px; min-width:0}
-.bcard .t b{font-family:'Barlow Condensed'; font-weight:700; font-size:15.5px; color:var(--red-dk); white-space:nowrap}
-.board.compact .bcard .t b{font-size:14.5px}
-.bcard .t .nm{flex:1; font-weight:600; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0}
-.board.compact .bcard .t .nm{font-size:12px}
-.bcard .t .badge{flex:none; font-size:10px; padding:1px 6px}
-.bcard .s{font-size:11.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.board.comfortable .bcard .s{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
-.bcard .m{display:flex; gap:5px; flex-wrap:wrap; margin-top:6px}
-.board.compact .bcard .m{display:none}
-.bcard[draggable=true]{cursor:grab}
-.bcard[draggable=true]:active{cursor:grabbing}
-.bempty{color:var(--muted); font-size:12px; text-align:center; padding:14px 6px}
-.loadmore{
-  appearance:none; border:1px dashed var(--line2); background:transparent; color:var(--ink2);
-  border-radius:8px; padding:9px 8px; font-size:12px; font-weight:700; cursor:pointer; width:100%;
-  min-height:38px;
-}
-.loadmore:hover{border-color:var(--ink2); background:#F5F4EF}
+.g-note{font-size:11.5px; color:var(--muted); margin-top:9px}
+.g-leg{display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--ink2); margin-top:6px}
+.g-leg .sw{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px}
+.g-leg .dm{transform:rotate(45deg); border-radius:2px}
 
 /* ============ Drawer ============ */
 #overlay{
@@ -468,7 +455,6 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 
 @media (max-width:880px){
   .summary{padding:10px 10px 0}
-  .kpis{grid-template-columns:repeat(2, 1fr)}
 }
 @media (max-width:640px){
   :root{--drawer-w:100vw}
@@ -478,12 +464,35 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   .toolbar{padding:10px 10px 0}
   .filters{padding:10px 10px 2px}
   .banner{padding:0 10px}
+  /* compact attention bar: one scrollable line + All stats toggle */
+  .attn{flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; gap:14px; padding:9px 12px}
+  .attn .tag{font-size:13px; letter-spacing:.1em}
+  .attn button.stat{font-size:12px; white-space:nowrap}
+  .attn button.stat b{font-size:17px}
+  .statsbtn{display:inline-flex}
+  .kpis{display:none; grid-template-columns:repeat(2, 1fr)}
+  .kpis.open{display:grid}
+  .kpi.zero{display:none}
+  /* search full width, compact controls */
+  .search{flex:1 1 100%; max-width:none}
+  select.sortsel{padding:7px 8px; font-size:12px; min-height:36px}
+  .stale{font-size:10.5px; padding:5px 9px; min-height:28px}
+  .fchip{padding:6px 11px; min-height:32px; font-size:12px}
+  .fchip .n{font-size:10px}
+  /* job cards */
+  .row{padding:14px}
   .r-q{font-size:18px}
   .r-nm{font-size:15.5px}
+  .r-ttl{
+    white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; margin-top:3px;
+  }
+  .r-meta{margin-top:8px}
   .viewtog button span{display:none}
+  .pipe{grid-template-columns:repeat(2, 1fr)}
 }
 
-/* ============ Larger type on desktop — we have the room ============ */
+/* ============ Larger type + padding on desktop ============ */
 @media (min-width:900px){
   :root{--drawer-w:500px}
   body{font-size:15px}
@@ -509,23 +518,21 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   .r-ttl{font-size:14px}
   .badge{font-size:12.5px}
   .fu{font-size:12.5px; min-height:28px}
-  .bjump .glabel{font-size:11.5px}
-  .jchip{font-size:12.5px}
-  .jtog{font-size:12.5px}
-  .bcol{width:236px}
-  .board.compact .bcol{width:218px}
-  .bcol-h{font-size:16.5px}
-  .bcol-h .n{font-size:12px}
-  .bcard .t b{font-size:17px}
-  .board.compact .bcard .t b{font-size:16px}
-  .bcard .t .nm{font-size:14px}
-  .board.compact .bcard .t .nm{font-size:13.5px}
-  .bcard .s{font-size:13px}
-  .bcard .t .badge{font-size:11px}
-  .stub .lbl{font-size:16px}
-  .stub .n{font-size:11.5px}
-  .loadmore{font-size:13px}
   .empty{font-size:15px}
+  .ov-head h2{font-size:22px}
+  .ov-head .sub{font-size:13px}
+  .widget h4{font-size:15.5px}
+  .wg-num{font-size:42px}
+  .wg-pct{font-size:33px}
+  .wg-legend{font-size:12.5px}
+  .wg-item .nm{font-size:13.5px}
+  .wg-item .d{font-size:13px}
+  .pipe-card b{font-size:30px}
+  .pipe-card span{font-size:14px}
+  .g-lbl .q{font-size:15px}
+  .g-lbl .nm{font-size:13px}
+  .g-axis .tick{font-size:11px}
+  .g-note,.g-leg{font-size:12.5px}
   .d-title .q{font-size:23px}
   .d-title .n{font-size:13px}
   .d-search input{font-size:14.5px}
@@ -542,7 +549,7 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   .d-results .s{font-size:13px}
   .savebtn, .nextbtn{font-size:15px}
   .revert{font-size:13.5px}
-  /* padding scaled to match the larger type */
+  /* padding scaled to match */
   .hd-inner{padding:12px 24px}
   .tabs-inner{padding:0 16px}
   .summary{padding:14px 24px 4px}
@@ -556,16 +563,9 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
   select.sortsel{padding:10px 12px}
   .fchip{padding:9px 16px}
   .fu{padding:4px 10px}
-  .jchip{padding:6px 13px}
-  .jtog{padding:7px 13px}
-  .bcol-h{padding:13px 15px 10px}
-  .bcol-cards{padding:4px 12px 28px}
-  .board.compact .bcol-cards{padding:4px 10px 28px}
-  .bcard{padding:20px 22px}
-  .board.compact .bcard{padding:18px 20px}
-  .bcard .s{margin-top:4px}
-  .bcard .m{margin-top:8px}
-  .stub{padding:14px 15px}
+  .widget{padding:18px 20px}
+  .pipe-card{padding:13px 15px}
+  .gantt{padding:16px 18px}
   .d-head{padding:14px 16px}
   .d-search{padding:12px 16px}
   .d-body{padding:18px}
@@ -652,7 +652,7 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
       <span id="tabbar" style="display:flex;gap:2px" role="tablist"></span>
       <div class="viewtog" id="viewTog" role="group" aria-label="View mode">
         <button data-v="list" aria-label="Work queue list view">☰ <span>Work Queue</span></button>
-        <button data-v="board" aria-label="Pipeline board view">▦ <span>Pipeline Board</span></button>
+        <button data-v="overview" aria-label="Overview: KPIs, pipeline and timelines">▦ <span>Overview</span></button>
       </div>
     </div>
   </nav>
@@ -708,7 +708,9 @@ const CONFIG = {
   ACTIVITY_MAX: 1500,
   SHOW_FINANCIALS: false,
   STALE_MS: 5 * 60 * 1000,
-  BOARD_CHUNK: 25
+  GANTT_PAST_DAYS: 30,
+  GANTT_FUTURE_DAYS: 45,
+  GANTT_MAX_ROWS: 30
 };
 
 /* Column maps (0-based, A=0)
@@ -731,13 +733,15 @@ const state = {
   activity:[], activityLoaded:false,
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
-  trackerStatus:'',
-  view: JSON.parse(localStorage.getItem('acefire_view') || '{"quotes":"list","tracker":"list"}'),
-  density: localStorage.getItem('acefire_density') || 'compact',
-  showEmpty: localStorage.getItem('acefire_showempty') === '1',
-  expandedCols: { quotes:new Set(), tracker:new Set() },
-  boardMore: {},           // `${tabId}:${colId}` -> extra chunks shown
-  mobileCol: {},           // tabId -> selected column id (single-column mobile board)
+  trackerStatus:'', stageFilter:'',
+  view: (() => {
+    const v = JSON.parse(localStorage.getItem('acefire_view') || '{}');
+    return { quotes:'list', tracker: v.tracker === 'overview' ? 'overview' : 'list' };
+  })(),
+  widgets: JSON.parse(localStorage.getItem('acefire_widgets') || 'null') ||
+           ['active','completion','upcoming','aging','invoices','retest'],
+  wcfgOpen:false,
+  statsOpen:false,
   drawerUid:null, drawerList:[], lastLoad:0
 };
 const $  = s => document.querySelector(s);
@@ -754,7 +758,25 @@ const quoteNum = key => { const n = Number(String(key || '').replace(/[^\d]/g, '
 const filledVal = v => { const t = String(v||'').trim(); return !!t && !/^not sent$/i.test(t) && t.toUpperCase() !== 'X'; };
 const isX = v => String(v||'').trim().toUpperCase() === 'X';
 const normName = v => String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
-const isMobileBoard = () => window.matchMedia('(max-width:880px)').matches;
+const low = v => String(v||'').trim().toLowerCase();
+const DAY = 86400000;
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => new Date(d.getTime() + n * DAY);
+
+function parseDate(v){
+  const t = String(v || '').trim();
+  if (!t) return null;
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (m){
+    let y = m[3] ? +m[3] : new Date().getFullYear();
+    if (y < 100) y += 2000;
+    const d = new Date(y, +m[1] - 1, +m[2]);
+    return isNaN(d) ? null : d;
+  }
+  const d = new Date(t);
+  return isNaN(d) ? null : startOfDay(d);
+}
+const fmtMD = d => (d.getMonth()+1) + '/' + d.getDate();
 
 function toast(msg, kind){
   const t = $('#toast');
@@ -976,7 +998,6 @@ async function loadTrackerOptions(){
    ===================================================================== */
 const daysNum = r => { const n = parseInt(String(r.cells[8]).replace(/[^\-0-9]/g,''),10); return isNaN(n) ? null : n; };
 const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim().toLowerCase(); return v === '' || v === 'not sent'; });
-const low = v => String(v||'').trim().toLowerCase();
 
 function filterDefs(tab){
   if (tab.id === 'quotes'){
@@ -985,8 +1006,7 @@ function filterDefs(tab){
       { id:'active',   label:'Active',           fn:r => { const d = daysNum(r); return d === null || d >= 0; } },
       { id:'exp7',     label:'Expiring ≤7d',     fn:r => { const d = daysNum(r); return d !== null && d >= 0 && d <= 7; } },
       { id:'expired',  label:'Expired',          fn:r => { const d = daysNum(r); return d !== null && d < 0; } },
-      { id:'nofu',     label:'No follow-up',     fn:noFollowUp },
-      { id:'notsched', label:'Not scheduled',    fn:r => !(r.cells[14]||'').trim() }
+      { id:'nofu',     label:'No follow-up',     fn:noFollowUp }
     ];
   }
   return [
@@ -996,13 +1016,13 @@ function filterDefs(tab){
         low(r.cells[6]) === 'overdue' ||
         (low(r.cells[3]) === 'completed' && ['','not sent'].includes(low(r.cells[6]))) },
     { id:'notsched',   label:'To schedule',      fn:r => !(r.cells[7]||'').trim() },
-    { id:'noreport',   label:'Reports to send',  fn:r => !(r.cells[9]||'').trim() },
+    { id:'noreport',   label:'Reports not sent', fn:r => !(r.cells[9]||'').trim() },
     { id:'compninv',   label:'Ready to invoice', fn:r => low(r.cells[3]) === 'completed' && ['','not sent'].includes(low(r.cells[6])) },
     { id:'awaitpay',   label:'Awaiting payment', fn:r => low(r.cells[6]) === 'sent' },
     { id:'overdueinv', label:'Overdue invoices', fn:r => low(r.cells[6]) === 'overdue' },
     { id:'retest',     label:'Retest / repair',  fn:r => ['pending','awaiting approval','scheduled'].includes(low(r.cells[11])) },
     { id:'paid',       label:'Paid',             fn:r => low(r.cells[6]) === 'paid' },
-    { id:'nojob',      label:'No job status',    fn:r => !(r.cells[13]||'').trim() }
+    { id:'nojob',      label:'Unassigned',       fn:r => !(r.cells[13]||'').trim() }
   ];
 }
 function sortDefs(tab){
@@ -1017,6 +1037,9 @@ function visibleRows(tab){
   if (tab.id === 'tracker' && state.trackerStatus){
     rows = rows.filter(r => (r.cells[3]||'').trim() === state.trackerStatus);
   }
+  if (tab.id === 'tracker' && state.stageFilter){
+    rows = rows.filter(r => stageAuto(r) === state.stageFilter);
+  }
   const q = state.search.trim().toLowerCase();
   if (q) rows = rows.filter(r => searchText(tab, r).includes(q));
   const s = state.sort[tab.id];
@@ -1029,32 +1052,29 @@ function searchText(tab, r){
   return r.cells.filter((_, i) => !skip.includes(i)).join(' ').toLowerCase();
 }
 
-/* Quotes follow-up stage: furthest action taken. */
-function stageOf(r){
-  if (isX(r.cells[10]) || isX(r.cells[11]) || isX(r.cells[12]) || isX(r.cells[9])) return 'skipped';
-  if (filledVal(r.cells[12])) return 'called';
-  if (filledVal(r.cells[11])) return 'texted';
-  if (filledVal(r.cells[10])) return 'emailed';
-  return 'todo';
-}
-function boardCols(tab){
-  if (tab.id === 'quotes') return [
-    { id:'todo',    label:'To contact',  drop:null, hint:'' },
-    { id:'emailed', label:'Emailed',     drop:10,   hint:'drop = emailed today' },
-    { id:'texted',  label:'Texted',      drop:11,   hint:'drop = texted today' },
-    { id:'called',  label:'Called',      drop:12,   hint:'drop = called today' },
-    { id:'skipped', label:'Skipped / X', drop:null, hint:'' }
-  ];
-  const opts = state.options[13] || [];
-  return [
-    { id:'__none', label:'No status', drop:{ col:13, val:'' }, hint:'' },
-    ...opts.map(o => ({ id:'js:' + o, label:o, drop:{ col:13, val:o }, hint:'' }))
-  ];
-}
-function boardColOf(tab, r){
-  if (tab.id === 'quotes') return stageOf(r);
-  const v = (r.cells[13]||'').trim();
-  return v ? 'js:' + v : '__none';
+/* Auto-derived pipeline stage — computed from status, report & invoice fields.
+   Fire-protection flow: schedule → service → report → invoice → payment. */
+const STAGES = [
+  { id:'tosched', label:'To schedule',   tone:'amber', sub:'no Ember date' },
+  { id:'sched',   label:'Scheduled',     tone:'blue',  sub:'service date set' },
+  { id:'inprog',  label:'In progress',   tone:'amber', sub:'on site / active' },
+  { id:'report',  label:'Report due',    tone:'amber', sub:'done, no report' },
+  { id:'ready',   label:'Ready to invoice', tone:'blue', sub:'report sent' },
+  { id:'sent',    label:'Awaiting payment', tone:'blue', sub:'invoice sent' },
+  { id:'overdue', label:'Overdue',       tone:'red',   sub:'payment late' },
+  { id:'paid',    label:'Paid',          tone:'green', sub:'closed out' }
+];
+function stageAuto(r){
+  const st = low(r.cells[3]);
+  if (st === 'cancelled') return null;
+  const inv = low(r.cells[6]);
+  if (inv === 'paid') return 'paid';
+  if (inv === 'overdue') return 'overdue';
+  if (inv === 'sent') return 'sent';
+  if (st === 'completed') return (r.cells[9]||'').trim() ? 'ready' : 'report';
+  if (st === 'in progress') return 'inprog';
+  if ((r.cells[7]||'').trim()) return 'sched';
+  return 'tosched';
 }
 
 /* =====================================================================
@@ -1079,23 +1099,26 @@ function buildTabBar(){
     bar.appendChild(b);
   });
   $$('#viewTog button').forEach(b => b.addEventListener('click', () => {
-    state.view[state.activeTab] = b.dataset.v;
+    state.view.tracker = b.dataset.v === 'overview' ? 'overview' : 'list';
     localStorage.setItem('acefire_view', JSON.stringify(state.view));
     renderAll();
   }));
 }
 
-/* Attention bar (Quotes follow-up urgency) + KPI cards (Tracker ops) — all tappable */
+/* Attention bar (4 most urgent) + KPI cards — all tappable */
 const ATTN_STATS = [
-  { tab:'quotes', filter:'expired', label:'expired quotes', tone:'s-red' },
-  { tab:'quotes', filter:'exp7',    label:'expiring ≤7d',   tone:'s-amber' },
-  { tab:'quotes', filter:'nofu',    label:'no follow-up',   tone:'s-amber' }
+  { tab:'quotes',  filter:'expired',    label:'expired quotes',   tone:'s-red' },
+  { tab:'tracker', filter:'overdueinv', label:'overdue invoices', tone:'s-red' },
+  { tab:'tracker', filter:'noreport',   label:'reports not sent', tone:'s-amber' },
+  { tab:'tracker', filter:'notsched',   label:'to schedule',      tone:'s-amber' }
 ];
 const KPI_TILES = [
-  { tab:'tracker', filter:'overdueinv', label:'Overdue invoices', sub:'sent, past due — chase',   tone:'red' },
-  { tab:'tracker', filter:'noreport',   label:'Reports to send',  sub:'no report submitted yet',  tone:'amber' },
-  { tab:'tracker', filter:'compninv',   label:'Ready to invoice', sub:'work done, not invoiced',  tone:'blue' },
-  { tab:'tracker', filter:'notsched',   label:'To schedule',      sub:'no Ember date set',        tone:'amber' }
+  { tab:'quotes',  filter:'exp7',       label:'Expiring soon',    sub:'Quotes expiring ≤7 days',  tone:'amber' },
+  { tab:'quotes',  filter:'nofu',       label:'No follow-up',     sub:'Quotes missing follow-up', tone:'amber' },
+  { tab:'tracker', filter:'overdueinv', label:'Overdue invoices', sub:'Need payment follow-up',   tone:'red' },
+  { tab:'tracker', filter:'noreport',   label:'Reports not sent', sub:'Jobs missing reports',     tone:'amber' },
+  { tab:'tracker', filter:'notsched',   label:'Needs scheduling', sub:'Missing Ember date',       tone:'amber' },
+  { tab:'tracker', filter:'compninv',   label:'Ready to invoice', sub:'Work done, not invoiced',  tone:'blue' }
 ];
 function countFor(tabId, filterId){
   const tab = TABS.find(t => t.id === tabId);
@@ -1105,7 +1128,7 @@ function countFor(tabId, filterId){
 function jumpTo(tabId, filterId){
   state.activeTab = tabId;
   state.filter[tabId] = filterId;
-  if (tabId === 'tracker') state.trackerStatus = '';
+  if (tabId === 'tracker'){ state.trackerStatus = ''; state.stageFilter = ''; state.view.tracker = 'list'; }
   $$('.tab').forEach((x, i) => {
     const on = TABS[i].id === tabId;
     x.classList.toggle('active', on);
@@ -1130,10 +1153,17 @@ function renderSummary(){
     b.addEventListener('click', () => jumpTo(st.tab, st.filter));
     bar.appendChild(b);
   });
+  const tog = document.createElement('button');
+  tog.type = 'button';
+  tog.className = 'statsbtn';
+  tog.setAttribute('aria-expanded', state.statsOpen ? 'true' : 'false');
+  tog.textContent = state.statsOpen ? 'Hide stats ▴' : 'All stats ▾';
+  tog.addEventListener('click', () => { state.statsOpen = !state.statsOpen; renderSummary(); });
+  bar.appendChild(tog);
   box.appendChild(bar);
 
   const grid = document.createElement('div');
-  grid.className = 'kpis';
+  grid.className = 'kpis' + (state.statsOpen ? ' open' : '');
   KPI_TILES.forEach(tl => {
     const n = countFor(tl.tab, tl.filter);
     const b = document.createElement('button');
@@ -1157,14 +1187,26 @@ function renderAll(){
   updateStale();
   renderSummary();
 
-  $$('#viewTog button').forEach(b => b.classList.toggle('active', state.view[tab.id] === b.dataset.v));
+  // view toggle: Tracker only (Quotes is always the work queue)
+  const vt = $('#viewTog');
+  if (tab.id === 'tracker'){
+    vt.style.display = '';
+    $$('#viewTog button').forEach(b =>
+      b.classList.toggle('active', (state.view.tracker === 'overview') === (b.dataset.v === 'overview')));
+  } else {
+    vt.style.display = 'none';
+  }
+
+  const isOverview = tab.id === 'tracker' && state.view.tracker === 'overview';
 
   const sel = $('#sortSel');
   sel.innerHTML = sortDefs(tab).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
   sel.value = state.sort[tab.id];
+  sel.style.display = isOverview ? 'none' : '';
+  $('.search') && ($('.search').style.display = isOverview ? 'none' : '');
 
   const ss = $('#statusSel');
-  if (tab.id === 'tracker'){
+  if (tab.id === 'tracker' && !isOverview){
     const opts = state.options[3] || [];
     const present = [...new Set((state.data.tracker||[]).map(r => (r.cells[3]||'').trim()).filter(Boolean))];
     const all = [...new Set([...opts, ...present])];
@@ -1177,20 +1219,32 @@ function renderAll(){
 
   const fb = $('#filterBar');
   fb.innerHTML = '';
-  const all = state.data[tab.id] || [];
-  filterDefs(tab).forEach(f => {
-    const n = all.filter(f.fn).length;
-    if (f.id !== 'all' && n === 0) return;
-    const b = document.createElement('button');
-    b.className = 'fchip' + (state.filter[tab.id] === f.id ? ' active' : '');
-    b.setAttribute('aria-pressed', state.filter[tab.id] === f.id ? 'true' : 'false');
-    b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
-    b.addEventListener('click', () => { state.filter[tab.id] = f.id; renderAll(); });
-    fb.appendChild(b);
-  });
+  if (!isOverview){
+    const all = state.data[tab.id] || [];
+    filterDefs(tab).forEach(f => {
+      const n = all.filter(f.fn).length;
+      if (f.id !== 'all' && n === 0) return;
+      const b = document.createElement('button');
+      b.className = 'fchip' + (state.filter[tab.id] === f.id ? ' active' : '');
+      b.setAttribute('aria-pressed', state.filter[tab.id] === f.id ? 'true' : 'false');
+      b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
+      b.addEventListener('click', () => { state.filter[tab.id] = f.id; state.stageFilter = ''; renderAll(); });
+      fb.appendChild(b);
+    });
+    // active pipeline-stage filter (set from Overview) shows as a removable chip
+    if (tab.id === 'tracker' && state.stageFilter){
+      const st = STAGES.find(s => s.id === state.stageFilter);
+      const b = document.createElement('button');
+      b.className = 'fchip active stagechip';
+      b.innerHTML = `Stage: ${esc(st ? st.label : state.stageFilter)} ✕`;
+      b.setAttribute('aria-label', 'Clear pipeline stage filter');
+      b.addEventListener('click', () => { state.stageFilter = ''; renderAll(); });
+      fb.appendChild(b);
+    }
+  }
 
   const dupes = state.dupes[tab.id] || [];
-  $('#dupeBanner').classList.toggle('on', dupes.length > 0);
+  $('#dupeBanner').classList.toggle('on', dupes.length > 0 && !isOverview);
   if (dupes.length){
     $('#dupeText').textContent = `⚠ Duplicate quote #s on ${tab.label}: ${dupes.join(', ')} — saves verify the exact row first, but clean these up in the sheet.`;
   }
@@ -1198,7 +1252,9 @@ function renderAll(){
   renderContent();
 }
 function renderContent(){
-  state.view[state.activeTab] === 'board' ? renderBoard() : renderList();
+  const tab = activeTabDef();
+  if (tab.id === 'tracker' && state.view.tracker === 'overview') renderOverview();
+  else renderList();
 }
 
 function updateStale(){
@@ -1220,20 +1276,10 @@ setInterval(() => {
 }, 60000);
 $('#metaNote').addEventListener('click', () => $('#btnRefresh').click());
 
-/* re-render the board when crossing the mobile breakpoint */
-let wasMobileBoard = null;
-window.addEventListener('resize', () => {
-  const m = isMobileBoard();
-  if (m !== wasMobileBoard){
-    wasMobileBoard = m;
-    if (state.view[state.activeTab] === 'board') renderContent();
-  }
-});
-
 /* ---- list view ---- */
 function emptyMsg(tab){
   if (state.search) return 'No matches for your search.';
-  if (state.filter[tab.id] !== 'all' || (tab.id === 'tracker' && state.trackerStatus))
+  if (state.filter[tab.id] !== 'all' || (tab.id === 'tracker' && (state.trackerStatus || state.stageFilter)))
     return 'All clear here 🎉 — nothing matches this view.';
   return 'No rows in this tab yet.';
 }
@@ -1268,6 +1314,7 @@ function renderList(){
           <span class="r-q">#${esc(r.key)}</span>
           <span class="r-nm">${esc(r.cells[1])}</span>
           ${isDirty(r) ? '<span class="r-dot" title="Unsaved edits"></span>' : ''}
+          <span class="r-side">${rowSide(tab, r)}</span>
         </div>
         <div class="r-ttl">${esc(tab.id === 'quotes' ? r.cells[4] : r.cells[2])}</div>
         <div class="r-meta">${rowMeta(tab, r)}</div>
@@ -1289,19 +1336,33 @@ function renderList(){
   main.appendChild(list);
 }
 
+/* primary badge shown right-aligned on the card's first line */
+function rowSide(tab, r){
+  if (tab.id === 'quotes') return daysBadge(r);
+  return invStatusBadge(r.cells[6]) || jobBadge(r.cells[13]) || '';
+}
 function rowMeta(tab, r){
   if (tab.id === 'quotes'){
-    const parts = [ daysBadge(r) ];
+    const parts = [];
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
   }
   const parts = [ statusBadge(r.cells[3]), wixBadge(r.cells[4]) ];
-  if (r.cells[13]) parts.push(`<span class="badge b-amber">${esc(r.cells[13])}</span>`);
-  parts.push(invStatusBadge(r.cells[6]));
+  if (r.cells[13]) parts.push(jobBadge(r.cells[13]));
   if (r.cells[8]) parts.push(`<span class="badge b-blue">${esc(r.cells[8])}${r.cells[7] ? ' · ' + esc(r.cells[7]) : ''}</span>`);
   return parts.filter(Boolean).join('');
+}
+/* consistent status colors: red=overdue, amber=in progress/awaiting, blue=new/sent, green=done, gray=neutral */
+function jobBadge(v){
+  if (!v) return '';
+  const t = low(v);
+  let cls = 'b-gray';
+  if (t === 'completed') cls = 'b-green';
+  else if (t === 'new') cls = 'b-blue';
+  else if (t === 'in progress' || t.startsWith('awaiting')) cls = 'b-amber';
+  return `<span class="badge ${cls}">${esc(v)}</span>`;
 }
 function fuTag(r, col, icon){
   const verb = QC_LABEL[col];
@@ -1355,338 +1416,330 @@ function invStatusBadge(v){
   const m = { 'Paid':'b-green','Sent':'b-blue','Overdue':'b-red','Not Sent':'b-gray' };
   return `<span class="badge ${m[v]||'b-gray'}">Inv: ${esc(v)}</span>`;
 }
-function invShort(v){
-  if (!v) return '';
-  const m = { 'Paid':'b-green','Sent':'b-blue','Overdue':'b-red','Not Sent':'b-gray' };
-  return `<span class="badge ${m[v]||'b-gray'}">${esc(v)}</span>`;
-}
 
 /* =====================================================================
-   Board view (kanban)
+   Overview: KPI widgets + auto pipeline + Gantt (Tracker only)
    ===================================================================== */
-function groupBoard(tab, rows, cols){
-  const grouped = {};
-  cols.forEach(c => grouped[c.id] = []);
-  rows.forEach(r => {
-    const cid = boardColOf(tab, r);
-    (grouped[cid] || (grouped[cid] = [])).push(r);
-  });
-  // off-list job statuses become their own columns
-  Object.keys(grouped).forEach(cid => {
-    if (!cols.some(c => c.id === cid)){
-      cols.push({ id:cid, label:cid.replace(/^js:/,''), drop:{ col:13, val:cid.replace(/^js:/,'') }, hint:'' });
-    }
-  });
-  return grouped;
+const WIDGET_DEFS = [
+  { id:'active',     label:'Active jobs' },
+  { id:'completion', label:'Completion & payment rate' },
+  { id:'upcoming',   label:'Upcoming service' },
+  { id:'aging',      label:'Past date · not completed' },
+  { id:'invoices',   label:'Invoice pipeline' },
+  { id:'retest',     label:'Retest & compliance' }
+];
+
+function ovSection(title, sub){
+  const sec = document.createElement('section');
+  sec.className = 'ov-sec';
+  const head = document.createElement('div');
+  head.className = 'ov-head';
+  head.innerHTML = `<h2>${esc(title)}</h2>` + (sub ? `<span class="sub">${esc(sub)}</span>` : '');
+  sec.appendChild(head);
+  return sec;
 }
 
-function renderBoard(){
-  const tab = activeTabDef();
-  const rows = visibleRows(tab);
-  const cols = boardCols(tab);
-  const grouped = groupBoard(tab, rows, cols);
+function renderOverview(){
   const main = $('#main');
   main.innerHTML = '';
-  wasMobileBoard = isMobileBoard();
+  const rows = (state.data.tracker || []).filter(r => low(r.cells[3]) !== 'cancelled');
 
-  if (wasMobileBoard){
-    renderBoardMobile(main, tab, cols, grouped);
-  } else {
-    renderBoardDesktop(main, tab, cols, grouped);
-  }
-}
+  /* --- 1. KPI widgets (customizable) --- */
+  const sec1 = ovSection('Operations snapshot', 'live from the Tracker sheet');
+  const cfg = document.createElement('button');
+  cfg.type = 'button';
+  cfg.className = 'cfgbtn';
+  cfg.textContent = state.wcfgOpen ? 'Done' : '⚙ Customize';
+  cfg.setAttribute('aria-expanded', state.wcfgOpen ? 'true' : 'false');
+  cfg.addEventListener('click', () => { state.wcfgOpen = !state.wcfgOpen; renderContent(); });
+  sec1.querySelector('.ov-head').appendChild(cfg);
 
-/* ---- desktop board: populated columns + one rail of empty-status stubs ---- */
-function renderBoardDesktop(main, tab, cols, grouped){
-  const isOpen = c => (grouped[c.id]||[]).length > 0 || state.showEmpty || state.expandedCols[tab.id].has(c.id);
-  const openCols = cols.filter(isOpen);
-  const railCols = cols.filter(c => !isOpen(c));
-
-  // "Go to" strip — navigation only; never filters, never expands
-  const strip = document.createElement('div');
-  strip.className = 'bjump';
-  if (openCols.length > 1 || railCols.length){
-    strip.insertAdjacentHTML('beforeend', '<span class="glabel">Go to:</span>');
-    openCols.forEach(cdef => {
-      const n = (grouped[cdef.id] || []).length;
-      const j = document.createElement('button');
-      j.type = 'button';
-      j.className = 'jchip';
-      j.setAttribute('aria-label', `Scroll to ${cdef.label} column (${n})`);
-      j.innerHTML = `${esc(cdef.label)}<span class="n">${n}</span>`;
-      j.addEventListener('click', () => scrollToCol(cdef.id));
-      strip.appendChild(j);
-    });
-    if (railCols.length){
-      const j = document.createElement('button');
-      j.type = 'button';
-      j.className = 'jchip dim';
-      j.setAttribute('aria-label', `Scroll to empty statuses (${railCols.length})`);
-      j.innerHTML = `Empty<span class="n">${railCols.length}</span>`;
-      j.addEventListener('click', () => scrollToCol('__rail'));
-      strip.appendChild(j);
-    }
-  }
-  const tEmpty = document.createElement('button');
-  tEmpty.type = 'button';
-  tEmpty.className = 'jtog';
-  tEmpty.setAttribute('aria-pressed', state.showEmpty ? 'true' : 'false');
-  tEmpty.textContent = state.showEmpty ? 'Tuck empty into rail' : 'Open all empty';
-  tEmpty.addEventListener('click', () => {
-    state.showEmpty = !state.showEmpty;
-    localStorage.setItem('acefire_showempty', state.showEmpty ? '1' : '0');
-    renderContent();
-  });
-  strip.appendChild(tEmpty);
-  strip.appendChild(densityToggle());
-  main.appendChild(strip);
-
-  const board = document.createElement('div');
-  board.className = 'board ' + state.density;
-  openCols.forEach(cdef => board.appendChild(buildColumn(tab, cdef, grouped[cdef.id] || [])));
-  if (railCols.length) board.appendChild(buildRail(tab, railCols));
-  main.appendChild(board);
-  markScrollableCols(board);
-}
-function scrollToCol(id){
-  const el = document.querySelector(`[data-colid="${CSS.escape(id)}"]`);
-  if (el){
-    el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'start' });
-    el.classList.add('pulse');
-    setTimeout(() => el.classList.remove('pulse'), 1200);
-  }
-}
-function buildRail(tab, railCols){
-  const rail = document.createElement('div');
-  rail.className = 'bcol rail';
-  rail.dataset.colid = '__rail';
-  rail.innerHTML = `<div class="bcol-h"><span class="lbl">Empty statuses</span><span class="n">${railCols.length}</span></div>`;
-  const list = document.createElement('div');
-  list.className = 'rail-list';
-  railCols.forEach(cdef => {
-    const stub = document.createElement('div');
-    stub.className = 'stub';
-    stub.setAttribute('role', 'button');
-    stub.tabIndex = 0;
-    stub.dataset.colid = cdef.id;
-    stub.title = 'Drop a card here to set this status · click to open as a column';
-    stub.setAttribute('aria-label', `${cdef.label}, empty — drop a card to set this status, or open as a column`);
-    stub.innerHTML = `<span class="lbl">${esc(cdef.label)}</span><span class="n">0</span><span class="plus" aria-hidden="true">＋</span>`;
-    if (cdef.drop !== null && cdef.drop !== undefined){
-      stub.addEventListener('dragover', e => { e.preventDefault(); stub.classList.add('dropok'); e.dataTransfer.dropEffect = 'move'; });
-      stub.addEventListener('dragleave', () => stub.classList.remove('dropok'));
-      stub.addEventListener('drop', e => {
-        e.preventDefault();
-        stub.classList.remove('dropok');
-        handleDrop(tab, cdef, e.dataTransfer.getData('text/plain'));
-      });
-    }
-    const expand = () => {
-      state.expandedCols[tab.id].add(cdef.id);
-      renderContent();
-      requestAnimationFrame(() => scrollToCol(cdef.id));
-    };
-    stub.addEventListener('click', expand);
-    stub.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); expand(); } });
-    list.appendChild(stub);
-  });
-  rail.appendChild(list);
-  return rail;
-}
-
-/* ---- mobile board: one column at a time + stepper ---- */
-function renderBoardMobile(main, tab, cols, grouped){
-  const ids = cols.map(c => c.id);
-  let cur = state.mobileCol[tab.id];
-  if (!cur || !ids.includes(cur)){
-    cur = (cols.find(c => (grouped[c.id] || []).length > 0) || cols[0]).id;
-    state.mobileCol[tab.id] = cur;
-  }
-  const idx = ids.indexOf(cur);
-
-  const nav = document.createElement('div');
-  nav.className = 'mnav';
-  const prev = document.createElement('button');
-  prev.className = 'icon-btn';
-  prev.setAttribute('aria-label', 'Previous status column');
-  prev.textContent = '‹';
-  prev.disabled = idx <= 0;
-  prev.addEventListener('click', () => { state.mobileCol[tab.id] = ids[idx - 1]; renderContent(); });
-  const next = document.createElement('button');
-  next.className = 'icon-btn';
-  next.setAttribute('aria-label', 'Next status column');
-  next.textContent = '›';
-  next.disabled = idx >= ids.length - 1;
-  next.addEventListener('click', () => { state.mobileCol[tab.id] = ids[idx + 1]; renderContent(); });
-  const sel = document.createElement('select');
-  sel.setAttribute('aria-label', 'Choose status column');
-  cols.forEach(c => sel.appendChild(new Option(`${c.label} (${(grouped[c.id]||[]).length})`, c.id)));
-  sel.value = cur;
-  sel.addEventListener('change', () => { state.mobileCol[tab.id] = sel.value; renderContent(); });
-  nav.appendChild(prev);
-  nav.appendChild(sel);
-  nav.appendChild(next);
-  nav.appendChild(densityToggle(true));
-  main.appendChild(nav);
-
-  const board = document.createElement('div');
-  board.className = 'board mobile1 ' + state.density;
-  const cdef = cols[idx];
-  board.appendChild(buildColumn(tab, cdef, grouped[cdef.id] || []));
-  main.appendChild(board);
-  markScrollableCols(board);
-}
-
-function densityToggle(compactBtn){
-  const d = document.createElement('button');
-  d.type = 'button';
-  d.className = compactBtn ? 'icon-btn' : 'jtog';
-  const roomy = state.density === 'comfortable';
-  if (compactBtn){
-    d.textContent = roomy ? '▤' : '▢';
-    d.setAttribute('aria-label', roomy ? 'Switch to compact cards' : 'Switch to roomier cards');
-    d.title = roomy ? 'Compact cards' : 'Roomier cards';
-  } else {
-    d.textContent = roomy ? 'Compact cards' : 'Roomier cards';
-  }
-  d.addEventListener('click', () => {
-    state.density = roomy ? 'compact' : 'comfortable';
-    localStorage.setItem('acefire_density', state.density);
-    renderContent();
-  });
-  return d;
-}
-
-function buildColumn(tab, cdef, items){
-  const col = document.createElement('div');
-  col.dataset.colid = cdef.id;
-  col.className = 'bcol';
-
-  const droppable = cdef.drop !== null && cdef.drop !== undefined;
-  if (droppable){
-    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dropok'); e.dataTransfer.dropEffect = 'move'; });
-    col.addEventListener('dragleave', () => col.classList.remove('dropok'));
-    col.addEventListener('drop', e => {
-      e.preventDefault();
-      col.classList.remove('dropok');
-      handleDrop(tab, cdef, e.dataTransfer.getData('text/plain'));
-    });
-  }
-
-  const head = document.createElement('div');
-  head.className = 'bcol-h';
-  head.innerHTML = `<span class="lbl">${esc(cdef.label)}</span><span class="n">${items.length}</span>` +
-    (cdef.hint ? `<span class="hint">${esc(cdef.hint)}</span>` : '');
-  if (cdef.hint) head.title = cdef.hint;
-  // an empty column opened from the rail gets a tuck-back button
-  if (!items.length && !state.showEmpty && state.expandedCols[tab.id].has(cdef.id)){
-    const x = document.createElement('button');
-    x.type = 'button';
-    x.className = 'colx';
-    x.textContent = '−';
-    x.title = 'Tuck back into the empty rail';
-    x.setAttribute('aria-label', `Collapse ${cdef.label} back into the empty rail`);
-    x.addEventListener('click', () => { state.expandedCols[tab.id].delete(cdef.id); renderContent(); });
-    head.appendChild(x);
-  }
-  col.appendChild(head);
-
-  const box = document.createElement('div');
-  box.className = 'bcol-cards';
-  if (!items.length){
-    box.innerHTML = '<div class="bempty">— drop a card here —</div>';
-  } else {
-    const moreKey = tab.id + ':' + cdef.id;
-    const shown = CONFIG.BOARD_CHUNK * (1 + (state.boardMore[moreKey] || 0));
-    items.slice(0, shown).forEach(r => box.appendChild(boardCard(tab, r)));
-    if (items.length > shown){
-      const lm = document.createElement('button');
-      lm.type = 'button';
-      lm.className = 'loadmore';
-      lm.textContent = `Show ${Math.min(CONFIG.BOARD_CHUNK, items.length - shown)} more (${items.length - shown} left)`;
-      lm.addEventListener('click', () => {
-        state.boardMore[moreKey] = (state.boardMore[moreKey] || 0) + 1;
+  if (state.wcfgOpen){
+    const panel = document.createElement('div');
+    panel.className = 'wcfg';
+    WIDGET_DEFS.forEach(w => {
+      const lb = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = state.widgets.includes(w.id);
+      cb.addEventListener('change', () => {
+        state.widgets = cb.checked
+          ? [...state.widgets, w.id]
+          : state.widgets.filter(x => x !== w.id);
+        localStorage.setItem('acefire_widgets', JSON.stringify(state.widgets));
         renderContent();
       });
-      box.appendChild(lm);
-    }
-  }
-  col.appendChild(box);
-
-  const fade = document.createElement('div');
-  fade.className = 'bfade';
-  col.appendChild(fade);
-  return col;
-}
-
-function markScrollableCols(board){
-  requestAnimationFrame(() => {
-    board.querySelectorAll('.bcol').forEach(col => {
-      const box = col.querySelector('.bcol-cards');
-      if (box && box.scrollHeight > box.clientHeight + 4) col.classList.add('can-scroll');
+      lb.appendChild(cb);
+      lb.appendChild(document.createTextNode(w.label));
+      panel.appendChild(lb);
     });
+    sec1.appendChild(panel);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'widgets';
+  WIDGET_DEFS.filter(w => state.widgets.includes(w.id)).forEach(w => {
+    grid.appendChild(WIDGET_RENDER[w.id](rows));
   });
+  if (!grid.children.length) grid.innerHTML = '<div class="wg-none">No widgets enabled — open ⚙ Customize.</div>';
+  sec1.appendChild(grid);
+  main.appendChild(sec1);
+
+  /* --- 2. Auto pipeline --- */
+  const sec2 = ovSection('Job pipeline', 'auto-derived from status, report & invoice fields — tap a stage to open that list');
+  const counts = {};
+  STAGES.forEach(s => counts[s.id] = 0);
+  rows.forEach(r => { const s = stageAuto(r); if (s) counts[s]++; });
+  const pipe = document.createElement('div');
+  pipe.className = 'pipe';
+  STAGES.forEach(s => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pipe-card t-' + s.tone + (counts[s.id] === 0 ? ' zero' : '') +
+      (state.stageFilter === s.id ? ' active' : '');
+    b.title = s.sub;
+    b.setAttribute('aria-label', `${s.label}: ${counts[s.id]} jobs — open list`);
+    b.innerHTML = `<b>${counts[s.id]}</b><span>${esc(s.label)}</span>`;
+    b.addEventListener('click', () => {
+      state.stageFilter = s.id;
+      state.filter.tracker = 'all';
+      state.trackerStatus = '';
+      state.view.tracker = 'list';
+      localStorage.setItem('acefire_view', JSON.stringify(state.view));
+      renderAll();
+    });
+    pipe.appendChild(b);
+  });
+  sec2.appendChild(pipe);
+  const total = Object.values(counts).reduce((a,b) => a+b, 0) || 1;
+  const bar = document.createElement('div');
+  bar.className = 'pipebar';
+  const toneColor = { red:'var(--red)', amber:'#E0A93E', blue:'var(--blue)', green:'var(--green)', gray:'var(--line2)' };
+  bar.innerHTML = STAGES.map(s =>
+    `<i style="width:${(counts[s.id]/total*100).toFixed(1)}%;background:${toneColor[s.tone]}" title="${esc(s.label)}: ${counts[s.id]}"></i>`).join('');
+  sec2.appendChild(bar);
+  main.appendChild(sec2);
+
+  /* --- 3. Gantt / timelines --- */
+  const sec3 = ovSection('Timelines', 'Ember service dates — bars show open jobs aging since their date');
+  sec3.appendChild(renderGantt(rows));
+  main.appendChild(sec3);
 }
 
-function boardCard(tab, r){
-  const c = document.createElement('div');
-  c.className = 'bcard' + (r.saving ? ' saving' : '');
-  c.draggable = true;
-  c.tabIndex = 0;
-  c.setAttribute('role', 'button');
-  c.setAttribute('aria-label', `Quote ${r.key}, ${r.cells[1]} — open details`);
-  c.dataset.uid = r.uid;
-  const title = tab.id === 'quotes' ? r.cells[4] : r.cells[2];
-  // one inline mini-chip on line 1; full meta row only in comfortable density
-  const mini = tab.id === 'quotes'
-    ? daysBadge(r)
-    : (statusBadge(r.cells[3]) || invShort(r.cells[6]));
-  const meta = tab.id === 'quotes'
-    ? [r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '', r.cells[15] ? `<span class="badge b-blue">${esc(r.cells[15])}</span>` : '']
-    : [wixBadge(r.cells[4]), invStatusBadge(r.cells[6]), r.cells[7] ? `<span class="badge b-blue">${esc(r.cells[7])}</span>` : ''];
-  c.innerHTML = `
-    <div class="t"><b>#${esc(r.key)}</b><span class="nm">${esc(r.cells[1])}</span>${isDirty(r) ? '<span class="r-dot"></span>' : ''}${mini || ''}</div>
-    <div class="s">${esc(title)}</div>
-    ${state.density === 'comfortable' ? `<div class="m">${meta.filter(Boolean).join('')}</div>` : ''}`;
-  c.addEventListener('click', () => openDrawer(r.uid));
-  c.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(r.uid); }
-  });
-  c.addEventListener('dragstart', e => {
-    e.dataTransfer.setData('text/plain', r.uid);
-    e.dataTransfer.effectAllowed = 'move';
-    c.classList.add('dragging');
-  });
-  c.addEventListener('dragend', () => c.classList.remove('dragging'));
-  return c;
+/* ---- widgets ---- */
+const WIDGET_RENDER = {
+  active(rows){
+    const w = widgetShell('Active jobs');
+    const open = rows.filter(r => !['completed'].includes(low(r.cells[3])) && low(r.cells[6]) !== 'paid');
+    w.insertAdjacentHTML('beforeend', `<div class="wg-num">${open.length}</div>`);
+    const byStatus = {};
+    open.forEach(r => { const s = (r.cells[3]||'').trim() || '—'; byStatus[s] = (byStatus[s]||0) + 1; });
+    const chips = Object.entries(byStatus).sort((a,b) => b[1]-a[1]).slice(0, 5)
+      .map(([s, n]) => statusBadge(s).replace('</span>', ` ${n}</span>`)).join('');
+    w.insertAdjacentHTML('beforeend', `<div class="wg-chips">${chips}</div>`);
+    return w;
+  },
+  completion(rows){
+    const w = widgetShell('Completion & payment rate');
+    const done = rows.filter(r => low(r.cells[3]) === 'completed').length;
+    const pct = rows.length ? Math.round(done / rows.length * 100) : 0;
+    const invoiced = rows.filter(r => ['sent','overdue','paid'].includes(low(r.cells[6])));
+    const paid = invoiced.filter(r => low(r.cells[6]) === 'paid').length;
+    const ppct = invoiced.length ? Math.round(paid / invoiced.length * 100) : 0;
+    w.insertAdjacentHTML('beforeend', `
+      <div class="wg-pct" style="color:var(--green)">${pct}%</div>
+      <div class="wg-sub">${done} of ${rows.length} jobs completed</div>
+      <div class="wg-bar"><i style="width:${pct}%;background:var(--green)"></i></div>
+      <div class="wg-pct" style="color:var(--blue);font-size:24px">${ppct}%</div>
+      <div class="wg-sub">${paid} of ${invoiced.length} invoices paid</div>
+      <div class="wg-bar"><i style="width:${ppct}%;background:var(--blue)"></i></div>`);
+    return w;
+  },
+  upcoming(rows){
+    const w = widgetShell('Upcoming service');
+    const today = startOfDay(new Date());
+    const items = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
+      .filter(x => x.d && x.d >= today)
+      .sort((a,b) => a.d - b.d).slice(0, 6);
+    if (!items.length){
+      w.insertAdjacentHTML('beforeend', '<div class="wg-none">Nothing on the calendar yet.</div>');
+      return w;
+    }
+    const list = document.createElement('div');
+    list.className = 'wg-list';
+    items.forEach(({ r, d }) => list.appendChild(wgItem(fmtMD(d), r, r.cells[8] ? `<span class="badge b-blue">${esc(r.cells[8])}</span>` : '')));
+    w.appendChild(list);
+    return w;
+  },
+  aging(rows){
+    const w = widgetShell('Past date · not completed');
+    const today = startOfDay(new Date());
+    const items = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
+      .filter(x => x.d && x.d < today && low(x.r.cells[3]) !== 'completed' && low(x.r.cells[6]) !== 'paid')
+      .sort((a,b) => a.d - b.d);
+    w.insertAdjacentHTML('beforeend', `<div class="wg-num" style="color:${items.length ? 'var(--amber)' : 'var(--green)'}">${items.length}</div>`);
+    if (!items.length){
+      w.insertAdjacentHTML('beforeend', '<div class="wg-none">All serviced jobs are wrapped up 🎉</div>');
+      return w;
+    }
+    const list = document.createElement('div');
+    list.className = 'wg-list';
+    items.slice(0, 5).forEach(({ r, d }) => {
+      const days = Math.round((today - d) / DAY);
+      list.appendChild(wgItem(days + 'd ago', r, statusBadge(r.cells[3])));
+    });
+    w.appendChild(list);
+    return w;
+  },
+  invoices(rows){
+    const w = widgetShell('Invoice pipeline');
+    const c = { notsent:0, sent:0, overdue:0, paid:0 };
+    rows.forEach(r => {
+      const v = low(r.cells[6]);
+      if (v === 'sent') c.sent++;
+      else if (v === 'overdue') c.overdue++;
+      else if (v === 'paid') c.paid++;
+      else c.notsent++;
+    });
+    const total = rows.length || 1;
+    w.insertAdjacentHTML('beforeend', `
+      <div class="wg-bar">
+        <i style="width:${c.notsent/total*100}%;background:var(--line2)"></i>
+        <i style="width:${c.sent/total*100}%;background:var(--blue)"></i>
+        <i style="width:${c.overdue/total*100}%;background:var(--red)"></i>
+        <i style="width:${c.paid/total*100}%;background:var(--green)"></i>
+      </div>
+      <div class="wg-legend">
+        <span><span class="sw" style="background:var(--line2)"></span>Not sent <b>${c.notsent}</b></span>
+        <span><span class="sw" style="background:var(--blue)"></span>Sent <b>${c.sent}</b></span>
+        <span><span class="sw" style="background:var(--red)"></span>Overdue <b>${c.overdue}</b></span>
+        <span><span class="sw" style="background:var(--green)"></span>Paid <b>${c.paid}</b></span>
+      </div>`);
+    return w;
+  },
+  retest(rows){
+    const w = widgetShell('Retest & compliance');
+    const byL = {};
+    rows.forEach(r => { const v = (r.cells[11]||'').trim(); if (v) byL[v] = (byL[v]||0) + 1; });
+    const entries = Object.entries(byL).sort((a,b) => b[1]-a[1]);
+    if (!entries.length){
+      w.insertAdjacentHTML('beforeend', '<div class="wg-none">No retest activity recorded.</div>');
+      return w;
+    }
+    const cls = v => {
+      const t = low(v);
+      if (['pending','awaiting approval','scheduled'].includes(t)) return 'b-amber';
+      if (['approved','completed','passed'].includes(t)) return 'b-green';
+      return 'b-gray';
+    };
+    w.insertAdjacentHTML('beforeend', `<div class="wg-chips">${entries.map(([v, n]) =>
+      `<span class="badge ${cls(v)}">${esc(v)} ${n}</span>`).join('')}</div>`);
+    const pend = rows.filter(r => ['pending','awaiting approval','scheduled'].includes(low(r.cells[11])));
+    if (pend.length){
+      const list = document.createElement('div');
+      list.className = 'wg-list';
+      list.style.marginTop = '8px';
+      pend.slice(0, 4).forEach(r => list.appendChild(wgItem('', r, `<span class="badge b-amber">${esc(r.cells[11])}</span>`)));
+      w.appendChild(list);
+    }
+    return w;
+  }
+};
+function widgetShell(title){
+  const w = document.createElement('div');
+  w.className = 'widget';
+  w.innerHTML = `<h4>${esc(title)}</h4>`;
+  return w;
+}
+function wgItem(dTxt, r, badgeHtml){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'wg-item';
+  b.innerHTML = `${dTxt ? `<span class="d">${esc(dTxt)}</span>` : ''}<span class="q">#${esc(r.key)}</span><span class="nm">${esc(r.cells[1])}</span>${badgeHtml || ''}`;
+  b.addEventListener('click', () => openDrawer(r.uid));
+  return b;
 }
 
-async function handleDrop(tab, cdef, uid){
-  const r = rowByUid(uid);
-  if (!r || r.saving) return;
-  let col, val, label;
-  if (tab.id === 'quotes'){
-    col = cdef.drop; val = todayMD();
-    label = `#${r.key} → ${cdef.label} ${val}`;
-    if (boardColOf(tab, r) === cdef.id && filledVal(r.cells[col])) return;
-  } else {
-    col = cdef.drop.col; val = cdef.drop.val;
-    label = `#${r.key} → ${cdef.label === 'No status' ? 'no job status' : cdef.label}`;
-    if ((r.cells[col]||'').trim() === val) return;
+/* ---- Gantt ---- */
+function renderGantt(rows){
+  const today = startOfDay(new Date());
+  const start = addDays(today, -CONFIG.GANTT_PAST_DAYS);
+  const end = addDays(today, CONFIG.GANTT_FUTURE_DAYS);
+  const span = end - start;
+  const pct = d => Math.max(0, Math.min(100, (d - start) / span * 100));
+
+  const all = rows.map(r => ({ r, d: parseDate(r.cells[7]) }))
+    .filter(x => x.d && low(x.r.cells[6]) !== 'paid')
+    .filter(x => x.d <= end && (x.d >= start || low(x.r.cells[3]) !== 'completed'))
+    .sort((a,b) => a.d - b.d);
+  const shown = all.slice(0, CONFIG.GANTT_MAX_ROWS);
+
+  const box = document.createElement('div');
+  box.className = 'gantt';
+  if (!shown.length){
+    box.innerHTML = '<div class="wg-none">No jobs with Ember dates in this window yet — dates appear here automatically.</div>';
+    return box;
   }
-  r.saving = true;
-  renderContent();
-  try {
-    await commitEdits(tab, r, { [col]: val });
-    toast(label, 'ok');
-  } catch(e){
-    if (e.message !== 'auth') toast(e.message, 'err');
-  } finally {
-    r.saving = false;
-    renderContent();
-    renderSummary();
-    if (state.drawerUid === r.uid && $('#drawer').classList.contains('on')) renderDrawer();
+  const inner = document.createElement('div');
+  inner.className = 'g-inner';
+
+  // weekly axis ticks
+  const axis = document.createElement('div');
+  axis.className = 'g-axis';
+  const firstTick = addDays(start, (7 - start.getDay()) % 7);
+  for (let t = firstTick; t <= end; t = addDays(t, 7)){
+    axis.insertAdjacentHTML('beforeend', `<span class="tick" style="left:${pct(t)}%">${fmtMD(t)}</span>`);
   }
+  inner.appendChild(axis);
+
+  const body = document.createElement('div');
+  body.className = 'g-body';
+  const overlay = document.createElement('div');
+  overlay.className = 'g-overlay';
+  for (let t = firstTick; t <= end; t = addDays(t, 7)){
+    overlay.insertAdjacentHTML('beforeend', `<span class="vline" style="left:${pct(t)}%"></span>`);
+  }
+  overlay.insertAdjacentHTML('beforeend', `<span class="todayline" style="left:${pct(today)}%" title="Today"></span>`);
+  body.appendChild(overlay);
+
+  shown.forEach(({ r, d }) => {
+    const row = document.createElement('div');
+    row.className = 'g-row';
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `Quote ${r.key}, ${r.cells[1]} — open details`);
+    const done = low(r.cells[3]) === 'completed';
+    const track = document.createElement('div');
+    track.className = 'g-track';
+    if (done){
+      track.innerHTML = `<span class="g-dia" style="left:${pct(d)}%" title="Completed ${fmtMD(d)}"></span>`;
+    } else if (d > today){
+      track.innerHTML = `<span class="g-dia up" style="left:${pct(d)}%" title="Scheduled ${fmtMD(d)}"></span>`;
+    } else {
+      const st = stageAuto(r);
+      const l = pct(d < start ? start : d), rgt = pct(today);
+      const days = Math.round((today - d) / DAY);
+      track.innerHTML = `<span class="g-bar${st === 'overdue' ? ' gb-red' : ''}" style="left:${l}%;width:${Math.max(rgt - l, 1)}%" title="Open ${days}d since ${fmtMD(d)}"></span>
+        <span class="g-age" style="left:${rgt}%">${days}d</span>`;
+    }
+    row.innerHTML = `<div class="g-lbl"><span class="q">#${esc(r.key)}</span><span class="nm">${esc(r.cells[1])}</span></div>`;
+    row.appendChild(track);
+    row.addEventListener('click', () => openDrawer(r.uid));
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(r.uid); } });
+    body.appendChild(row);
+  });
+  inner.appendChild(body);
+  box.appendChild(inner);
+
+  box.insertAdjacentHTML('beforeend', `
+    <div class="g-leg">
+      <span><span class="sw" style="background:#E0A93E"></span>Open since service date</span>
+      <span><span class="sw" style="background:var(--red)"></span>Open + invoice overdue</span>
+      <span><span class="sw dm" style="background:var(--blue)"></span>Upcoming service</span>
+      <span><span class="sw dm" style="background:var(--green)"></span>Completed</span>
+    </div>` +
+    (all.length > shown.length ? `<div class="g-note">Showing ${shown.length} of ${all.length} dated jobs (window: last ${CONFIG.GANTT_PAST_DAYS}d → next ${CONFIG.GANTT_FUTURE_DAYS}d). Paid jobs are hidden.</div>` : ''));
+  return box;
 }
 
 /* =====================================================================
@@ -1695,6 +1748,7 @@ async function handleDrop(tab, cdef, uid){
 function openDrawer(uid){
   state.drawerUid = uid;
   state.drawerList = visibleRows(activeTabDef()).map(r => r.uid);
+  if (!state.drawerList.includes(uid)) state.drawerList = [uid];
   $('#dSearch').value = '';
   $('#dSearchWrap').classList.remove('has');
   renderDrawer();
@@ -1702,7 +1756,7 @@ function openDrawer(uid){
   $('#overlay').classList.add('on');
   document.body.classList.add('drawer-open');
   $('#drawer').setAttribute('aria-hidden', 'false');
-  renderContent();
+  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
 }
 function closeDrawer(){
   $('#drawer').classList.remove('on');
@@ -1732,7 +1786,7 @@ function stepDrawer(dir){
   $('#dSearch').value = '';
   $('#dSearchWrap').classList.remove('has');
   renderDrawer();
-  renderContent();
+  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
 }
 
 $('#dSearch').addEventListener('input', () => {
@@ -1763,7 +1817,7 @@ function renderDrawerResults(q){
       $('#dSearch').value = '';
       $('#dSearchWrap').classList.remove('has');
       renderDrawer();
-      renderContent();
+      if (!(tab.id === 'tracker' && state.view.tracker === 'overview')) renderContent();
     });
     box.appendChild(b);
   });
@@ -1824,6 +1878,9 @@ function renderDrawer(){
     add('Invoice #', esc(r.cells[5]));
     add('Invoice', invStatusBadge(r.cells[6]));
     add('Ember', (r.cells[7] || r.cells[8]) ? `${r.cells[8] ? `<span class="badge b-blue">${esc(r.cells[8])}</span> ` : ''}${esc(r.cells[7])}` : '');
+    const st = stageAuto(r);
+    const sdef = STAGES.find(s => s.id === st);
+    if (sdef) add('Stage', `<span class="badge b-${sdef.tone === 'gray' ? 'gray' : sdef.tone}">${esc(sdef.label)}</span>`);
   }
   info.appendChild(grid);
   body.appendChild(info);
@@ -1910,7 +1967,7 @@ function setEdit(tab, r, colIdx, val){
   else r.edits[colIdx] = val;
   $$(`#dBody [data-col="${colIdx}"]`).forEach(ct => ct.classList.toggle('changed', colIdx in r.edits));
   syncFoot(r);
-  renderContent();
+  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
 }
 function syncFoot(r){
   const foot = $('#dFoot');
@@ -2032,7 +2089,7 @@ function appendLine(ta, text){
 }
 
 /* =====================================================================
-   Save pipeline (drawer, board drops, quick-contact chips)
+   Save pipeline (drawer + quick-contact chips)
    ===================================================================== */
 async function commitEdits(tab, r, changesObj){
   let target = r.sheetRow;
@@ -2085,7 +2142,7 @@ $('#dRevert').addEventListener('click', () => {
   if (!r) return;
   r.edits = {};
   renderDrawer();
-  renderContent();
+  if (!(activeTabDef().id === 'tracker' && state.view.tracker === 'overview')) renderContent();
 });
 
 async function saveActive(){
