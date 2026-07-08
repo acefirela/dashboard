@@ -194,6 +194,9 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .fu.off{color:var(--muted); background:transparent; border:1px dashed var(--line2)}
 .fu.off:hover{color:var(--red-dk); border-color:var(--red); border-style:solid}
 .fu.busy{opacity:.5; pointer-events:none}
+.fu.draft{border:1px solid #EFD2D1; border-style:solid; background:var(--red-bg); color:var(--red-dk)}
+.fu.draft:hover{border-color:var(--red); background:#F7E2E1}
+a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .chev{color:var(--line2); flex:none}
 .row:hover .chev{color:var(--muted)}
 .badge{
@@ -611,7 +614,9 @@ const CONFIG = {
   ACTIVITY_LOG_SHEET: 'Activity Log',
   ACTIVITY_MAX: 1500,
   SHOW_FINANCIALS: false,
-  STALE_MS: 5 * 60 * 1000
+  STALE_MS: 5 * 60 * 1000,
+  COMPANY_PHONE: '(818) 739-9849',
+  AI_WEBHOOK_URL: ''   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
 };
 
 /* Column maps (0-based, A=0)
@@ -624,6 +629,9 @@ const TABS = [
   { id:'tracker', label:'Tracker', sheet:'Tracker', lastCol:'N', editable:[9,10,11,12,13] }
 ];
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
+/* UI tabs = the two sheet tabs + the computed Renewals radar */
+const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }];
+const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
 
 /* =====================================================================
    State / helpers
@@ -635,6 +643,7 @@ const state = {
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
+  renBucket:'d30',
   drawerUid:null, drawerList:[], lastLoad:0
 };
 const $  = s => document.querySelector(s);
@@ -948,7 +957,7 @@ function searchText(tab, r){
 function buildTabBar(){
   const bar = $('#tabbar');
   bar.innerHTML = '';
-  TABS.forEach(t => {
+  UI_TABS.forEach(t => {
     const b = document.createElement('button');
     b.className = 'tab' + (state.activeTab === t.id ? ' active' : '');
     b.setAttribute('role', 'tab');
@@ -990,7 +999,7 @@ function jumpTo(tabId, filterId){
   state.filter[tabId] = filterId;
   if (tabId === 'tracker') state.trackerStatus = '';
   $$('.tab').forEach((x, i) => {
-    const on = TABS[i].id === tabId;
+    const on = UI_TABS[i].id === tabId;
     x.classList.toggle('active', on);
     x.setAttribute('aria-selected', on ? 'true' : 'false');
   });
@@ -1039,17 +1048,51 @@ function renderSummary(){
 }
 
 function renderAll(){
-  const tab = activeTabDef();
   TABS.forEach(t => {
     const el = document.querySelector(`[data-cnt="${t.id}"]`);
     if (el) el.textContent = (state.data[t.id] || []).length;
   });
+  const rc = document.querySelector('[data-cnt="renewals"]');
+  if (rc){
+    const R = computeRenewals();
+    rc.textContent = R.filter(x => x.days <= 30 && !x.upcoming).length;
+  }
   updateStale();
   renderSummary();
 
+  /* ---- Renewals radar (computed, not a sheet) ---- */
+  if (state.activeTab === 'renewals'){
+    $('#sortSel').style.display = 'none';
+    $('#statusSel').style.display = 'none';
+    $('#dupeBanner').classList.remove('on');
+    const fb = $('#filterBar');
+    fb.innerHTML = '';
+    const R = computeRenewals();
+    const buckets = [
+      { id:'overdue', label:'Overdue',  fn:x => x.days < 0 },
+      { id:'d30',     label:'Due ≤30d', fn:x => x.days >= 0 && x.days <= 30 },
+      { id:'d90',     label:'31–90d',   fn:x => x.days > 30 && x.days <= 90 },
+      { id:'later',   label:'Later',    fn:x => x.days > 90 },
+      { id:'all',     label:'All',      fn:() => true }
+    ];
+    buckets.forEach(bk => {
+      const n = R.filter(bk.fn).length;
+      const b = document.createElement('button');
+      b.className = 'fchip' + (state.renBucket === bk.id ? ' active' : '');
+      b.setAttribute('aria-pressed', state.renBucket === bk.id ? 'true' : 'false');
+      b.innerHTML = `${esc(bk.label)}<span class="n">${n}</span>`;
+      b.addEventListener('click', () => { state.renBucket = bk.id; renderAll(); });
+      fb.appendChild(b);
+    });
+    renderContent();
+    return;
+  }
+
+  const tab = activeTabDef();
   const sel = $('#sortSel');
   sel.innerHTML = sortDefs(tab).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
   sel.value = state.sort[tab.id];
+  sel.style.display = '';
 
   const ss = $('#statusSel');
   if (tab.id === 'tracker'){
@@ -1086,6 +1129,7 @@ function renderAll(){
   renderContent();
 }
 function renderContent(){
+  if (state.activeTab === 'renewals'){ renderRenewals(); return; }
   renderList();
 }
 
@@ -1254,7 +1298,8 @@ function invStatusBadge(v){
    ===================================================================== */
 function openDrawer(uid){
   state.drawerUid = uid;
-  state.drawerList = visibleRows(activeTabDef()).map(r => r.uid);
+  const t = tabOfUid(uid);
+  state.drawerList = (t && t.id === state.activeTab) ? visibleRows(t).map(r => r.uid) : [uid];
   if (!state.drawerList.includes(uid)) state.drawerList = [uid];
   $('#dSearch').value = '';
   $('#dSearchWrap').classList.remove('has');
@@ -1307,7 +1352,7 @@ $('#dSearchClr').addEventListener('click', () => {
   renderDrawer();
 });
 function renderDrawerResults(q){
-  const tab = activeTabDef();
+  const tab = tabOfUid(state.drawerUid) || activeTabDef() || TABS[0];
   const hits = (state.data[tab.id] || []).filter(r => searchText(tab, r).includes(q)).slice(0, 25);
   const body = $('#dBody');
   body.innerHTML = '<div class="d-results"></div>';
@@ -1332,8 +1377,8 @@ function renderDrawerResults(q){
 }
 
 function renderDrawer(){
-  const tab = activeTabDef();
   const r = rowByUid(state.drawerUid);
+  const tab = tabOfUid(state.drawerUid) || TABS[0];
   const body = $('#dBody');
   if (!r){ body.innerHTML = '<div class="empty">Record not found — it may have been removed. Refresh the data.</div>'; syncFoot(null); return; }
 
@@ -1448,7 +1493,7 @@ function renderDrawer(){
 function switchToRecord(tabId, uid){
   state.activeTab = tabId;
   $$('.tab').forEach((x, i) => {
-    const on = TABS[i].id === tabId;
+    const on = UI_TABS[i].id === tabId;
     x.classList.toggle('active', on);
     x.setAttribute('aria-selected', on ? 'true' : 'false');
   });
@@ -1645,9 +1690,9 @@ $('#dRevert').addEventListener('click', () => {
 });
 
 async function saveActive(){
-  const tab = activeTabDef();
   const r = rowByUid(state.drawerUid);
-  if (!r || !isDirty(r) || r.saving) return false;
+  const tab = tabOfUid(state.drawerUid);
+  if (!r || !tab || !isDirty(r) || r.saving) return false;
   r.saving = true;
   const btn = $('#dSave');
   btn.classList.add('saving');
@@ -1669,6 +1714,218 @@ async function saveActive(){
     syncFoot(rowByUid(state.drawerUid));
   }
   return ok;
+}
+
+/* =====================================================================
+   Renewals radar — recurring Reg 4 service, computed from completed jobs
+   ===================================================================== */
+/* order matters: specific periods before 'annual' (which would match 'semi-annual') */
+const CYCLES = [
+  { re:/5[\s-]?(year|yr)/i,      months:60, label:'5-Year' },
+  { re:/3[\s-]?(year|yr)/i,      months:36, label:'3-Year' },
+  { re:/semi[\s-]?annual/i,      months:6,  label:'Semi-Annual' },
+  { re:/quarter/i,               months:3,  label:'Quarterly' },
+  { re:/month/i,                 months:1,  label:'Monthly' },
+  { re:/annual|yearly|title\s*19/i, months:12, label:'Annual' }
+];
+const CATS = [
+  ['Fire Alarm',          /alarm|supervising/i],
+  ['Fire Sprinkler',      /sprinkler|title\s*19/i],
+  ['Standpipe',           /standpipe|class\s+(i{1,3})\b/i],
+  ['Fire Pump',           /fire\s*pump|pump\s*run/i],
+  ['Backflow',            /backflow/i],
+  ['Emergency Lighting',  /emergency\s*light|exit\s*(light|sign)/i]
+];
+function addMonths(d, m){
+  const x = new Date(d.getFullYear(), d.getMonth() + m, d.getDate());
+  return x;
+}
+const fmtFull = d => (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+function cycleOf(text){
+  const hits = CYCLES.filter(c => c.re.test(text));
+  if (!hits.length) return null;
+  return hits.reduce((a, b) => a.months <= b.months ? a : b);   // shortest period = next touchpoint
+}
+function catOf(text){
+  for (const [name, re] of CATS) if (re.test(text)) return name;
+  return 'Fire Protection';
+}
+
+let _ren = { ts:-1, list:[] };
+function computeRenewals(){
+  if (_ren.ts === state.lastLoad) return _ren.list;
+  const today = startOfDay(new Date());
+  const tracker = state.data.tracker || [];
+  const quotes = state.data.quotes || [];
+
+  // latest completed job per customer + category + cycle
+  const best = new Map();
+  tracker.forEach(r => {
+    if (low(r.cells[3]) !== 'completed') return;
+    const d = parseDate(r.cells[7]);
+    if (!d) return;
+    const text = (r.cells[2] || '') + ' ' + (r.cells[8] || '');
+    const cyc = cycleOf(text);
+    if (!cyc) return;                       // repairs / service calls have no cycle keyword
+    const cat = catOf(text);
+    const key = normName(r.cells[1]) + '|' + cat + '|' + cyc.months;
+    const prev = best.get(key);
+    if (!prev || d > prev.last) best.set(key, { src:r, last:d, cyc, cat });
+  });
+
+  const list = [...best.values()].map(({ src, last, cyc, cat }) => {
+    const nm = normName(src.cells[1]);
+    const due = addMonths(last, cyc.months);
+    const days = Math.round((due - today) / DAY);
+
+    // already scheduled again? (future tracker job, same customer + category)
+    const upcoming = tracker.some(r => {
+      if (r.uid === src.uid || low(r.cells[3]) === 'cancelled') return false;
+      const d2 = parseDate(r.cells[7]);
+      return d2 && d2 > today && normName(r.cells[1]) === nm &&
+             catOf((r.cells[2]||'') + ' ' + (r.cells[8]||'')) === cat;
+    });
+
+    // active quote already out? (same customer + category, not expired)
+    let quote = null;
+    quotes.forEach(q => {
+      if (normName(q.cells[1]) !== nm) return;
+      if (catOf(q.cells[4] || '') !== cat) return;
+      const dn = daysNum(q);
+      if (dn !== null && dn < 0) return;    // expired
+      if (!quote || quoteNum(q.key) > quoteNum(quote.key)) quote = q;
+    });
+
+    // contact info lives on the Quotes tab — grab the customer's latest
+    let email = '', phone = '';
+    quotes.forEach(q => {
+      if (normName(q.cells[1]) !== nm) return;
+      if (!email && (q.cells[2]||'').includes('@')) email = q.cells[2].trim();
+      if (!phone && (q.cells[3]||'').trim()) phone = q.cells[3].trim();
+    });
+
+    return { name: src.cells[1], cat, cyc, last, due, days, src, upcoming, quote, email, phone };
+  }).sort((a, b) => a.due - b.due);
+
+  _ren = { ts: state.lastLoad, list };
+  return list;
+}
+
+function renderRenewals(){
+  const main = $('#main');
+  main.innerHTML = '';
+  const buckets = {
+    overdue: x => x.days < 0,
+    d30:     x => x.days >= 0 && x.days <= 30,
+    d90:     x => x.days > 30 && x.days <= 90,
+    later:   x => x.days > 90,
+    all:     () => true
+  };
+  const fn = buckets[state.renBucket] || buckets.d30;
+  let items = computeRenewals().filter(fn);
+  const q = state.search.trim().toLowerCase();
+  if (q) items = items.filter(x => (x.name + ' ' + x.cat + ' ' + x.cyc.label + ' ' + x.src.key).toLowerCase().includes(q));
+
+  const list = document.createElement('div');
+  list.className = 'list';
+  if (!items.length){
+    list.innerHTML = `<div class="empty">${q ? 'No renewals match your search.' :
+      'Nothing in this window — renewals appear automatically from completed jobs with a service cycle (annual, 5-year, monthly…).'}</div>`;
+    main.appendChild(list);
+    return;
+  }
+  items.forEach(x => {
+    const row = document.createElement('div');
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.className = 'row' + (x.days < 0 ? ' u-exp' : x.days <= 30 ? ' u-soon' : '');
+    const dueBadge = x.days < 0
+      ? `<span class="badge b-red">${Math.abs(x.days)}d overdue</span>`
+      : x.days <= 30
+        ? `<span class="badge b-amber">due in ${x.days}d</span>`
+        : `<span class="badge ${x.days <= 90 ? 'b-blue' : 'b-gray'}">due ${fmtMD(x.due)}</span>`;
+    row.setAttribute('aria-label', `${x.name} — ${x.cyc.label} ${x.cat} due ${fmtFull(x.due)}`);
+    row.innerHTML = `
+      <div class="r-main">
+        <div class="r-top">
+          <span class="r-nm">${esc(x.name)}</span>
+          <span class="badge b-gray">${esc(x.cyc.label)}</span>
+          <span class="r-side">${dueBadge}</span>
+        </div>
+        <div class="r-ttl">${esc(x.cat)} — last serviced ${fmtFull(x.last)} · job #${esc(x.src.key)}</div>
+        <div class="r-meta">
+          <button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>
+          ${x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : ''}
+          ${x.quote ? `<span class="badge b-blue">Quote #${esc(x.quote.key)} out</span>` : ''}
+          ${x.upcoming ? `<span class="badge b-green">Already scheduled</span>` : ''}
+        </div>
+      </div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
+    row.addEventListener('click', () => openDrawer(x.src.uid));
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(x.src.uid); } });
+    row.querySelectorAll('[data-act]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        if (el.dataset.act === 'draft') draftOutreach(x, el);
+      });
+      el.addEventListener('keydown', e => e.stopPropagation());
+    });
+    list.appendChild(row);
+  });
+  main.appendChild(list);
+}
+
+/* ---- outreach drafting: built-in template, upgraded by AI webhook when configured ---- */
+function outreachTemplate(x){
+  const org = String(x.name || '').split(',')[0].trim() || 'there';
+  const subject = `${x.cyc.label} ${x.cat} service coming due — ACE Fire LA`;
+  const body =
+`Hello ${org},
+
+Our records show ACE Fire LA completed your ${x.cyc.label.toLowerCase()} ${x.cat.toLowerCase()} testing on ${fmtFull(x.last)}. Per LAFD Regulation 4, this service is due again by ${fmtFull(x.due)}.
+
+We'd be glad to get you on the schedule ahead of the deadline so the property stays compliant and avoids any notices from the Fire Department.
+
+Reply to this email or call us at ${CONFIG.COMPANY_PHONE} and we'll take care of it.
+
+Thank you,
+ACE Fire LA
+${CONFIG.COMPANY_PHONE} · acefirela.com`;
+  return { subject, body };
+}
+async function draftOutreach(x, btn){
+  if (btn){ btn.classList.add('busy'); btn.textContent = '… drafting'; }
+  let draft = outreachTemplate(x);
+  if (CONFIG.AI_WEBHOOK_URL){
+    try {
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), 15000);
+      const resp = await fetch(CONFIG.AI_WEBHOOK_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          type:'renewal_outreach', customer:x.name, category:x.cat, cycle:x.cyc.label,
+          lastServiced:fmtFull(x.last), dueDate:fmtFull(x.due), daysUntil:x.days,
+          quoteOut: x.quote ? x.quote.key : null
+        }),
+        signal: ctl.signal
+      });
+      clearTimeout(to);
+      if (resp.ok){
+        const j = await resp.json();
+        if (j.subject && j.body) draft = { subject:j.subject, body:j.body };
+      }
+    } catch(e){ toast('AI draft unavailable — using template'); }
+  }
+  if (btn){ btn.classList.remove('busy'); btn.textContent = '✉ Draft outreach'; }
+  if (x.email){
+    location.href = `mailto:${x.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+  } else {
+    try {
+      await navigator.clipboard.writeText('Subject: ' + draft.subject + '\n\n' + draft.body);
+      toast('No email on file — draft copied to clipboard', 'ok');
+    } catch(e){ toast('No email on file for this customer', 'err'); }
+  }
 }
 
 /* =====================================================================
