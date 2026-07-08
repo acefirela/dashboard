@@ -454,6 +454,36 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .gbtn:disabled{opacity:.6; cursor:default}
 .gate-err{color:var(--red-dk); font-size:12.5px; margin-top:14px; display:none}
 
+/* ============ Change history panel ============ */
+#histWrap{position:fixed; inset:0; background:rgba(20,22,26,.45); z-index:90; display:none}
+#histWrap.on{display:flex; justify-content:flex-end}
+.hist{
+  width:var(--drawer-w); max-width:100vw; background:var(--card); height:100%;
+  display:flex; flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.18);
+}
+.h-head{display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); background:#FAFAF8}
+.h-title{font-family:'Barlow Condensed'; font-weight:700; font-size:19px; letter-spacing:.06em; text-transform:uppercase}
+.h-sub{font-size:11.5px; color:var(--muted)}
+.h-head .icon-btn{margin-left:auto}
+.h-search{padding:10px 16px; border-bottom:1px solid var(--line)}
+.h-search input{
+  width:100%; padding:9px 11px; border:1px solid var(--line2); border-radius:8px;
+  outline:none; background:var(--paper);
+}
+.h-search input:focus{border-color:var(--ink2); background:#fff}
+.h-body{flex:1; overflow-y:auto; padding:6px 16px 20px; -webkit-overflow-scrolling:touch}
+.h-key{
+  appearance:none; border:none; background:none; padding:0; cursor:pointer;
+  font-family:'Barlow Condensed'; font-weight:700; color:var(--red-dk); font-size:14px;
+}
+.h-key:hover{text-decoration:underline}
+.undo-btn{
+  appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
+  border-radius:7px; padding:4px 10px; font-size:11.5px; font-weight:700; cursor:pointer; margin-top:5px;
+}
+.undo-btn:hover:not(:disabled){border-color:var(--red); color:var(--red-dk)}
+.undo-btn:disabled{opacity:.4; cursor:default}
+
 /* ============ Toast / loading ============ */
 #toast{
   position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(80px);
@@ -482,6 +512,7 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
     </div>
     <div class="hd-user" id="hdUser" style="display:none">
       <span class="email" id="userEmail"></span>
+      <button class="hd-btn" id="btnHistory" aria-label="Change history">🕘 History</button>
       <button class="hd-btn" id="btnRefresh" aria-label="Refresh data">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v5h-5"/></svg>
         Refresh
@@ -550,6 +581,22 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
     <button class="nextbtn" id="dSaveNext">Next ›</button>
   </div>
 </aside>
+
+<div id="histWrap" aria-hidden="true">
+  <div class="hist" role="dialog" aria-modal="true" aria-label="Change history">
+    <div class="h-head">
+      <div>
+        <div class="h-title">Change history</div>
+        <div class="h-sub">Dashboard edits — undo restores the previous value</div>
+      </div>
+      <button class="icon-btn" id="histClose" aria-label="Close history">✕</button>
+    </div>
+    <div class="h-search">
+      <input type="text" id="histSearch" placeholder="Filter by quote #, user, text…" autocomplete="off" aria-label="Filter history">
+    </div>
+    <div class="h-body" id="histBody"></div>
+  </div>
+</div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -807,7 +854,7 @@ async function loadAll(showToast){
 async function loadActivity(){
   if (!CONFIG.ACTIVITY_LOG_SHEET) return;
   try {
-    const res = await api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A2:F`)}`);
+    const res = await api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A2:G`)}`);
     state.activity = (res.values || []).slice(-CONFIG.ACTIVITY_MAX);
   } catch(e){ state.activity = []; }
   state.activityLoaded = true;
@@ -1391,13 +1438,7 @@ function renderDrawer(){
     } else {
       const entries = state.activity.filter(a => String(a[4] ?? '').trim() === r.key).slice(-5).reverse();
       if (!entries.length) sec.insertAdjacentHTML('beforeend', '<div class="log-none">No logged activity for this record yet — edits made here will appear.</div>');
-      entries.forEach(a => {
-        sec.insertAdjacentHTML('beforeend', `
-          <div class="log-item">
-            <div class="lt"><span>${esc(a[0] || '')}</span><span>${esc(String(a[1] || '').split('@')[0])}</span>${a[3] ? `<span class="badge b-gray">${esc(a[3])}</span>` : ''}</div>
-            <div class="ld">${esc(a[5] || a[2] || '')}</div>
-          </div>`);
-      });
+      entries.forEach(a => sec.appendChild(logItemNode(a, { after: () => renderDrawer() })));
     }
     body.appendChild(sec);
   }
@@ -1548,7 +1589,7 @@ function appendLine(ta, text){
 /* =====================================================================
    Save pipeline (drawer + quick-contact chips)
    ===================================================================== */
-async function commitEdits(tab, r, changesObj){
+async function commitEdits(tab, r, changesObj, action = 'Edit (Dashboard)'){
   let target = r.sheetRow;
   const chk = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A${target}`)}`);
   if (String(chk.values?.[0]?.[0] ?? '').trim() !== r.key){
@@ -1574,9 +1615,10 @@ async function commitEdits(tab, r, changesObj){
     const hdr = state.headers[tab.id] || [];
     const details = changes.map(([c, v]) =>
       `${hdr[+c] || colLetter(+c)}: "${(r.cells[+c]||'').slice(0,60)}" → "${String(v).slice(0,60)}"`).join(' | ');
-    const entry = [new Date().toLocaleString(), state.email, 'Edit (Dashboard)', tab.sheet, r.key, details];
+    const undoData = { t: tab.id, c: Object.fromEntries(changes.map(([c, v]) => [c, { o: r.cells[+c] || '', n: String(v) }])) };
+    const entry = [new Date().toLocaleString(), state.email, action, tab.sheet, r.key, details, JSON.stringify(undoData)];
     state.activity.push(entry);
-    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:F`)}:append?valueInputOption=USER_ENTERED`,
+    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
       { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
   }
 
@@ -1628,6 +1670,118 @@ async function saveActive(){
   }
   return ok;
 }
+
+/* =====================================================================
+   Change history & undo
+   ===================================================================== */
+function parseUndoData(a){
+  try { const m = JSON.parse(a[6] || ''); return (m && m.c) ? m : null; }
+  catch(e){ return null; }
+}
+function logItemNode(a, opts = {}){
+  const div = document.createElement('div');
+  div.className = 'log-item';
+  const who = String(a[1] || '').split('@')[0];
+  const key = String(a[4] ?? '').trim();
+  const isUndo = low(a[2]).startsWith('undo');
+  div.innerHTML = `
+    <div class="lt">
+      ${opts.showKey && key ? `<button type="button" class="h-key">#${esc(key)}</button>` : ''}
+      <span>${esc(a[0] || '')}</span><span>${esc(who)}</span>
+      ${a[3] ? `<span class="badge b-gray">${esc(a[3])}</span>` : ''}
+      ${isUndo ? '<span class="badge b-amber">Undo</span>' : ''}
+    </div>
+    <div class="ld">${esc(a[5] || a[2] || '')}</div>`;
+  if (opts.showKey && key){
+    div.querySelector('.h-key').addEventListener('click', () => {
+      const meta = parseUndoData(a);
+      const tab = (meta && TABS.find(t => t.id === meta.t)) || TABS.find(t => t.sheet === a[3]) || activeTabDef();
+      const r = rowByKey(tab.id, key);
+      if (!r){ toast(`#${key} not in ${tab.label} right now`, 'err'); return; }
+      closeHist();
+      switchToRecord(tab.id, r.uid);
+    });
+  }
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'undo-btn';
+  btn.textContent = '↩ Undo';
+  const meta = parseUndoData(a);
+  if (!meta){
+    btn.disabled = true;
+    btn.title = 'Logged before undo support was added';
+  } else {
+    btn.addEventListener('click', () => undoEntry(a, opts.after));
+  }
+  div.appendChild(btn);
+  return div;
+}
+async function undoEntry(a, after){
+  const meta = parseUndoData(a);
+  if (!meta){ toast('This entry predates undo support', 'err'); return; }
+  const tab = TABS.find(t => t.id === meta.t) || TABS.find(t => t.sheet === a[3]);
+  if (!tab){ toast('Unknown sheet for this entry', 'err'); return; }
+  const key = String(a[4] ?? '').trim();
+  const r = rowByKey(tab.id, key);
+  if (!r){ toast(`Quote ${key} not found in ${tab.label} — refresh and try again`, 'err'); return; }
+  const hdr = state.headers[tab.id] || [];
+  const changes = {}, lines = [], conflicts = [];
+  Object.entries(meta.c).forEach(([c, ch]) => {
+    changes[c] = ch.o;
+    const name = hdr[+c] || colLetter(+c);
+    lines.push(`${name}: back to "${(ch.o || '(empty)').slice(0, 50)}"`);
+    if ((r.cells[+c] || '') !== (ch.n || '')) conflicts.push(name);
+  });
+  let msg = `Undo this change to #${key} (${tab.label})?\n\n${lines.join('\n')}`;
+  if (conflicts.length) msg += `\n\n⚠ ${conflicts.join(', ')} changed again AFTER this edit — undoing will overwrite the newer value.`;
+  if (!confirm(msg)) return;
+  try {
+    await commitEdits(tab, r, changes, 'Undo (Dashboard)');
+    toast(`Undid change to #${key}`, 'ok');
+    renderContent();
+    renderSummary();
+    if (after) after();
+    if (state.drawerUid === r.uid && $('#drawer').classList.contains('on') && !$('#dSearch').value) renderDrawer();
+  } catch(e){
+    if (e.message !== 'auth') toast(e.message, 'err');
+  }
+}
+
+/* ---- history panel ---- */
+function openHist(){
+  $('#histWrap').classList.add('on');
+  $('#histWrap').setAttribute('aria-hidden', 'false');
+  renderHistBody();
+  loadActivity().then(renderHistBody);   // refresh so teammates' latest edits show
+}
+function closeHist(){
+  $('#histWrap').classList.remove('on');
+  $('#histWrap').setAttribute('aria-hidden', 'true');
+}
+function renderHistBody(){
+  const body = $('#histBody');
+  body.innerHTML = '';
+  if (!state.activityLoaded){
+    body.innerHTML = '<div class="log-none" style="padding:14px 0">Loading history…</div>';
+    return;
+  }
+  const q = $('#histSearch').value.trim().toLowerCase();
+  let entries = [...state.activity].reverse();
+  if (q) entries = entries.filter(a => a.slice(0, 6).join(' ').toLowerCase().includes(q));
+  entries = entries.slice(0, 60);
+  if (!entries.length){
+    body.innerHTML = '<div class="log-none" style="padding:14px 0">No changes logged' + (q ? ' matching your filter.' : ' yet — edits made in the dashboard appear here.') + '</div>';
+    return;
+  }
+  entries.forEach(a => body.appendChild(logItemNode(a, { showKey:true, after: renderHistBody })));
+}
+$('#btnHistory').addEventListener('click', openHist);
+$('#histClose').addEventListener('click', closeHist);
+$('#histWrap').addEventListener('click', e => { if (e.target === $('#histWrap')) closeHist(); });
+$('#histSearch').addEventListener('input', renderHistBody);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#histWrap').classList.contains('on')) closeHist();
+});
 
 /* =====================================================================
    Toolbar / lifecycle
