@@ -2282,27 +2282,29 @@ window.addEventListener('beforeunload', e => {
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="gisReady()"></script>
 
-<!-- AI Call Log module (consolidated: drawer section + list badge; additive, read-only) -->
+  <!-- AI Call Log module (consolidated: drawer section + list badge; inbound/outbound aware; additive, read-only) -->
 <script>
 (function(){
   var SID='1PPnBTp28dpIg3izT8yxfisxpW0sv8VVaEqImcOH9qsc';
   var RANGE='Transcripts!A2:L';
-  var aiCalls={ loaded:false, loading:false, byPhone:{}, byQuote:{}, countByPhone:{} };
+  var aiCalls={ loaded:false, loading:false, byPhone:{}, byQuote:{}, inByPhone:{}, outByPhone:{} };
   function st(){ return window.state||null; }
   function norm(p){ return String(p==null?'':p).replace(/[^0-9]/g,'').replace(/^1([0-9]{10})$/,'$1'); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function safeUrl(u){ try{ var x=new URL(String(u)); return (x.protocol==='https:'||x.protocol==='http:')?x.href:''; }catch(e){ return ''; } }
+  function isInbound(c){ return /thanks for calling/i.test(String((c.transcript||'')+' '+(c.summary||''))); }
   function fmtDate(s){ if(!s) return ''; var d=new Date(s); if(isNaN(d)) return esc(String(s).slice(0,16)); return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})+', '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
   function fmtDur(s){ var n=parseInt(s,10); if(isNaN(n)) return ''; var m=Math.floor(n/60), sec=n%60; return m?(m+'m '+sec+'s'):(sec+'s'); }
   function buildIndex(rows){
-    var byPhone={}, byQuote={}, cnt={};
-    (rows||[]).forEach(function(c){
-      var call={phone:c[0],first:c[1],last:c[2],id:c[3],start:c[4],end:c[5],dur:c[6],transcript:c[7],summary:c[8],sentiment:c[9],cost:c[10],url:c[11]};
-      var ph=norm(c[0]); if(ph){ (byPhone[ph]=byPhone[ph]||[]).push(call); cnt[ph]=(cnt[ph]||0)+1; }
-      var m=String((c[8]||'')+' '+(c[7]||'')).match(/quote\s*#?\s*([0-9]{2,6})/i);
+    var byPhone={}, byQuote={}, inC={}, outC={};
+    (rows||[]).forEach(function(r){
+      var call={phone:r[0],first:r[1],last:r[2],id:r[3],start:r[4],end:r[5],dur:r[6],transcript:r[7],summary:r[8],sentiment:r[9],cost:r[10],url:r[11]};
+      call.inbound=isInbound(call);
+      var ph=norm(r[0]); if(ph){ (byPhone[ph]=byPhone[ph]||[]).push(call); if(call.inbound){ inC[ph]=(inC[ph]||0)+1; } else { outC[ph]=(outC[ph]||0)+1; } }
+      var m=String((r[8]||'')+' '+(r[7]||'')).match(/quote\s*#?\s*([0-9]{2,6})/i);
       if(m){ (byQuote[m[1]]=byQuote[m[1]]||[]).push(call); }
     });
-    aiCalls.byPhone=byPhone; aiCalls.byQuote=byQuote; aiCalls.countByPhone=cnt;
+    aiCalls.byPhone=byPhone; aiCalls.byQuote=byQuote; aiCalls.inByPhone=inC; aiCalls.outByPhone=outC;
   }
   function load(cb){
     if(aiCalls.loaded){ cb&&cb(); return; }
@@ -2331,15 +2333,19 @@ window.addEventListener('beforeunload', e => {
     var isQuote=!!(s.data&&s.data.quotes&&s.data.quotes.some(function(r){return r.uid===uid;}));
     if(!aiCalls.loaded) load(render);
     var calls=callsForRecord(rec,isQuote);
+    var nIn=calls.filter(function(c){return c.inbound;}).length, nOut=calls.length-nIn;
     var sec=document.createElement('div'); sec.className='d-sec'; sec.id='aiCallLogSec';
     var html='<h3>\uD83E\uDD16 AI Call Log'+(calls.length?' <span style="font-weight:600;color:#9E2724">'+calls.length+'</span>':'')+'</h3>';
     if(!aiCalls.loaded){ html+='<div style="color:#767B85;font-size:13px">Loading\u2026</div>'; }
     else if(!calls.length){ html+='<div style="color:#767B85;font-size:13px">No AI calls on file.</div>'; }
-    else { html+=calls.map(function(c){ var u=safeUrl(c.url); return '<div style="padding:8px 0;border-top:1px solid #E4E2DC">'+
-      '<div style="font-weight:600;font-size:13px">'+esc(fmtDate(c.start))+(c.dur?(' \u00b7 '+esc(fmtDur(c.dur))):'')+(c.sentiment?(' \u00b7 '+esc(c.sentiment)):'')+'</div>'+
-      (c.summary?('<div style="font-size:13px;color:#3C4048;margin-top:2px">'+esc(c.summary)+'</div>'):'')+
-      (u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" style="font-size:12px;color:#9E2724;text-decoration:underline">Recording</a>'):'')+
-      '</div>'; }).join(''); }
+    else {
+      html+='<div style="font-size:12px;color:#767B85;margin:-4px 0 4px">'+nIn+' received \u00b7 '+nOut+' outbound</div>';
+      html+=calls.map(function(c){ var u=safeUrl(c.url); var tag=c.inbound?'<span style="display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:8px;background:#EAF4EE;color:#2E7D4F">Received</span>':'<span style="display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:8px;background:#EEECE6;color:#767B85">Outbound</span>'; return '<div style="padding:8px 0;border-top:1px solid #E4E2DC">'+
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+tag+'<span style="font-weight:600;font-size:13px">'+esc(fmtDate(c.start))+'</span>'+(c.dur?('<span style="font-size:12px;color:#767B85">\u00b7 '+esc(fmtDur(c.dur))+'</span>'):'')+(c.sentiment?('<span style="font-size:12px;color:#767B85">\u00b7 '+esc(c.sentiment)+'</span>'):'')+'</div>'+
+        (c.summary?('<div style="font-size:13px;color:#3C4048;margin-top:2px">'+esc(c.summary)+'</div>'):'')+
+        (u?('<a href="'+esc(u)+'" target="_blank" rel="noopener" style="font-size:12px;color:#9E2724;text-decoration:underline">Recording</a>'):'')+
+        '</div>'; }).join('');
+    }
     sec.innerHTML=html;
     var detH3=null, h3s=dr.querySelectorAll('.d-sec h3');
     for(var i=0;i<h3s.length;i++){ if(/^details$/i.test(h3s[i].textContent.trim())){ detH3=h3s[i]; break; } }
@@ -2360,7 +2366,7 @@ window.addEventListener('beforeunload', e => {
     var orig=window.rowMeta;
     window.rowMeta=function(tab,r){
       var out=orig.apply(this,arguments);
-      try{ if(tab&&tab.id==='quotes'&&aiCalls.loaded&&r&&r.cells){ var ph=norm(r.cells[3]); var n=ph?aiCalls.countByPhone[ph]:0; if(n) out=(out||'')+'<span class="badge b-blue" title="'+n+' AI call'+(n>1?'s':'')+' on file">\uD83E\uDD16 '+n+'</span>'; } }catch(e){}
+      try{ if(tab&&tab.id==='quotes'&&aiCalls.loaded&&r&&r.cells){ var ph=norm(r.cells[3]); var nin=ph?(aiCalls.inByPhone[ph]||0):0, nout=ph?(aiCalls.outByPhone[ph]||0):0; if(nin||nout){ var label=nout?(nin+' in \u00b7 '+nout+' out'):(''+nin); var title=nin+' received AI call'+(nin===1?'':'s')+(nout?(', '+nout+' outbound'):'')+' on file'; out=(out||'')+'<span class="badge b-blue" title="'+title+'">\uD83E\uDD16 '+label+'</span>'; } } }catch(e){}
       return out;
     };
     window.rowMeta.__aiBadge=true;
