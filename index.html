@@ -2282,3 +2282,91 @@ window.addEventListener('beforeunload', e => {
 <script src="https://accounts.google.com/gsi/client" async defer onload="gisReady()"></script>
 </body>
 </html>
+
+<script>
+/* AI Call Log integration (Retell) - additive, read-only */
+(function(){
+  var CALLLOG_SID='1PPnBTp28dpIg3izT8yxfisxpW0sv8VVaEqImcOH9qsc';
+  var CALLLOG_RANGE='Transcripts!A2:L';
+  var idx=null, loaded=false, loading=false;
+  function norm(p){return String(p==null?'':p).replace(/\D/g,'').replace(/^1(?=\d{10}$)/,'');}
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function fmtDate(s){if(!s)return '';var d=new Date(s);if(isNaN(d))return esc(String(s).slice(0,16));return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});}
+  function fmtDur(s){var n=parseInt(s,10);if(isNaN(n))return '';var m=Math.floor(n/60),sec=n%60;return m?(m+'m '+sec+'s'):(sec+'s');}
+  function buildIndex(rows){
+    var byPhone={},byQuote={};
+    (rows||[]).forEach(function(c){
+      var call={phone:c[0],first:c[1],last:c[2],id:c[3],start:c[4],end:c[5],dur:c[6],transcript:c[7],summary:c[8],sentiment:c[9],cost:c[10],url:c[11]};
+      var ph=norm(c[0]); if(ph){(byPhone[ph]=byPhone[ph]||[]).push(call);}
+      var m=((c[8]||'')+' '+(c[7]||'')).match(/quote\s*(?:number|#|no\.?)?\s*#?\s*(\d{2,5})/i);
+      if(m){(byQuote[m[1]]=byQuote[m[1]]||[]).push(call);}
+    });
+    return {byPhone:byPhone,byQuote:byQuote};
+  }
+  function loadCalls(){
+    if(loaded||loading) return Promise.resolve();
+    if(!window.state||!state.token) return Promise.resolve();
+    loading=true;
+    var url='https://sheets.googleapis.com/v4/spreadsheets/'+CALLLOG_SID+'/values/'+encodeURIComponent(CALLLOG_RANGE)+'?majorDimension=ROWS';
+    return fetch(url,{headers:{Authorization:'Bearer '+state.token}}).then(function(r){return r.json();}).then(function(j){
+      if(j.error){console.warn('AI Call Log load failed:',j.error.message);loading=false;return;}
+      idx=buildIndex(j.values);loaded=true;loading=false;render();
+    }).catch(function(e){console.warn('AI Call Log error',e);loading=false;});
+  }
+  function callsForRecord(rec,isQuote){
+    if(!idx||!rec) return [];
+    var out=[];
+    if(isQuote){var ph=norm(rec.cells[3]); if(ph&&idx.byPhone[ph]) out=idx.byPhone[ph].slice();}
+    var qn=String(rec.cells[0]).replace(/\D/g,'');
+    if(qn&&idx.byQuote[qn]) idx.byQuote[qn].forEach(function(c){if(out.indexOf(c)<0)out.push(c);});
+    out.sort(function(a,b){return new Date(b.start||0)-new Date(a.start||0);});
+    return out;
+  }
+  function render(){
+    var dr=document.querySelector('#drawer'); if(!dr||!dr.classList.contains('on')) return;
+    var old=dr.querySelector('#aiCallLogSec'); if(old) old.remove();
+    var uid=window.state&&state.drawerUid; if(!uid||typeof rowByUid!=="function") return;
+    var rec=rowByUid(uid); if(!rec) return;
+    var isQuote=state.data&&state.data.quotes&&state.data.quotes.some(function(r){return r.uid===uid;});
+    if(!loaded){ loadCalls(); }
+    var calls=callsForRecord(rec,isQuote);
+    var sec=document.createElement('div'); sec.className='d-sec'; sec.id='aiCallLogSec';
+    var html='<h3>🤖 AI Call Log'+(calls.length?(' <span style="font-weight:600;color:#9a3412">'+calls.length+'</span>'):'')+'</h3>';
+    if(!loaded){ html+='<div style="color:#888;font-size:13px;padding:2px 0">Loading call history…</div>'; }
+    else if(!calls.length){ html+='<div style="color:#888;font-size:13px;padding:2px 0">No AI calls found for this customer.</div>'; }
+    else { html+='<div style="display:flex;flex-direction:column;gap:8px">'+calls.map(function(c){
+        var sent=(c.sentiment||'').toLowerCase();
+        var sc=sent==='positive'?'#166534':(sent==='negative'?'#991b1b':'#555');
+        return '<div style="border:1px solid #eee;border-radius:8px;padding:8px 10px;background:#fafafa">'
+          +'<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#666;margin-bottom:4px">'
+          +'<span>'+esc(fmtDate(c.start))+'</span>'
+          +'<span>'+(c.dur?('⏱ '+esc(fmtDur(c.dur))+' · '):'')+'<span style="color:'+sc+'">'+esc(c.sentiment||'')+'</span></span>'
+          +'</div>'
+          +'<div style="font-size:13px;line-height:1.4;color:#222">'+esc(c.summary||'(no summary)')+'</div>'
+          +(c.url?('<div style="margin-top:5px"><a href="'+esc(c.url)+'" target="_blank" rel="noopener" style="font-size:12px;color:#9a3412;text-decoration:underline">▶ Recording</a></div>'):'')
+          +'</div>';
+      }).join('')+'</div>'; }
+    sec.innerHTML=html;
+    var detH3=null, h3s=dr.querySelectorAll('.d-sec h3');
+    for(var i=0;i<h3s.length;i++){ if(/^details$/i.test(h3s[i].textContent.trim())){detH3=h3s[i];break;} }
+    var detSec=detH3?detH3.closest(".d-sec"):null;
+    if(detSec&&detSec.parentNode){ detSec.parentNode.insertBefore(sec,detSec.nextSibling); }
+    else { dr.appendChild(sec); }
+  }
+  function hook(){
+    if(typeof window.renderDrawer==="function" && !window.renderDrawer.__aiHooked){
+      var orig=window.renderDrawer;
+      window.renderDrawer=function(){ var r=orig.apply(this,arguments); try{render();}catch(e){console.warn(e);} return r; };
+      window.renderDrawer.__aiHooked=true;
+    }
+    if(typeof window.openDrawer==="function" && !window.openDrawer.__aiHooked){
+      var o2=window.openDrawer;
+      window.openDrawer=function(){ var r=o2.apply(this,arguments); try{ if(!loaded) loadCalls(); render(); }catch(e){console.warn(e);} return r; };
+      window.openDrawer.__aiHooked=true;
+    }
+  }
+  var tries=0, tmr=setInterval(function(){ tries++; hook(); if((window.renderDrawer&&window.renderDrawer.__aiHooked)||tries>60) clearInterval(tmr); },500);
+})();
+</script>
+</body>
+</html>
