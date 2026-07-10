@@ -2366,5 +2366,46 @@ window.addEventListener('beforeunload', e => {
   var tries=0, tmr=setInterval(function(){ tries++; hook(); if((window.renderDrawer&&window.renderDrawer.__aiHooked)||tries>60) clearInterval(tmr); },500);
 })();
 </script>
+<!-- AI Call Log badge on card list (additive, read-only) -->
+<script>
+(function(){
+  var SID='1PPnBTp28dpIg3izT8yxfisxpW0sv8VVaEqImcOH9qsc';
+  var RANGE='Transcripts!A2:L';
+  var byPhone=null, loading=false, loaded=false;
+  function norm(p){return String(p==null?'':p).replace(/[^0-9]/g,'').replace(/^1([0-9]{10})$/,'$1');}
+  function load(){
+    if(loaded||loading) return;
+    var tok=window.state&&state.token; if(!tok) return;
+    loading=true;
+    fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SID+'/values/'+encodeURIComponent(RANGE),{headers:{Authorization:'Bearer '+tok}})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        var m={}; (j.values||[]).forEach(function(row){var ph=norm(row[0]); if(ph) m[ph]=(m[ph]||0)+1;});
+        byPhone=m; loaded=true; loading=false;
+        if(typeof window.renderAll==='function') window.renderAll();
+      })
+      .catch(function(e){loading=false; console.warn('AI badge load error',e);});
+  }
+  function hook(){
+    if(typeof window.rowMeta!=='function'||window.rowMeta.__aiBadge) return;
+    var orig=window.rowMeta;
+    window.rowMeta=function(tab,r){
+      var out=orig.apply(this,arguments);
+      try{
+        if(tab&&tab.id==='quotes'&&byPhone&&r&&r.cells){
+          var ph=norm(r.cells[3]); var n=ph?byPhone[ph]:0;
+          if(n) out=(out||'')+'<span class="badge b-blue" title="'+n+' AI call'+(n>1?'s':'')+' on file">\uD83E\uDD16 '+n+'</span>';
+        }
+      }catch(e){}
+      return out;
+    };
+    window.rowMeta.__aiBadge=true;
+  }
+  var tries=0, t=setInterval(function(){
+    tries++; hook(); load();
+    if((window.rowMeta&&window.rowMeta.__aiBadge&&loaded)||tries>120) clearInterval(t);
+  },500);
+})();
+</script>
 </body>
 </html>
