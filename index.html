@@ -641,12 +641,23 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 </aside>
 
 <div id="mailWrap" aria-hidden="true">
-  <div class="mailer" role="dialog" aria-modal="true" aria-label="Send outreach email">
+  <style>
+    .m-f select{width:100%;padding:10px 11px;border:1px solid var(--line2);border-radius:8px;font-size:14px;background:#fff;color:var(--ink)}
+    .m-f select:focus{border-color:var(--red);box-shadow:0 0 0 2px rgba(196,50,46,.12);outline:none}
+    .m-two{display:flex;gap:10px}
+    .m-two .m-f{flex:1;min-width:0}
+    @media (max-width:640px){.m-two{flex-direction:column;gap:11px}}
+  </style>
+  <div class="mailer" role="dialog" aria-modal="true" aria-label="Send email">
     <div class="m-head">
-      Renewal outreach <span class="badge b-gray" id="mSrc">Template</span>
+      Send email <span class="badge b-gray" id="mSrc">Template</span>
       <button class="icon-btn" id="mClose" aria-label="Close">✕</button>
     </div>
     <div class="m-body">
+      <div class="m-two">
+        <div class="m-f"><label for="mFrom">Send from</label><select id="mFrom"></select></div>
+        <div class="m-f"><label for="mWho">Sent by</label><select id="mWho"></select></div>
+      </div>
       <div class="m-f"><label for="mTo">To</label><input type="email" id="mTo" autocomplete="off" placeholder="customer@email.com"></div>
       <div class="m-f"><label for="mSubj">Subject</label><input type="text" id="mSubj" autocomplete="off"></div>
       <div class="m-f"><label for="mBody">Message</label><textarea id="mBody"></textarea></div>
@@ -654,7 +665,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     <div class="m-foot">
       <button class="ghost" id="mCopy">Copy</button>
       <button class="ghost" id="mGmail">Open in Gmail</button>
-      <button class="m-send" id="mSend">Send via Gmail</button>
+      <button class="m-send" id="mSend">Send</button>
     </div>
   </div>
 </div>
@@ -702,7 +713,7 @@ const CONFIG = {
    Tracker: A # | B Name | C Title | D Status | E Wix Status | F Invoice # | G Invoice Status
             H EmberDate | I EmberType | J Report | K Notes | L Retest Report | M Retest Inv | N Job Status */
 const TABS = [
-  { id:'quotes',  label:'Quotes',  sheet:'Quotes',  lastCol:'Q', editable:[10,11,12,13] },
+  { id:'quotes',  label:'Quotes',  sheet:'Quotes',  lastCol:'Q', editable:[10,11,12,13,16] },
   { id:'tracker', label:'Tracker', sheet:'Tracker', lastCol:'N', editable:[9,10,11,12,13] }
 ];
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
@@ -1010,14 +1021,19 @@ async function loadTrackerOptions(){
 const daysNum = r => { const n = parseInt(String(r.cells[8]).replace(/[^\-0-9]/g,''),10); return isNaN(n) ? null : n; };
 const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim().toLowerCase(); return v === '' || v === 'not sent'; });
 
+const OUTCOME_OPTIONS = ['Won','Went with competitor','No longer needed','Too expensive','Postponed','No response','Bad contact info'];
+const outcomeOf = r => (r.cells[16] || '').trim();
+const isClosed = r => !!outcomeOf(r);
+
 function filterDefs(tab){
   if (tab.id === 'quotes'){
     return [
       { id:'all',      label:'All',              fn:() => true },
-      { id:'active',   label:'Active',           fn:r => { const d = daysNum(r); return d === null || d >= 0; } },
-      { id:'exp7',     label:'Expiring ≤7d',     fn:r => { const d = daysNum(r); return d !== null && d >= 0 && d <= 7; } },
-      { id:'expired',  label:'Expired',          fn:r => { const d = daysNum(r); return d !== null && d < 0; } },
-      { id:'nofu',     label:'No follow-up',     fn:noFollowUp }
+      { id:'active',   label:'Active',           fn:r => { if (isClosed(r)) return false; const d = daysNum(r); return d === null || d >= 0; } },
+      { id:'exp7',     label:'Expiring ≤7d',     fn:r => { if (isClosed(r)) return false; const d = daysNum(r); return d !== null && d >= 0 && d <= 7; } },
+      { id:'expired',  label:'Expired',          fn:r => { if (isClosed(r)) return false; const d = daysNum(r); return d !== null && d < 0; } },
+      { id:'nofu',     label:'No follow-up',     fn:r => !isClosed(r) && noFollowUp(r) },
+      { id:'closed',   label:'Closed',           fn:isClosed }
     ];
   }
   return [
@@ -1048,6 +1064,9 @@ function visibleRows(tab){
   if (tab.id === 'tracker' && state.trackerStatus){
     rows = rows.filter(r => (r.cells[3]||'').trim() === state.trackerStatus);
   }
+  if (tab.id === 'quotes' && state.filter.quotes === 'closed' && state.quotesOutcome){
+    rows = rows.filter(r => outcomeOf(r) === state.quotesOutcome);
+  }
   const q = state.search.trim().toLowerCase();
   if (q) rows = rows.filter(r => searchText(tab, r).includes(q));
   const s = state.sort[tab.id];
@@ -1055,6 +1074,7 @@ function visibleRows(tab){
   else if (s === 'expiring') rows = [...rows].sort((a,b) => (daysNum(a) ?? 9e9) - (daysNum(b) ?? 9e9));
   return rows;
 }
+
 function searchText(tab, r){
   const skip = (tab.id === 'quotes' && !CONFIG.SHOW_FINANCIALS) ? [7] : [];
   return r.cells.filter((_, i) => !skip.includes(i)).join(' ').toLowerCase();
@@ -1211,7 +1231,14 @@ function renderAll(){
     ss.innerHTML = '<option value="">Status: all</option>' + all.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
     ss.value = all.includes(state.trackerStatus) ? state.trackerStatus : '';
     ss.style.display = '';
+  } else if (tab.id === 'quotes' && state.filter.quotes === 'closed'){
+    const present = [...new Set((state.data.quotes||[]).map(outcomeOf).filter(Boolean))];
+    ss.innerHTML = '<option value="">Reason: all</option>' + present.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+    if (!present.includes(state.quotesOutcome)) state.quotesOutcome = '';
+    ss.value = state.quotesOutcome || '';
+    ss.style.display = '';
   } else {
+    if (tab.id === 'quotes') state.quotesOutcome = '';
     ss.style.display = 'none';
   }
 
@@ -1285,7 +1312,7 @@ function renderList(){
     b.setAttribute('role', 'button');
     b.tabIndex = 0;
     let urgency = '';
-    if (tab.id === 'quotes'){
+    if (tab.id === 'quotes' && !isClosed(r)){
       const d = daysNum(r);
       if (d !== null && d < 0) urgency = ' u-exp';
       else if (d !== null && d <= 7) urgency = ' u-soon';
@@ -1323,7 +1350,11 @@ function renderList(){
 
 /* primary badge shown right-aligned on the card's first line */
 function rowSide(tab, r){
-  if (tab.id === 'quotes') return daysBadge(r);
+  if (tab.id === 'quotes'){
+    const o = outcomeOf(r);
+    if (o) return `<span class="badge ${o === 'Won' ? 'b-green' : 'b-gray'}">${esc(o)}</span>`;
+    return daysBadge(r);
+  }
   return invStatusBadge(r.cells[6]) || jobBadge(r.cells[13]) || '';
 }
 function rowMeta(tab, r){
@@ -1638,6 +1669,10 @@ function buildControl(tab, r, colIdx){
   const val = currentVal(r, colIdx);
 
   if (tab.id === 'quotes'){
+    if (colIdx === 16){
+      buildSelect(box, tab, r, colIdx, OUTCOME_OPTIONS, val);
+      return box;
+    }
     if (colIdx === 13){
       const ta = document.createElement('textarea');
       ta.id = 'fld-' + colIdx;
@@ -1903,6 +1938,7 @@ function computeRenewals(){
     quotes.forEach(q => {
       if (normName(q.cells[1]) !== nm) return;
       if (catOf(q.cells[4] || '') !== cat) return;
+      if (outcomeOf(q)) return;   // quote closed (declined / no longer needed / …)
       const dn = daysNum(q);
       if (dn !== null && dn < 0) return;    // expired
       if (!quote || quoteNum(q.key) > quoteNum(quote.key)) quote = q;
@@ -2050,10 +2086,40 @@ async function draftOutreach(x, btn){
   openMailer(x, draft, source);
 }
 
-/* ---- compose preview & send via the signed-in Gmail account ---- */
-let mailCtx = null;
-function openMailer(x, draft, source){
+/* ---- compose & send via the signed-in Gmail account ----
+   From = role alias (must be a verified "Send mail as" alias on the
+   signed-in account, otherwise Gmail silently sends as the signed-in
+   address). Sent by = team member for display name + logging. */
+const MAIL_TEAM = ['Paola','Sofia','Ernesto','Hugo','Miguel','Jony','Carlos'];
+const MAIL_ALIASES = [
+  { addr:'schedule@acefirela.com', label:'schedule@ — renewals & booking' },
+  { addr:'support@acefirela.com',  label:'support@ — billing & general' },
+  { addr:'info@acefirela.com',     label:'info@ — outreach' }
+];
+const MAIL_TYPE_FROM = {
+  renewal:  'schedule@acefirela.com',
+  billing:  'support@acefirela.com',
+  outreach: 'info@acefirela.com'
+};
+const EMAIL_LOG_SHEET = 'Email Log';   /* tab: Timestamp | Person | From | To | Quote # | Type | Subject */
+let mailCtx = null, mailType = 'renewal';
+
+function initMailSelects(){
+  const from = $('#mFrom');
+  if (!from.options.length){
+    MAIL_ALIASES.forEach(a => from.appendChild(new Option(a.label, a.addr)));
+    const who = $('#mWho');
+    who.appendChild(new Option('— team —', ''));
+    MAIL_TEAM.forEach(n => who.appendChild(new Option(n, n)));
+    who.addEventListener('change', () => localStorage.setItem('acefire_sender', who.value));
+  }
+  $('#mWho').value = localStorage.getItem('acefire_sender') || '';
+}
+function openMailer(x, draft, source, type){
   mailCtx = x;
+  mailType = type || 'renewal';
+  initMailSelects();
+  $('#mFrom').value = MAIL_TYPE_FROM[mailType] || MAIL_ALIASES[0].addr;
   const tag = $('#mSrc');
   tag.textContent = source === 'ai' ? 'AI draft' : 'Template';
   tag.className = 'badge ' + (source === 'ai' ? 'b-blue' : 'b-gray');
@@ -2094,18 +2160,21 @@ $('#mGmail').addEventListener('click', () => {
 });
 $('#mSend').addEventListener('click', async () => {
   const to = $('#mTo').value.trim(), subject = $('#mSubj').value.trim(), body = $('#mBody').value;
+  const person = $('#mWho').value;
+  const alias = $('#mFrom').value;
+  const from = '"' + (person ? person + ' — ' : '') + 'ACE Fire LA" <' + alias + '>';
   const btn = $('#mSend');
   btn.disabled = true;
   btn.textContent = 'Sending…';
   try {
-    await gmailSend(to, subject, body);
+    await gmailSend(to, subject, body, from);
     toast('Sent to ' + to, 'ok');
-    logOutreach(to, subject);
+    logEmail(person, alias, to, subject);
     closeMailer();
   } catch(e){
     if (e.message !== 'auth') toast(e.message, 'err');
   } finally {
-    btn.textContent = 'Send via Gmail';
+    btn.textContent = 'Send';
     btn.disabled = false;
     syncSendBtn();
   }
@@ -2113,9 +2182,11 @@ $('#mSend').addEventListener('click', async () => {
 function b64url(str){
   return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function gmailSend(to, subject, body, retry = true){
+async function gmailSend(to, subject, body, from, retry = true){
   const encSubj = '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(subject))) + '?=';
-  const raw = 'To: ' + to + '\r\nSubject: ' + encSubj +
+  const raw = 'To: ' + to + '\r\n' +
+    (from ? 'From: ' + from + '\r\n' : '') +
+    'Subject: ' + encSubj +
     '\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\n' + body;
   const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method:'POST',
@@ -2124,7 +2195,7 @@ async function gmailSend(to, subject, body, retry = true){
   });
   if (r.status === 401 && retry){
     const ok = await silentToken(state.email);
-    if (ok) return gmailSend(to, subject, body, false);
+    if (ok) return gmailSend(to, subject, body, from, false);
     throw new Error('Session expired — sign in again, then retry');
   }
   if (r.status === 403){
@@ -2136,13 +2207,23 @@ async function gmailSend(to, subject, body, retry = true){
     throw new Error(msg);
   }
 }
-function logOutreach(to, subject){
-  if (!CONFIG.ACTIVITY_LOG_SHEET || !mailCtx) return;
-  const entry = [new Date().toLocaleString(), state.email, 'Renewal outreach (Gmail)', 'Renewals',
-    mailCtx.srcKey, 'To ' + to + ' — ' + subject, ''];
-  state.activity.push(entry);
-  api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-    { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+function logEmail(person, fromAlias, to, subject){
+  const key = mailCtx ? (mailCtx.srcKey || '') : '';
+  /* structured row → "Email Log" tab (mirrored to Supabase by Apps Script) */
+  api(`/values/${encodeURIComponent(`'${EMAIL_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`, {
+    method:'POST',
+    body: JSON.stringify({ values:[[
+      new Date().toLocaleString(), person || state.email.split('@')[0], fromAlias, to, key, mailType, subject
+    ]] })
+  }).catch(() => {});
+  /* keep the Activity Log entry so History + the drawer still show it */
+  if (CONFIG.ACTIVITY_LOG_SHEET){
+    const entry = [new Date().toLocaleString(), state.email, 'Email sent (' + mailType + ')', 'Renewals', key,
+      'To ' + to + ' — ' + subject + (person ? ' — by ' + person : ''), ''];
+    state.activity.push(entry);
+    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+  }
 }
 
 /* =====================================================================
@@ -2262,7 +2343,7 @@ document.addEventListener('keydown', e => {
    ===================================================================== */
 $('#searchBox').addEventListener('input', e => { state.search = e.target.value; renderContent(); });
 $('#sortSel').addEventListener('change', e => { state.sort[state.activeTab] = e.target.value; renderContent(); });
-$('#statusSel').addEventListener('change', e => { state.trackerStatus = e.target.value; renderContent(); });
+$('#statusSel').addEventListener('change', e => { if (state.activeTab === 'quotes') state.quotesOutcome = e.target.value; else state.trackerStatus = e.target.value; renderContent(); });
 $('#btnRefresh').addEventListener('click', async () => {
   if (hasUnsaved() && !confirm('You have unsaved edits — refreshing will discard them. Continue?')) return;
   TABS.forEach(t => (state.data[t.id] || []).forEach(r => r.edits = {}));
