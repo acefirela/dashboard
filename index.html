@@ -463,11 +463,37 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .gate-err{color:var(--red-dk); font-size:12.5px; margin-top:14px; display:none}
 
 /* ============ Compose & send modal ============ */
-#mailWrap{
+#mailWrap, #smsWrap, #threadWrap{
   position:fixed; inset:0; background:rgba(20,22,26,.5); z-index:95;
   display:none; align-items:center; justify-content:center; padding:16px;
 }
-#mailWrap.on{display:flex}
+#mailWrap.on, #smsWrap.on, #threadWrap.on{display:flex}
+/* ---- SMS conversation thread ---- */
+#threadWrap .mailer{width:560px}
+.t-body{
+  padding:14px 16px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+  min-height:220px; max-height:56vh; background:var(--paper);
+}
+.bub{
+  max-width:80%; padding:8px 11px; border-radius:12px; font-size:13.5px; line-height:1.45;
+  white-space:pre-wrap; word-break:break-word;
+}
+.bub.out{align-self:flex-end; background:var(--ink); color:#fff; border-bottom-right-radius:4px}
+.bub.in{align-self:flex-start; background:#fff; border:1px solid var(--line); border-bottom-left-radius:4px}
+.bub.out.failed{background:var(--red-bg); color:var(--red-dk); border:1px solid var(--red)}
+.bub.out.pending{opacity:.75}
+.bub.mail{
+  align-self:center; max-width:92%; background:var(--blue-bg); border:1px solid var(--line);
+  color:var(--ink2); font-size:12.5px; border-radius:8px;
+}
+.bub .bt{display:block; font-size:10.5px; opacity:.68; margin-top:3px}
+.t-day{align-self:center; font-size:11px; color:var(--muted); margin:4px 0; letter-spacing:.04em}
+.t-foot{display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:#FAFAF8; align-items:flex-end}
+.t-foot textarea{
+  flex:1; padding:9px 11px; border:1px solid var(--line2); border-radius:8px;
+  resize:none; min-height:38px; max-height:110px; line-height:1.4; outline:none;
+}
+.t-foot textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
 .mailer{
   background:var(--card); width:600px; max-width:100%; max-height:100%;
   border-radius:14px; display:flex; flex-direction:column;
@@ -507,7 +533,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .m-send:hover{background:var(--red-dk)}
 .m-send:disabled{opacity:.45; cursor:default}
 @media (max-width:640px){
-  #mailWrap{padding:0}
+  #mailWrap, #smsWrap, #threadWrap{padding:0}
   .mailer{width:100%; height:100%; max-height:none; border-radius:0}
   .m-f textarea{min-height:180px}
 }
@@ -570,6 +596,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     </div>
     <div class="hd-user" id="hdUser" style="display:none">
       <span class="email" id="userEmail"></span>
+      <button class="hd-btn" id="btnSmsMode" style="display:none" title="Automated SMS reminders — click to change mode" aria-label="Automated SMS reminder mode"></button>
       <button class="hd-btn" id="btnHistory" aria-label="Change history">🕘 History</button>
       <button class="hd-btn" id="btnRefresh" aria-label="Refresh data">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v5h-5"/></svg>
@@ -670,6 +697,42 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   </div>
 </div>
 
+<div id="smsWrap" aria-hidden="true">
+  <div class="mailer" role="dialog" aria-modal="true" aria-label="Send text message">
+    <div class="m-head">
+      Send text <span class="badge b-gray" id="sSrc">Template</span>
+      <button class="icon-btn" id="sClose" aria-label="Close">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="m-two">
+        <div class="m-f"><label for="sTo">To (mobile)</label><input type="tel" id="sTo" autocomplete="off" placeholder="(818) 555-0123"></div>
+        <div class="m-f"><label for="sWho">Sent by</label><select id="sWho"></select></div>
+      </div>
+      <div class="m-f"><label for="sBody">Message</label><textarea id="sBody" style="min-height:130px"></textarea>
+        <div id="sCount" style="margin-top:5px;font-size:12px;color:var(--muted)"></div></div>
+    </div>
+    <div class="m-foot">
+      <button class="ghost" id="sCopy">Copy</button>
+      <button class="m-send" id="sSend">Send text</button>
+    </div>
+  </div>
+</div>
+
+<div id="threadWrap" aria-hidden="true">
+  <div class="mailer" role="dialog" aria-modal="true" aria-label="Text conversation">
+    <div class="m-head">
+      <span id="tName">Conversation</span>
+      <span class="badge b-gray" id="tPhone"></span>
+      <button class="icon-btn" id="tClose" aria-label="Close">✕</button>
+    </div>
+    <div class="t-body" id="tBody"></div>
+    <div class="t-foot">
+      <textarea id="tReply" rows="1" placeholder="Type a text message…" aria-label="Reply message"></textarea>
+      <button class="m-send" id="tSend">Send</button>
+    </div>
+  </div>
+</div>
+
 <div id="histWrap" aria-hidden="true">
   <div class="hist" role="dialog" aria-modal="true" aria-label="Change history">
     <div class="h-head">
@@ -718,7 +781,7 @@ const TABS = [
 ];
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
 /* UI tabs = the two sheet tabs + the computed Renewals radar */
-const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }];
+const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }];
 const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
 
 /* =====================================================================
@@ -731,6 +794,7 @@ const state = {
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
+  smsMode:null, smsOut:[], smsIn:[], textsFilter:'all', emailLog:[],
   renBucket:'d30',
   drawerUid:null, drawerList:[], lastLoad:0
 };
@@ -961,6 +1025,31 @@ async function loadAll(showToast){
       });
     } catch(e){ state.customers = {}; }
 
+    // automated-SMS mode — Settings!B1, shared with the Apps Script 9 AM routine
+    try {
+      const st = await api(`/values/${encodeURIComponent(`'Settings'!B1`)}`);
+      const v = String((st.values && st.values[0] && st.values[0][0]) || '').toUpperCase();
+      state.smsMode = ['OFF','PREVIEW','LIVE'].includes(v) ? v : 'PREVIEW';
+    } catch(e){ state.smsMode = null; }   // Settings tab missing — run installSmsTriggers()
+    renderSmsMode();
+
+    // SMS history — outbox (sent + queued) and inbox (client replies), optional tabs
+    try {
+      const so = await api(`/values/${encodeURIComponent(`'SMS Outbox'!A2:L`)}`);
+      state.smsOut = (so.values || []).map((row, i) =>
+        ({ sheetRow:i + 2, cells: Array.from({ length:12 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
+    } catch(e){ state.smsOut = []; }
+    try {
+      const si = await api(`/values/${encodeURIComponent(`'SMS Inbox'!A2:F`)}`);
+      state.smsIn = (si.values || []).map((row, i) =>
+        ({ sheetRow:i + 2, cells: Array.from({ length:6 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
+    } catch(e){ state.smsIn = []; }
+    try {
+      const el = await api(`/values/${encodeURIComponent(`'Email Log'!A2:G`)}`);
+      state.emailLog = (el.values || []).map(row =>
+        ({ cells: Array.from({ length:7 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
+    } catch(e){ state.emailLog = []; }
+
     state.lastLoad = Date.now();
     saveCache();
     renderAll();
@@ -1186,6 +1275,8 @@ function renderAll(){
     const R = computeRenewals();
     rc.textContent = R.filter(x => x.days <= 30 && !x.upcoming).length;
   }
+  const xc = document.querySelector('[data-cnt="texts"]');
+  if (xc) xc.textContent = computeThreads().reduce((s, t) => s + t.unread, 0);
   updateStale();
   renderSummary();
 
@@ -1211,6 +1302,30 @@ function renderAll(){
       b.setAttribute('aria-pressed', state.renBucket === bk.id ? 'true' : 'false');
       b.innerHTML = `${esc(bk.label)}<span class="n">${n}</span>`;
       b.addEventListener('click', () => { state.renBucket = bk.id; renderAll(); });
+      fb.appendChild(b);
+    });
+    renderContent();
+    return;
+  }
+
+  /* ---- Texts (computed from SMS Outbox + SMS Inbox) ---- */
+  if (state.activeTab === 'texts'){
+    $('#sortSel').style.display = 'none';
+    $('#statusSel').style.display = 'none';
+    $('#dupeBanner').classList.remove('on');
+    const fb = $('#filterBar');
+    fb.innerHTML = '';
+    const T = computeThreads();
+    const chips = [
+      { id:'all',    label:'All',    n:T.length },
+      { id:'unread', label:'Unread', n:T.filter(t => t.unread > 0).length }
+    ];
+    chips.forEach(f => {
+      const b = document.createElement('button');
+      b.className = 'fchip' + ((state.textsFilter || 'all') === f.id ? ' active' : '');
+      b.setAttribute('aria-pressed', (state.textsFilter || 'all') === f.id ? 'true' : 'false');
+      b.innerHTML = `${esc(f.label)}<span class="n">${f.n}</span>`;
+      b.addEventListener('click', () => { state.textsFilter = f.id; renderAll(); });
       fb.appendChild(b);
     });
     renderContent();
@@ -1266,6 +1381,7 @@ function renderAll(){
 }
 function renderContent(){
   if (state.activeTab === 'renewals'){ renderRenewals(); return; }
+  if (state.activeTab === 'texts'){ renderTexts(); return; }
   renderList();
 }
 
@@ -1340,6 +1456,10 @@ function renderList(){
       ch.addEventListener('click', e => { e.stopPropagation(); draftQuoteEmail(r, ch); });
       ch.addEventListener('keydown', e => e.stopPropagation());
     });
+    b.querySelectorAll('[data-act="qtext"]').forEach(ch => {
+      ch.addEventListener('click', e => { e.stopPropagation(); draftQuoteText(r); });
+      ch.addEventListener('keydown', e => e.stopPropagation());
+    });
     b.querySelectorAll('[data-qc]').forEach(ch => {
       ch.addEventListener('click', e => {
         e.stopPropagation();
@@ -1367,6 +1487,7 @@ function rowMeta(tab, r){
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
     parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
+    if ((r.cells[3]||'').trim()) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
   }
@@ -1541,7 +1662,18 @@ function renderDrawer(){
   const phone = tab.id === 'quotes' ? (r.cells[3]||'').trim() : '';
   const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
   if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="tel:${esc(phone)}">📞 Call</a>`);
-  if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="sms:${esc(phone)}">💬 Text</a>`);
+  const dPhone = phone || (state.customers[normName(r.cells[1])] || {}).phone || '';
+  if (dPhone){
+    const tb = document.createElement('button');
+    tb.className = 'act-btn';
+    tb.textContent = '💬 Text';
+    tb.addEventListener('click', () => {
+      if (tab.id === 'quotes') draftQuoteText(r);
+      else openTexter({ phone:dPhone, name:r.cells[1], srcKey:r.key },
+        `Hi ${String(r.cells[1]||'').split(',')[0].trim() || 'there'}, this is ACE Fire LA regarding job #${r.key}${r.cells[2] ? ' — ' + r.cells[2] : ''}. Call or text us at ${CONFIG.COMPANY_PHONE} with any questions.`, 'job');
+    });
+    acts.appendChild(tb);
+  }
   if (tab.id === 'quotes'){
     const db = document.createElement('button');
     db.className = 'act-btn';
@@ -1584,6 +1716,41 @@ function renderDrawer(){
   }
   info.appendChild(grid);
   body.appendChild(info);
+
+  /* ---- client history: recent emails + texts for this customer ---- */
+  {
+    const thr = computeThreads().find(x =>
+      (dPhone && x.key === phoneKey(dPhone)) ||
+      (x.name && normName(x.name) === normName(r.cells[1])));
+    const hist = (thr ? thr.msgs.slice() : [])
+      .concat(emailsForCustomer(r.cells[1]))
+      .sort((a, b) => b.ts - a.ts);
+    if (hist.length){
+      const cs = document.createElement('div');
+      cs.className = 'd-sec';
+      cs.innerHTML = '<h3>Client history</h3>';
+      const wrap = document.createElement('div');
+      wrap.className = 'info-grid';
+      hist.slice(0, 6).forEach(m => {
+        const when = m.ts ? shortWhen(m.ts, m.time) : String(m.time || '');
+        const what = m.dir === 'mail'
+          ? '✉ ' + (m.subject || 'Email')
+          : (m.dir === 'in' ? '↩ ' : '💬 ') + String(m.body || '').slice(0, 64);
+        wrap.insertAdjacentHTML('beforeend',
+          `<div class="k">${esc(when)}</div><div class="v">${esc(what)}</div>`);
+      });
+      cs.appendChild(wrap);
+      if (thr){
+        const ob = document.createElement('button');
+        ob.className = 'act-btn';
+        ob.style.marginTop = '8px';
+        ob.textContent = '💬 Open conversation';
+        ob.addEventListener('click', () => openThread(thr.key));
+        cs.appendChild(ob);
+      }
+      body.appendChild(cs);
+    }
+  }
 
   const ed = document.createElement('div');
   ed.className = 'd-sec';
@@ -2023,6 +2190,7 @@ function renderRenewals(){
         <div class="r-meta">
           <button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>
           ${x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : ''}
+          ${x.phone ? `<button type="button" class="fu draft" data-act="rentext" title="Draft & send a renewal text">💬 Text</button>` : ''}
           ${x.quote ? `<span class="badge b-blue">Quote #${esc(x.quote.key)} out</span>` : ''}
           ${x.upcoming ? `<span class="badge b-green">Already scheduled</span>` : ''}
         </div>
@@ -2042,6 +2210,7 @@ function renderRenewals(){
       el.addEventListener('click', e => {
         e.stopPropagation();
         if (el.dataset.act === 'draft') draftOutreach(x, el);
+        if (el.dataset.act === 'rentext') openTexter({ phone:x.phone, name:x.name, srcKey:x.srcKey }, smsRenewalTemplate(x), 'renewal');
       });
       el.addEventListener('keydown', e => e.stopPropagation());
     });
@@ -2304,6 +2473,396 @@ function logEmail(person, fromAlias, to, subject){
       { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
   }
 }
+
+/* ---- SMS via Twilio ----
+   Sends are queued as rows in the "SMS Outbox" tab; the Apps Script
+   onChange trigger fires Twilio within seconds and stamps the result
+   back onto the row (SENT / FAILED + SID). Only sheet editors can send.
+   Columns: Queued At | Person | To | Customer | Ref # | Type | Body |
+            Status | Twilio SID | Sent At | Error | Purpose Key */
+const SMS_OUTBOX_SHEET = 'SMS Outbox';
+let smsCtx = null, smsType = 'quote';
+
+function smsQuoteTemplate(r){
+  const org = String(r.cells[1]||'').split(',')[0].trim() || 'there';
+  const who = localStorage.getItem('acefire_sender');
+  return `Hi ${org}, this is ${who ? who + ' with ' : ''}ACE Fire LA following up on quote #${r.key}${r.cells[4] ? ' for ' + r.cells[4] : ''}. Happy to answer any questions \u2014 call or text us at ${CONFIG.COMPANY_PHONE}.`;
+}
+function smsRenewalTemplate(x){
+  const org = String(x.name||'').split(',')[0].trim() || 'there';
+  return `Hi ${org}, this is ACE Fire LA. Your ${x.cyc.label.toLowerCase()} ${x.cat.toLowerCase()} service is due by ${fmtFull(x.due)} per LAFD Reg 4. Reply here or call ${CONFIG.COMPANY_PHONE} to get on the schedule.`;
+}
+function initSmsSelects(){
+  const who = $('#sWho');
+  if (!who.options.length){
+    who.appendChild(new Option('\u2014 team \u2014', ''));
+    MAIL_TEAM.forEach(n => who.appendChild(new Option(n, n)));
+    who.addEventListener('change', () => localStorage.setItem('acefire_sender', who.value));
+  }
+  who.value = localStorage.getItem('acefire_sender') || '';
+}
+function smsSegInfo(){
+  const t = $('#sBody').value;
+  const ucs = /[^\u0000-\u007F]/.test(t);
+  const per = ucs ? 70 : 160, perC = ucs ? 67 : 153;
+  const seg = t.length <= per ? (t.length ? 1 : 0) : Math.ceil(t.length / perC);
+  $('#sCount').textContent = t.length + ' chars \u00b7 ' + seg + ' segment' + (seg === 1 ? '' : 's') + (ucs ? ' (unicode)' : '');
+}
+function openTexter(x, body, type){
+  smsCtx = x;
+  smsType = type || 'quote';
+  initSmsSelects();
+  $('#sTo').value = x.phone || '';
+  $('#sBody').value = body || '';
+  smsSegInfo();
+  $('#smsWrap').classList.add('on');
+  $('#smsWrap').setAttribute('aria-hidden', 'false');
+  syncSmsBtn();
+  if (!x.phone) $('#sTo').focus(); else $('#sBody').focus();
+}
+function closeTexter(){
+  $('#smsWrap').classList.remove('on');
+  $('#smsWrap').setAttribute('aria-hidden', 'true');
+  smsCtx = null;
+}
+function syncSmsBtn(){
+  $('#sSend').disabled = String($('#sTo').value).replace(/\D/g, '').length < 10 || !$('#sBody').value.trim();
+}
+$('#sTo').addEventListener('input', syncSmsBtn);
+$('#sBody').addEventListener('input', () => { smsSegInfo(); syncSmsBtn(); });
+$('#sClose').addEventListener('click', closeTexter);
+$('#smsWrap').addEventListener('click', e => { if (e.target === $('#smsWrap')) closeTexter(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#smsWrap').classList.contains('on')) closeTexter();
+});
+$('#sCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#sBody').value); toast('Text copied', 'ok'); }
+  catch(e){ toast('Copy failed', 'err'); }
+});
+$('#sSend').addEventListener('click', async () => {
+  const to = $('#sTo').value.trim(), body = $('#sBody').value.trim(), person = $('#sWho').value;
+  const btn = $('#sSend');
+  btn.disabled = true;
+  btn.textContent = 'Queuing\u2026';
+  try {
+    const range = await queueSmsRow(person, to, body);
+    toast('Queued \u2014 Twilio sends in a few seconds', 'ok');
+    logSmsActivity(person, to);
+    watchSmsStatus(range, to);
+    closeTexter();
+  } catch(e){ toast(e.message || 'Queue failed', 'err'); }
+  finally {
+    btn.textContent = 'Send text';
+    btn.disabled = false;
+    syncSmsBtn();
+  }
+});
+async function queueSmsRow(person, to, body){
+  const name = smsCtx ? (smsCtx.name || '') : '';
+  const key = smsCtx ? (smsCtx.srcKey || '') : '';
+  const res = await api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!A:L`)}:append?valueInputOption=USER_ENTERED`, {
+    method:'POST',
+    body: JSON.stringify({ values:[[
+      new Date().toLocaleString(), person || state.email.split('@')[0], to, name, key, smsType, body,
+      'QUEUED', '', '', '', ''
+    ]] })
+  });
+  return res.updates ? res.updates.updatedRange : '';
+}
+function logSmsActivity(person, to){
+  const key = smsCtx ? (smsCtx.srcKey || '') : '';
+  const qr = (smsType === 'quote' && smsCtx) ? smsCtx._quoteRow : null;
+  if (qr){
+    commitEdits(TABS[0], qr, { 11: todayMD() }, 'Text sent (Dashboard)').then(() => {
+      renderContent(); renderSummary();
+      if ($('#drawer').classList.contains('on') && state.drawerUid === qr.uid) renderDrawer();
+    }).catch(() => {});
+  }
+  if (CONFIG.ACTIVITY_LOG_SHEET){
+    const entry = [new Date().toLocaleString(), state.email, 'Text sent (' + smsType + ')', 'SMS', key,
+      'To ' + to + (person ? ' \u2014 by ' + person : ''), ''];
+    state.activity.push(entry);
+    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+  }
+}
+/* poll the queued row once after ~8 s so the sender sees SENT / FAILED */
+function watchSmsStatus(range, to){
+  const m = String(range || '').match(/![A-Z]+(\d+):/);
+  if (!m) return;
+  const rowN = m[1];
+  setTimeout(async () => {
+    try {
+      const res = await api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!H${rowN}:K${rowN}`)}`);
+      const v = (res.values && res.values[0]) || [];
+      const st = String(v[0] || '').toUpperCase();
+      if (st === 'SENT') toast('Text sent to ' + to, 'ok');
+      else if (st === 'FAILED') toast('Text failed: ' + (v[3] || 'see SMS Outbox tab'), 'err');
+      else toast('Still queued \u2014 check the SMS Outbox tab / Apps Script trigger', 'err');
+    } catch(e){}
+  }, 8000);
+}
+/* ---- automated-reminder mode: Off / Preview / Live (Settings!B1) ----
+   OFF     — the 9 AM routine does nothing
+   PREVIEW — routine writes PREVIEW rows to SMS Outbox; nothing sends
+   LIVE    — routine queues + sends for real
+   Manual texts from this dashboard always send regardless of mode. */
+const SMS_MODES = ['OFF', 'PREVIEW', 'LIVE'];
+const SMS_MODE_UI = {
+  OFF:     { label:'🤖 Auto-SMS: Off',     bg:'' },
+  PREVIEW: { label:'🤖 Auto-SMS: Preview', bg:'#B26A00' },
+  LIVE:    { label:'🤖 Auto-SMS: Live',    bg:'#2E7D4F' }
+};
+function renderSmsMode(){
+  const b = $('#btnSmsMode');
+  if (!b) return;
+  if (!state.smsMode){ b.style.display = 'none'; return; }
+  const ui = SMS_MODE_UI[state.smsMode] || SMS_MODE_UI.PREVIEW;
+  b.textContent = ui.label;
+  b.style.background = ui.bg;
+  b.style.borderColor = ui.bg || '';
+  b.style.display = '';
+}
+$('#btnSmsMode').addEventListener('click', async () => {
+  const next = SMS_MODES[(SMS_MODES.indexOf(state.smsMode) + 1) % SMS_MODES.length];
+  if (next === 'LIVE' &&
+      !confirm('Go LIVE?\n\nThe 9 AM routine will text customers automatically (day-before appointment reminders). You can switch back to Preview or Off at any time.')) return;
+  const b = $('#btnSmsMode');
+  b.disabled = true;
+  try {
+    await api(`/values/${encodeURIComponent(`'Settings'!B1`)}?valueInputOption=USER_ENTERED`, {
+      method:'PUT',
+      body: JSON.stringify({ values:[[next]] })
+    });
+    state.smsMode = next;
+    renderSmsMode();
+    toast('Auto-SMS reminders: ' + next, next === 'LIVE' ? 'ok' : 'ok');
+    if (CONFIG.ACTIVITY_LOG_SHEET){
+      const entry = [new Date().toLocaleString(), state.email, 'Auto-SMS mode → ' + next, 'SMS', '', '', ''];
+      state.activity.push(entry);
+      api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+        { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    }
+  } catch(e){
+    toast('Could not update mode — has installSmsTriggers() been run in Apps Script?', 'err');
+  } finally { b.disabled = false; }
+});
+
+function draftQuoteText(r){
+  openTexter({ phone:(r.cells[3]||'').trim(), name:r.cells[1], srcKey:r.key, _quoteRow:r }, smsQuoteTemplate(r), 'quote');
+}
+
+/* ---- Texts tab: conversations threaded from SMS Outbox + SMS Inbox ---- */
+const phoneKey = v => {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);
+  return d.length >= 10 ? d.slice(-10) : d;
+};
+const fmtPhone = k => k.length === 10 ? '(' + k.slice(0,3) + ') ' + k.slice(3,6) + '-' + k.slice(6) : k;
+const fmtClock = d => {
+  let h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+  return h + ':' + m + ' ' + ap;
+};
+function shortWhen(ts, raw){
+  if (!ts) return String(raw || '').split(',')[0];
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return fmtClock(d);
+  return (d.getMonth() + 1) + '/' + d.getDate();
+}
+function computeThreads(){
+  const th = {};
+  const touch = k => th[k] || (th[k] = { key:k, name:'', msgs:[], unread:0 });
+  (state.smsOut || []).forEach(r => {
+    const k = phoneKey(r.cells[2]);
+    if (k.length < 10) return;
+    const t = touch(k);
+    if (!t.name && r.cells[3]) t.name = r.cells[3];
+    t.msgs.push({
+      dir:'out', ts: Date.parse(r.cells[0]) || 0, time:r.cells[0],
+      body:r.cells[6], status:String(r.cells[7] || '').toUpperCase(),
+      person:r.cells[1], type:r.cells[5], ref:r.cells[4]
+    });
+  });
+  (state.smsIn || []).forEach(r => {
+    const k = phoneKey(r.cells[1]);
+    if (k.length < 10) return;
+    const t = touch(k);
+    if (!t.name && r.cells[2]) t.name = r.cells[2];
+    const read = !!String(r.cells[5] || '').trim();
+    if (!read) t.unread++;
+    t.msgs.push({ dir:'in', ts: Date.parse(r.cells[0]) || 0, time:r.cells[0], body:r.cells[3], read, sheetRow:r.sheetRow });
+  });
+  return Object.values(th).filter(t => t.msgs.length).map(t => {
+    t.msgs.sort((a, b) => a.ts - b.ts);
+    t.last = t.msgs[t.msgs.length - 1];
+    t.phone = fmtPhone(t.key);
+    return t;
+  }).sort((a, b) => (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0));
+}
+function renderTexts(){
+  const main = $('#main');
+  main.innerHTML = '';
+  let items = computeThreads();
+  if ((state.textsFilter || 'all') === 'unread') items = items.filter(t => t.unread > 0);
+  const q = state.search.trim().toLowerCase();
+  if (q) items = items.filter(t =>
+    (t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' ')).toLowerCase().includes(q));
+  const list = document.createElement('div');
+  list.className = 'list';
+  if (!items.length){
+    list.innerHTML = `<div class="empty">${q ? 'No conversations match your search.' :
+      'No text messages yet \u2014 send one from a quote, the drawer, or a renewal card. Client replies are pulled in automatically every 5 minutes.'}</div>`;
+    main.appendChild(list);
+    return;
+  }
+  items.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `Conversation with ${t.name || t.phone}${t.unread ? ', ' + t.unread + ' unread' : ''}`);
+    const lastTxt = t.last ? (t.last.dir === 'in' ? '\u21a9 ' : '\u2192 ') + t.last.body : '';
+    row.innerHTML = `
+      <div class="r-main">
+        <div class="r-top">
+          <span class="r-nm">${esc(t.name || t.phone)}</span>
+          ${t.unread ? `<span class="badge b-red">${t.unread} new</span>` : ''}
+          <span class="r-side"><span class="badge b-gray">${esc(t.last ? shortWhen(t.last.ts, t.last.time) : '')}</span></span>
+        </div>
+        <div class="r-ttl"${t.unread ? ' style="font-weight:600"' : ''}>${esc(lastTxt.slice(0, 120))}</div>
+        <div class="r-meta">
+          ${t.name ? `<span class="badge b-gray">${esc(t.phone)}</span>` : ''}
+          <span class="badge b-gray">${t.msgs.length} message${t.msgs.length === 1 ? '' : 's'}</span>
+        </div>
+      </div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
+    row.addEventListener('click', () => openThread(t.key));
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openThread(t.key); } });
+    list.appendChild(row);
+  });
+  main.appendChild(list);
+}
+
+/* emails sent to this customer, matched via their email address
+   (Email Log: A Time | B Person | C From | D To | E Quote # | F Type | G Subject) */
+function emailsForCustomer(name){
+  const nm = normName(name);
+  if (!nm) return [];
+  let em = (state.customers[nm] || {}).email || '';
+  if (!em){
+    const scan = rows => {
+      for (const q of rows || []){
+        if (normName(q.cells[1]) === nm && (q.cells[2] || '').includes('@')){ em = q.cells[2].trim(); break; }
+      }
+    };
+    scan(state.data.quotes);
+    if (!em) scan(state.qarchive);
+  }
+  if (!em) return [];
+  const emL = em.toLowerCase();
+  return (state.emailLog || [])
+    .filter(r => String(r.cells[3] || '').trim().toLowerCase() === emL)
+    .map(r => ({
+      dir:'mail', ts: Date.parse(r.cells[0]) || 0, time:r.cells[0],
+      person:r.cells[1], type:r.cells[5], subject:r.cells[6]
+    }));
+}
+
+/* ---- conversation view ---- */
+let threadKey = null;
+function openThread(key){
+  threadKey = key;
+  renderThread();
+  $('#threadWrap').classList.add('on');
+  $('#threadWrap').setAttribute('aria-hidden', 'false');
+  markThreadRead(key);
+  $('#tReply').focus();
+}
+function closeThread(){
+  $('#threadWrap').classList.remove('on');
+  $('#threadWrap').setAttribute('aria-hidden', 'true');
+  threadKey = null;
+}
+function renderThread(){
+  const t = computeThreads().find(x => x.key === threadKey);
+  if (!t) return;
+  $('#tName').textContent = t.name || t.phone;
+  $('#tPhone').textContent = t.name ? t.phone : '';
+  const tb = $('#tBody');
+  tb.innerHTML = '';
+  let lastDay = '';
+  const timeline = t.msgs.concat(emailsForCustomer(t.name)).sort((a, b) => a.ts - b.ts);
+  timeline.forEach(m => {
+    const d = m.ts ? new Date(m.ts) : null;
+    const day = d ? (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear() : '';
+    if (day && day !== lastDay){
+      lastDay = day;
+      tb.insertAdjacentHTML('beforeend', `<div class="t-day">${esc(day)}</div>`);
+    }
+    if (m.dir === 'mail'){
+      tb.insertAdjacentHTML('beforeend',
+        `<div class="bub mail">✉ Email — ${esc(m.subject || '(no subject)')}<span class="bt">${esc(d ? fmtClock(d) : m.time)}${m.person ? ' · ' + esc(m.person) : ''}${m.type ? ' · ' + esc(m.type) : ''}</span></div>`);
+      return;
+    }
+    let cls = 'bub ' + m.dir, note = '';
+    if (m.dir === 'out'){
+      if (m.status === 'FAILED'){ cls += ' failed'; note = ' \u00b7 failed'; }
+      else if (m.status === 'QUEUED'){ cls += ' pending'; note = ' \u00b7 sending\u2026'; }
+      else if (m.status === 'PREVIEW'){ cls += ' pending'; note = ' \u00b7 preview \u2014 not sent'; }
+    }
+    tb.insertAdjacentHTML('beforeend',
+      `<div class="${cls}">${esc(m.body)}<span class="bt">${esc(d ? fmtClock(d) : m.time)}${m.dir === 'out' && m.person ? ' \u00b7 ' + esc(m.person) : ''}${note}</span></div>`);
+  });
+  tb.scrollTop = tb.scrollHeight;
+}
+function markThreadRead(key){
+  const rows = (state.smsIn || []).filter(r => phoneKey(r.cells[1]) === key && !String(r.cells[5] || '').trim());
+  if (!rows.length) return;
+  rows.forEach(r => { r.cells[5] = 'x'; });
+  const data = rows.map(r => ({ range:`'SMS Inbox'!F${r.sheetRow}`, values:[['x']] }));
+  api('/values:batchUpdate', {
+    method:'POST',
+    body: JSON.stringify({ valueInputOption:'USER_ENTERED', data })
+  }).catch(() => {});
+  renderAll();
+}
+$('#tClose').addEventListener('click', closeThread);
+$('#threadWrap').addEventListener('click', e => { if (e.target === $('#threadWrap')) closeThread(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#threadWrap').classList.contains('on')) closeThread();
+});
+$('#tReply').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('#tSend').click(); }
+});
+$('#tSend').addEventListener('click', async () => {
+  const body = $('#tReply').value.trim();
+  if (!body || !threadKey) return;
+  const t = computeThreads().find(x => x.key === threadKey);
+  if (!t) return;
+  const btn = $('#tSend');
+  btn.disabled = true;
+  const person = localStorage.getItem('acefire_sender') || '';
+  smsCtx = { name: t.name || '', srcKey:'' };
+  smsType = 'reply';
+  try {
+    const range = await queueSmsRow(person, '+1' + t.key, body);
+    logSmsActivity(person, '+1' + t.key);
+    /* optimistic bubble until the next refresh */
+    state.smsOut.push({ sheetRow:0, cells:[
+      new Date().toLocaleString(), person || state.email.split('@')[0], '+1' + t.key,
+      t.name || '', '', 'reply', body, 'QUEUED', '', '', '', ''
+    ] });
+    $('#tReply').value = '';
+    renderThread();
+    watchSmsStatus(range, t.name || t.phone);
+  } catch(e){ toast(e.message || 'Send failed', 'err'); }
+  finally {
+    smsCtx = null;
+    btn.disabled = false;
+    $('#tReply').focus();
+  }
+});
 
 /* =====================================================================
    Change history & undo
