@@ -723,6 +723,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     <div class="m-head">
       <span id="tName">Conversation</span>
       <span class="badge b-gray" id="tPhone"></span>
+      <button class="ghost" id="tNameBtn" style="display:none;padding:3px 10px;min-height:26px;font-size:12px;margin-left:2px" title="Name this client">✎ Name</button>
       <button class="icon-btn" id="tClose" aria-label="Close">✕</button>
     </div>
     <div class="t-body" id="tBody"></div>
@@ -2654,6 +2655,18 @@ function shortWhen(ts, raw){
   if (d.toDateString() === now.toDateString()) return fmtClock(d);
   return (d.getMonth() + 1) + '/' + d.getDate();
 }
+function phoneNameMap(){
+  const map = {};
+  const add = (ph, nm) => {
+    const k = phoneKey(ph);
+    if (k.length === 10 && nm && !map[k]) map[k] = String(nm).trim();
+  };
+  Object.entries(state.customers || {}).forEach(([nm, v]) =>
+    add(v.phone, nm.replace(/\b\w/g, c => c.toUpperCase())));
+  (state.data.quotes || []).forEach(r => add(r.cells[3], r.cells[1]));
+  (state.qarchive || []).forEach(r => add(r.cells[3], r.cells[1]));
+  return map;
+}
 function computeThreads(){
   const th = {};
   const touch = k => th[k] || (th[k] = { key:k, name:'', msgs:[], unread:0 });
@@ -2677,10 +2690,12 @@ function computeThreads(){
     if (!read) t.unread++;
     t.msgs.push({ dir:'in', ts: Date.parse(r.cells[0]) || 0, time:r.cells[0], body:r.cells[3], read, sheetRow:r.sheetRow });
   });
+  const pn = phoneNameMap();
   return Object.values(th).filter(t => t.msgs.length).map(t => {
     t.msgs.sort((a, b) => a.ts - b.ts);
     t.last = t.msgs[t.msgs.length - 1];
     t.phone = fmtPhone(t.key);
+    if (!t.name) t.name = pn[t.key] || '';
     return t;
   }).sort((a, b) => (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0));
 }
@@ -2787,6 +2802,7 @@ function renderThread(){
   $('#tReply').placeholder = can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
   $('#tName').textContent = t.name || t.phone;
   $('#tPhone').textContent = t.name ? t.phone : '';
+  $('#tNameBtn').style.display = t.name ? 'none' : '';
   const tb = $('#tBody');
   tb.innerHTML = '';
   let lastDay = '';
@@ -2825,6 +2841,36 @@ function markThreadRead(key){
   }).catch(() => {});
   renderAll();
 }
+$('#tNameBtn').addEventListener('click', async () => {
+  const t = currentThread();
+  if (!t) return;
+  const name = (prompt('Client or business name for ' + (t.phone || 'this number') + ':') || '').trim();
+  if (!name) return;
+  const data = [];
+  (state.smsIn || []).forEach(r => {
+    if (phoneKey(r.cells[1]) === t.key && !String(r.cells[2] || '').trim()){
+      r.cells[2] = name;
+      data.push({ range:`'SMS Inbox'!C${r.sheetRow}`, values:[[name]] });
+    }
+  });
+  (state.smsOut || []).forEach(r => {
+    if (r.sheetRow && phoneKey(r.cells[2]) === t.key && !String(r.cells[3] || '').trim()){
+      r.cells[3] = name;
+      data.push({ range:`'SMS Outbox'!D${r.sheetRow}`, values:[[name]] });
+    }
+  });
+  if (data.length){
+    try {
+      await api('/values:batchUpdate', {
+        method:'POST',
+        body: JSON.stringify({ valueInputOption:'USER_ENTERED', data })
+      });
+      toast('Saved \u2014 ' + name, 'ok');
+    } catch(e){ toast(e.message || 'Save failed', 'err'); }
+  }
+  renderThread();
+  renderAll();
+});
 $('#tClose').addEventListener('click', closeThread);
 $('#threadWrap').addEventListener('click', e => { if (e.target === $('#threadWrap')) closeThread(); });
 document.addEventListener('keydown', e => {
