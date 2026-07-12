@@ -1336,6 +1336,10 @@ function renderList(){
     b.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(r.uid); }
     });
+    b.querySelectorAll('[data-act="qdraft"]').forEach(ch => {
+      ch.addEventListener('click', e => { e.stopPropagation(); draftQuoteEmail(r, ch); });
+      ch.addEventListener('keydown', e => e.stopPropagation());
+    });
     b.querySelectorAll('[data-qc]').forEach(ch => {
       ch.addEventListener('click', e => {
         e.stopPropagation();
@@ -1362,6 +1366,7 @@ function rowMeta(tab, r){
     const parts = [];
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
+    parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
   }
@@ -1537,7 +1542,13 @@ function renderDrawer(){
   const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
   if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="tel:${esc(phone)}">📞 Call</a>`);
   if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="sms:${esc(phone)}">💬 Text</a>`);
-  if (email) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="mailto:${esc(email)}">✉ Email</a>`);
+  if (tab.id === 'quotes'){
+    const db = document.createElement('button');
+    db.className = 'act-btn';
+    db.textContent = '✉ Draft email';
+    db.addEventListener('click', () => draftQuoteEmail(r));
+    acts.appendChild(db);
+  } else if (email) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="mailto:${esc(email)}">✉ Email</a>`);
   if (/^https?:\/\//.test(link)) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="${esc(link)}" target="_blank" rel="noopener">↗ Wix quote</a>`);
   const otherId = tab.id === 'quotes' ? 'tracker' : 'quotes';
   const twin = rowByKey(otherId, r.key);
@@ -2086,6 +2097,66 @@ async function draftOutreach(x, btn){
   openMailer(x, draft, source);
 }
 
+/* ---- quote follow-up drafting (Quotes tab) ---- */
+function quoteFollowupTemplate(r){
+  const full = String(r.cells[1] || '').trim();
+  const contact = (full.split(',')[1] || '').trim().split(' ')[0] || full.split(',')[0].trim() || 'there';
+  const title = String(r.cells[4] || '').trim() || 'your fire protection service';
+  const link = String(r.cells[5] || '').trim();
+  const d = daysNum(r);
+  const exp = parseDate(r.cells[6]);
+  const expStr = exp ? fmtFull(exp) : '';
+  let opening;
+  if (d !== null && d < 0){
+    opening = `Following up on quote #${r.key} for ${title}. The quote expired${expStr ? ' on ' + expStr : ''}, but we're happy to refresh it and get you on the schedule — the pricing stays the same.`;
+  } else if (d !== null && d <= 7){
+    opening = `Following up on quote #${r.key} for ${title}. It expires${expStr ? ' on ' + expStr : ' soon'} — we'd love to get you locked in before then.`;
+  } else {
+    opening = `Following up on quote #${r.key} for ${title}. Wanted to check if you have any questions or if you're ready to get on the schedule.`;
+  }
+  const linkPart = (link && /^https?:\/\//.test(link)) ? '\nYou can view and accept the quote here:\n' + link + '\n' : '';
+  const body =
+`Hello ${contact},
+
+${opening}
+${linkPart}
+Reply to this email or call us at ${CONFIG.COMPANY_PHONE} and we'll take care of the rest.
+
+Thank you,
+ACE Fire LA
+${CONFIG.COMPANY_PHONE} · acefirela.com`;
+  const shortTitle = title.length > 60 ? title.slice(0, 57) + '…' : title;
+  return { subject: `Quote #${r.key} — ${shortTitle}`, body };
+}
+async function draftQuoteEmail(r, btn){
+  if (btn){ btn.classList.add('busy'); }
+  let draft = quoteFollowupTemplate(r);
+  let source = 'template';
+  if (CONFIG.AI_WEBHOOK_URL){
+    try {
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), 15000);
+      const resp = await fetch(CONFIG.AI_WEBHOOK_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          type:'quote_followup', quote:r.key, customer:r.cells[1], title:r.cells[4],
+          daysToExp:daysNum(r), expDate:r.cells[6] || '', notes:(r.cells[13] || '').slice(0, 500)
+        }),
+        signal: ctl.signal
+      });
+      clearTimeout(to);
+      if (resp.ok){
+        const j = await resp.json();
+        if (j.subject && j.body){ draft = { subject:j.subject, body:j.body }; source = j.source === 'template' ? 'template' : 'ai'; }
+      }
+    } catch(e){ toast('AI draft unavailable — using template'); }
+  }
+  if (btn){ btn.classList.remove('busy'); }
+  openMailer({ email:(r.cells[2] || '').trim(), name:r.cells[1], srcKey:r.key, _quoteRow:r }, draft, source, 'quote');
+}
+
+
 /* ---- compose & send via the signed-in Gmail account ----
    From = role alias (must be a verified "Send mail as" alias on the
    signed-in account, otherwise Gmail silently sends as the signed-in
@@ -2099,7 +2170,8 @@ const MAIL_ALIASES = [
 const MAIL_TYPE_FROM = {
   renewal:  'schedule@acefirela.com',
   billing:  'support@acefirela.com',
-  outreach: 'info@acefirela.com'
+  outreach: 'info@acefirela.com',
+  quote:    'support@acefirela.com'
 };
 const EMAIL_LOG_SHEET = 'Email Log';   /* tab: Timestamp | Person | From | To | Quote # | Type | Subject */
 let mailCtx = null, mailType = 'renewal';
@@ -2209,6 +2281,13 @@ async function gmailSend(to, subject, body, from, retry = true){
 }
 function logEmail(person, fromAlias, to, subject){
   const key = mailCtx ? (mailCtx.srcKey || '') : '';
+  const qr = (mailType === 'quote' && mailCtx) ? mailCtx._quoteRow : null;
+  if (qr){
+    commitEdits(TABS[0], qr, { 10: todayMD() }, 'Email sent (Dashboard)').then(() => {
+      renderContent(); renderSummary();
+      if ($('#drawer').classList.contains('on') && state.drawerUid === qr.uid) renderDrawer();
+    }).catch(() => {});
+  }
   /* structured row → "Email Log" tab (mirrored to Supabase by Apps Script) */
   api(`/values/${encodeURIComponent(`'${EMAIL_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`, {
     method:'POST',
