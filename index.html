@@ -1691,6 +1691,24 @@ function renderDrawer(){
     jb.addEventListener('click', () => switchToRecord(otherId, twin.uid));
     acts.appendChild(jb);
   }
+  /* compact client history: one button, full timeline lives in the popup */
+  {
+    const nmK = normName(r.cells[1]);
+    const thr = computeThreads().find(x =>
+      (dPhone && x.key === phoneKey(dPhone)) || (x.name && normName(x.name) === nmK));
+    const nMail = emailsForCustomer(r.cells[1]).length;
+    const nAll = nMail + (thr ? thr.msgs.length : 0);
+    if (nAll || (dPhone && phoneKey(dPhone).length === 10)){
+      const hb = document.createElement('button');
+      hb.className = 'act-btn';
+      const unread = thr ? thr.unread : 0;
+      hb.innerHTML = '🗨 History' + (nAll
+        ? ` <span class="badge ${unread ? 'b-red' : 'b-gray'}" style="margin-left:4px">${unread ? unread + ' new' : nAll}</span>` : '');
+      hb.addEventListener('click', () =>
+        openThread(thr ? thr.key : phoneKey(dPhone), { name:r.cells[1], phone:dPhone }));
+      acts.appendChild(hb);
+    }
+  }
   if (acts.children.length) body.appendChild(acts);
 
   const info = document.createElement('div');
@@ -1716,41 +1734,6 @@ function renderDrawer(){
   }
   info.appendChild(grid);
   body.appendChild(info);
-
-  /* ---- client history: recent emails + texts for this customer ---- */
-  {
-    const thr = computeThreads().find(x =>
-      (dPhone && x.key === phoneKey(dPhone)) ||
-      (x.name && normName(x.name) === normName(r.cells[1])));
-    const hist = (thr ? thr.msgs.slice() : [])
-      .concat(emailsForCustomer(r.cells[1]))
-      .sort((a, b) => b.ts - a.ts);
-    if (hist.length){
-      const cs = document.createElement('div');
-      cs.className = 'd-sec';
-      cs.innerHTML = '<h3>Client history</h3>';
-      const wrap = document.createElement('div');
-      wrap.className = 'info-grid';
-      hist.slice(0, 6).forEach(m => {
-        const when = m.ts ? shortWhen(m.ts, m.time) : String(m.time || '');
-        const what = m.dir === 'mail'
-          ? '✉ ' + (m.subject || 'Email')
-          : (m.dir === 'in' ? '↩ ' : '💬 ') + String(m.body || '').slice(0, 64);
-        wrap.insertAdjacentHTML('beforeend',
-          `<div class="k">${esc(when)}</div><div class="v">${esc(what)}</div>`);
-      });
-      cs.appendChild(wrap);
-      if (thr){
-        const ob = document.createElement('button');
-        ob.className = 'act-btn';
-        ob.style.marginTop = '8px';
-        ob.textContent = '💬 Open conversation';
-        ob.addEventListener('click', () => openThread(thr.key));
-        cs.appendChild(ob);
-      }
-      body.appendChild(cs);
-    }
-  }
 
   const ed = document.createElement('div');
   ed.className = 'd-sec';
@@ -2770,8 +2753,18 @@ function emailsForCustomer(name){
 }
 
 /* ---- conversation view ---- */
-let threadKey = null;
-function openThread(key){
+let threadKey = null, threadMeta = null;
+function currentThread(){
+  let t = computeThreads().find(x => x.key === threadKey);
+  if (!t && threadKey){
+    t = { key:threadKey, name:(threadMeta && threadMeta.name) || '', msgs:[], unread:0,
+          phone: threadKey.length === 10 ? fmtPhone(threadKey) : ((threadMeta && threadMeta.phone) || '') };
+  }
+  if (!t && threadMeta) t = { key:'', name:threadMeta.name || '', msgs:[], unread:0, phone:threadMeta.phone || '' };
+  return t;
+}
+function openThread(key, meta){
+  threadMeta = meta || null;
   threadKey = key;
   renderThread();
   $('#threadWrap').classList.add('on');
@@ -2785,8 +2778,12 @@ function closeThread(){
   threadKey = null;
 }
 function renderThread(){
-  const t = computeThreads().find(x => x.key === threadKey);
+  const t = currentThread();
   if (!t) return;
+  const can = !!threadKey && threadKey.length === 10;
+  $('#tReply').disabled = !can;
+  $('#tSend').disabled = !can;
+  $('#tReply').placeholder = can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
   $('#tName').textContent = t.name || t.phone;
   $('#tPhone').textContent = t.name ? t.phone : '';
   const tb = $('#tBody');
@@ -2837,8 +2834,8 @@ $('#tReply').addEventListener('keydown', e => {
 });
 $('#tSend').addEventListener('click', async () => {
   const body = $('#tReply').value.trim();
-  if (!body || !threadKey) return;
-  const t = computeThreads().find(x => x.key === threadKey);
+  if (!body || !threadKey || threadKey.length !== 10) return;
+  const t = currentThread();
   if (!t) return;
   const btn = $('#tSend');
   btn.disabled = true;
