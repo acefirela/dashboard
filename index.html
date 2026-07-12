@@ -14,7 +14,7 @@
   --red:#C4322E; --red-dk:#9E2724; --red-bg:#FBEDEC;
   --amber:#B26A00; --amber-bg:#FCF3E3;
   --green:#2E7D4F; --green-bg:#EAF4EE;
-  --blue:#2B5FA3; --blue-bg:#EBF1F9;
+  --blue:#2B5FA3; --blue-dk:#234E87; --blue-bg:#EBF1F9;
   --radius:10px;
   --shadow:0 1px 2px rgba(20,22,26,.06), 0 4px 14px rgba(20,22,26,.05);
   --drawer-w:460px;
@@ -192,10 +192,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 }
 .fu:hover{border-color:var(--line2); background:#ECEBE5}
 .fu.off{color:var(--muted); background:transparent; border:1px dashed var(--line2)}
-.fu.off:hover{color:var(--red-dk); border-color:var(--red); border-style:solid}
+.fu.off:hover{color:var(--blue); border-color:var(--blue); border-style:solid}
 .fu.busy{opacity:.5; pointer-events:none}
-.fu.draft{border:1px solid #EFD2D1; border-style:solid; background:var(--red-bg); color:var(--red-dk)}
-.fu.draft:hover{border-color:var(--red); background:#F7E2E1}
+.fu.draft{border:1px solid #CBD9EC; border-style:solid; background:var(--blue-bg); color:var(--blue)}
+.fu.draft:hover{border-color:var(--blue); background:#DEE9F6}
 a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .chev{color:var(--line2); flex:none}
 .row:hover .chev{color:var(--muted)}
@@ -279,7 +279,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:600; cursor:pointer;
   text-decoration:none; display:inline-flex; align-items:center; gap:6px; min-height:40px;
 }
-.act-btn:hover{border-color:var(--red); color:var(--red-dk)}
+.act-btn:hover{border-color:var(--blue); color:var(--blue)}
 .d-sec{margin-bottom:18px}
 .d-sec h3{
   font-family:'Barlow Condensed'; font-weight:600; font-size:15px; letter-spacing:.11em;
@@ -298,14 +298,14 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   width:100%; padding:10px; border:1px solid var(--line2); border-radius:8px; background:#fff; outline:none;
 }
 .ctl textarea{min-height:74px; resize:vertical; line-height:1.4}
-.ctl input:focus, .ctl select:focus, .ctl textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
+.ctl input:focus, .ctl select:focus, .ctl textarea:focus{border-color:var(--blue); box-shadow:0 0 0 2px rgba(43,95,163,.14)}
 .ctl.changed input, .ctl.changed select, .ctl.changed textarea{border-color:var(--amber); background:#FFFDF4}
 .chips{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap}
 .chip{
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
   font-size:11.5px; font-weight:600; border-radius:99px; padding:6px 11px; cursor:pointer; min-height:32px;
 }
-.chip:hover{border-color:var(--red); color:var(--red-dk)}
+.chip:hover{border-color:var(--blue); color:var(--blue)}
 .backlist{appearance:none; border:none; background:none; color:var(--blue); font-size:12px; cursor:pointer; padding:4px 2px; margin-top:3px}
 .log-item{border-bottom:1px dashed var(--line); padding:7px 0; font-size:12.5px}
 .log-item:last-child{border-bottom:none}
@@ -326,8 +326,8 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--muted);
   border-radius:9px; padding:11px 20px; font-size:14px; font-weight:700; cursor:default; min-height:46px;
 }
-.d-foot.dirty .savebtn{background:var(--red); border-color:var(--red); color:#fff; cursor:pointer}
-.d-foot.dirty .savebtn:hover{background:var(--red-dk)}
+.d-foot.dirty .savebtn{background:var(--blue); border-color:var(--blue); color:#fff; cursor:pointer}
+.d-foot.dirty .savebtn:hover{background:var(--blue-dk)}
 .savebtn.saving{opacity:.6; pointer-events:none}
 .nextbtn{
   appearance:none; border:1px solid var(--ink); background:var(--ink); color:#fff;
@@ -493,7 +493,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   flex:1; padding:9px 11px; border:1px solid var(--line2); border-radius:8px;
   resize:none; min-height:38px; max-height:110px; line-height:1.4; outline:none;
 }
-.t-foot textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
+.t-foot textarea:focus{border-color:var(--blue); box-shadow:0 0 0 2px rgba(43,95,163,.14)}
 .mailer{
   background:var(--card); width:600px; max-width:100%; max-height:100%;
   border-radius:14px; display:flex; flex-direction:column;
@@ -516,7 +516,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   outline:none; font-size:14px;
 }
 .m-f textarea{min-height:220px; resize:vertical; line-height:1.5}
-.m-f input:focus, .m-f textarea:focus{border-color:var(--red); box-shadow:0 0 0 2px rgba(196,50,46,.12)}
+.m-f input:focus, .m-f textarea:focus{border-color:var(--blue); box-shadow:0 0 0 2px rgba(43,95,163,.14)}
 .m-foot{
   display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line);
   background:#FAFAF8; align-items:center; flex-wrap:wrap;
@@ -527,10 +527,10 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 }
 .m-foot .ghost:hover{border-color:var(--ink2)}
 .m-send{
-  appearance:none; margin-left:auto; border:1px solid var(--red); background:var(--red); color:#fff;
+  appearance:none; margin-left:auto; border:1px solid var(--blue); background:var(--blue); color:#fff;
   border-radius:9px; padding:11px 20px; font-size:14px; font-weight:700; cursor:pointer; min-height:44px;
 }
-.m-send:hover{background:var(--red-dk)}
+.m-send:hover{background:var(--blue-dk)}
 .m-send:disabled{opacity:.45; cursor:default}
 @media (max-width:640px){
   #mailWrap, #smsWrap, #threadWrap{padding:0}
@@ -565,7 +565,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   appearance:none; border:1px solid var(--line2); background:var(--card); color:var(--ink2);
   border-radius:7px; padding:4px 10px; font-size:11.5px; font-weight:700; cursor:pointer; margin-top:5px;
 }
-.undo-btn:hover:not(:disabled){border-color:var(--red); color:var(--red-dk)}
+.undo-btn:hover:not(:disabled){border-color:var(--blue); color:var(--blue)}
 .undo-btn:disabled{opacity:.4; cursor:default}
 
 /* ============ Toast / loading ============ */
@@ -670,7 +670,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 <div id="mailWrap" aria-hidden="true">
   <style>
     .m-f select{width:100%;padding:10px 11px;border:1px solid var(--line2);border-radius:8px;font-size:14px;background:#fff;color:var(--ink)}
-    .m-f select:focus{border-color:var(--red);box-shadow:0 0 0 2px rgba(196,50,46,.12);outline:none}
+    .m-f select:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(43,95,163,.14);outline:none}
     .m-two{display:flex;gap:10px}
     .m-two .m-f{flex:1;min-width:0}
     @media (max-width:640px){.m-two{flex-direction:column;gap:11px}}
@@ -780,6 +780,7 @@ const TABS = [
   { id:'tracker', label:'Tracker', sheet:'Tracker', lastCol:'N', editable:[9,10,11,12,13] }
 ];
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
+const QC_ACTION = { 10:'Email', 11:'Text', 12:'Call' };
 /* UI tabs = the two sheet tabs + the computed Renewals radar */
 const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }];
 const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
@@ -1510,10 +1511,10 @@ function fuTag(r, col, icon){
   const verb = QC_LABEL[col];
   const t = (r.cells[col] || '').trim();
   if (!t || /^not sent$/i.test(t)){
-    return `<button type="button" class="fu off" data-qc="${col}" title="Mark ${verb.toLowerCase()} today" aria-label="Mark ${verb.toLowerCase()} today">${icon} —</button>`;
+    return `<button type="button" class="fu off" data-qc="${col}" title="Not ${verb.toLowerCase()} yet — tap to mark ${verb.toLowerCase()} today" aria-label="Mark ${verb.toLowerCase()} today">${icon} ${QC_ACTION[col]}</button>`;
   }
   const short = t.length > 10 ? t.slice(0,10) + '…' : t;
-  return `<button type="button" class="fu" data-qc="${col}" title="${verb} ${esc(t)} — tap to set today" aria-label="${verb} ${esc(t)}">${icon} ${esc(short)}</button>`;
+  return `<button type="button" class="fu" data-qc="${col}" title="${verb} ${esc(t)} — tap to set today" aria-label="${verb} ${esc(t)}">${icon} ${verb} ${esc(short)}</button>`;
 }
 async function quickContact(tab, r, col, chipEl){
   if (r.saving) return;
