@@ -683,7 +683,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     <div class="m-body">
       <div class="m-two">
         <div class="m-f"><label for="mFrom">Send from</label><select id="mFrom"></select></div>
-        <div class="m-f"><label for="mWho">Sent by</label><select id="mWho"></select></div>
+        <div class="m-f"><label for="mReply">Replies go to</label><select id="mReply"></select></div>
       </div>
       <div class="m-f"><label for="mTo">To</label><input type="email" id="mTo" autocomplete="off" placeholder="customer@email.com"></div>
       <div class="m-f"><label for="mSubj">Subject</label><input type="text" id="mSubj" autocomplete="off"></div>
@@ -704,10 +704,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
       <button class="icon-btn" id="sClose" aria-label="Close">✕</button>
     </div>
     <div class="m-body">
-      <div class="m-two">
-        <div class="m-f"><label for="sTo">To (mobile)</label><input type="tel" id="sTo" autocomplete="off" placeholder="(818) 555-0123"></div>
-        <div class="m-f"><label for="sWho">Sent by</label><select id="sWho"></select></div>
-      </div>
+      <div class="m-f"><label for="sTo">To (mobile)</label><input type="tel" id="sTo" autocomplete="off" placeholder="(818) 555-0123"></div>
       <div class="m-f"><label for="sBody">Message</label><textarea id="sBody" style="min-height:130px"></textarea>
         <div id="sCount" style="margin-top:5px;font-size:12px;color:var(--muted)"></div></div>
     </div>
@@ -724,6 +721,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
       <span id="tName">Conversation</span>
       <span class="badge b-gray" id="tPhone"></span>
       <button class="ghost" id="tNameBtn" style="display:none;padding:3px 10px;min-height:26px;font-size:12px;margin-left:2px" title="Name this client">✎ Name</button>
+      <button class="ghost" id="tDoneBtn" style="padding:3px 10px;min-height:26px;font-size:12px;margin-left:auto" title="Mark this conversation handled">✓ Done</button>
       <button class="icon-btn" id="tClose" aria-label="Close">✕</button>
     </div>
     <div class="t-body" id="tBody"></div>
@@ -768,7 +766,9 @@ const CONFIG = {
   ARCHIVE_SHEET: 'Archive',   // paid rows moved here by Apps Script keep feeding the Renewals radar
   QUOTES_ARCHIVE_SHEET: 'Quotes Archive',   // expired quotes moved here keep customer contact info available
   CUSTOMERS_SHEET: 'Customers',   // auto-maintained directory (Apps Script) — primary contact source for renewals
-  AI_WEBHOOK_URL: ''   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
+  AI_WEBHOOK_URL: '',   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
+  PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
+  THREAD_STATUS_SHEET: 'Thread Status'  // per-conversation Open/Done state (Texts tab)
 };
 
 /* Column maps (0-based, A=0)
@@ -796,7 +796,8 @@ const state = {
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
-  smsMode:null, smsOut:[], smsIn:[], textsFilter:'all', emailLog:[],
+  smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
+  prefs:{}, threadDone:{}, replyGroups:[],
   renBucket:'d30',
   drawerUid:null, drawerList:[], lastLoad:0
 };
@@ -855,6 +856,7 @@ function saveCache(){
       archive: state.archive.map(r => r.cells),
       qarchive: state.qarchive.map(r => r.cells),
       customers: state.customers,
+      prefs: state.prefs, threadDone: state.threadDone, replyGroups: state.replyGroups,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
@@ -863,6 +865,8 @@ function hydrateCache(){
   try {
     const p = JSON.parse(localStorage.getItem('acefire_cache_v1') || 'null');
     if (!p || !p.data) return false;
+    /* customer data shouldn't linger on shared computers — stale caches are discarded */
+    if (!p.ts || Date.now() - p.ts > 12 * 3600 * 1000){ localStorage.removeItem('acefire_cache_v1'); return false; }
     TABS.forEach(t => {
       state.data[t.id] = (p.data[t.id] || []).map((cells, j) =>
         ({ uid: t.id + ':' + j, key: String(cells[0]||'').trim(), sheetRow: j + 2, cells, edits:{}, saving:false }));
@@ -874,6 +878,9 @@ function hydrateCache(){
     state.archive = (p.archive || []).map(cells => ({ cells }));
     state.qarchive = (p.qarchive || []).map(cells => ({ cells }));
     state.customers = p.customers || {};
+    state.prefs = p.prefs || {};
+    state.threadDone = p.threadDone || {};
+    state.replyGroups = p.replyGroups || [];
     state.lastLoad = p.ts || 0;
     return true;
   } catch(e){ return false; }
@@ -964,6 +971,7 @@ async function api(path, opts = {}, retry = true){
   if (r.status === 401 && retry){
     const ok = await silentToken(state.email);
     if (ok) return api(path, opts, false);
+    localStorage.removeItem('acefire_cache_v1');   // don't leave customer data behind on a signed-out browser
     toast('Session expired — sign in again', 'err');
     $('#gate').style.display = 'flex';
     $('#app').style.display = 'none';
@@ -1027,11 +1035,14 @@ async function loadAll(showToast){
       });
     } catch(e){ state.customers = {}; }
 
-    // automated-SMS mode — Settings!B1, shared with the Apps Script 9 AM routine
+    // automated-SMS mode + send hour — Settings!B1:B3, shared with the Apps Script reminder routine
     try {
-      const st = await api(`/values/${encodeURIComponent(`'Settings'!B1`)}`);
-      const v = String((st.values && st.values[0] && st.values[0][0]) || '').toUpperCase();
+      const st = await api(`/values/${encodeURIComponent(`'Settings'!B1:B3`)}`);
+      const sv = st.values || [];
+      const v = String((sv[0] && sv[0][0]) || '').toUpperCase();
       state.smsMode = ['OFF','PREVIEW','LIVE'].includes(v) ? v : 'PREVIEW';
+      const h = parseInt((sv[1] && sv[1][0]) || '9', 10);
+      state.smsHour = isFinite(h) ? Math.min(20, Math.max(8, h)) : 9;
     } catch(e){ state.smsMode = null; }   // Settings tab missing — run installSmsTriggers()
     renderSmsMode();
 
@@ -1051,6 +1062,40 @@ async function loadAll(showToast){
       state.emailLog = (el.values || []).map(row =>
         ({ cells: Array.from({ length:7 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }));
     } catch(e){ state.emailLog = []; }
+
+    // per-customer contact preferences — Contact Prefs tab (created by installSmsTriggers)
+    try {
+      const pf = await api(`/values/${encodeURIComponent(`'${CONFIG.PREFS_SHEET}'!A2:D`)}`);
+      state.prefs = {};
+      (pf.values || []).forEach((row, i) => {
+        const k = normName(row[0]);
+        if (k) state.prefs[k] = { pref: String(row[1] || '').trim(), row: i + 2 };
+      });
+    } catch(e){ state.prefs = {}; }
+
+    // per-conversation Open/Done state — Thread Status tab
+    try {
+      const th = await api(`/values/${encodeURIComponent(`'${CONFIG.THREAD_STATUS_SHEET}'!A2:D`)}`);
+      state.threadDone = {};
+      (th.values || []).forEach((row, i) => {
+        const k = phoneKey(row[0]);
+        if (k.length === 10) state.threadDone[k] = { done: low(row[1]) === 'done', ts: Date.parse(row[2]) || 0, row: i + 2 };
+      });
+    } catch(e){ state.threadDone = {}; }
+
+    // reply-to groups for the email composer — Settings!D2:E20 (address | label)
+    try {
+      const rg = await api(`/values/${encodeURIComponent(`'Settings'!D2:E20`)}`);
+      state.replyGroups = (rg.values || [])
+        .map(row => ({ addr: String(row[0] || '').trim(), label: String(row[1] || '').trim() }))
+        .filter(g => g.addr.includes('@'));
+    } catch(e){ state.replyGroups = []; }
+    if (!state.replyGroups.length){
+      state.replyGroups = [
+        { addr:'quotes@acefirela.com',    label:'Quotes group' },
+        { addr:'materials@acefirela.com', label:'Materials group' }
+      ];
+    }
 
     state.lastLoad = Date.now();
     saveCache();
@@ -1115,6 +1160,55 @@ const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim(
 const OUTCOME_OPTIONS = ['Won','Went with competitor','No longer needed','Too expensive','Postponed','No response','Bad contact info'];
 const outcomeOf = r => (r.cells[16] || '').trim();
 const isClosed = r => !!outcomeOf(r);
+
+/* ---- contact preferences (per customer, saved in the Contact Prefs tab) ----
+   "No text (landline)" and "Do not contact" are enforced: they hide the
+   texting buttons everywhere and the auto-reminder routine skips them. */
+const PREF_OPTIONS = ['Prefers call','Prefers email','Prefers text','No text (landline)','Do not contact'];
+const prefOf = name => (state.prefs[normName(name)] || {}).pref || '';
+const prefNoText = name => /no text|do not contact/i.test(prefOf(name));
+const prefNoContact = name => /do not contact/i.test(prefOf(name));
+function prefBadge(name){
+  const p = prefOf(name);
+  if (!p) return '';
+  if (/do not contact/i.test(p)) return '<span class="badge b-red" title="Contact preference">⛔ Do not contact</span>';
+  if (/no text/i.test(p)) return '<span class="badge b-amber" title="Landline on file — texting disabled">☎ No text</span>';
+  const icon = /call/i.test(p) ? '📞' : /email/i.test(p) ? '✉' : '💬';
+  return `<span class="badge b-gray" title="Contact preference">${icon} ${esc(p)}</span>`;
+}
+const autoSenderName = () => {
+  const n = state.email.split('@')[0] || '';
+  return n ? n.charAt(0).toUpperCase() + n.slice(1) : '';
+};
+async function savePref(name, pref, viaKey){
+  const k = normName(name);
+  if (!k) return;
+  const when = new Date().toLocaleString();
+  const who = autoSenderName();
+  const hit = state.prefs[k];
+  if (hit && hit.row){
+    await api('/values:batchUpdate', {
+      method:'POST',
+      body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+        data:[{ range:`'${CONFIG.PREFS_SHEET}'!A${hit.row}:D${hit.row}`, values:[[name, pref, who, when]] }] })
+    });
+    hit.pref = pref;
+  } else {
+    const res = await api(`/values/${encodeURIComponent(`'${CONFIG.PREFS_SHEET}'!A:D`)}:append?valueInputOption=USER_ENTERED`, {
+      method:'POST', body: JSON.stringify({ values:[[name, pref, who, when]] })
+    });
+    const m = String(res.updates ? res.updates.updatedRange : '').match(/![A-Z]+(\d+):/);
+    state.prefs[k] = { pref, row: m ? +m[1] : 0 };
+  }
+  saveCache();
+  if (CONFIG.ACTIVITY_LOG_SHEET){
+    const entry = [when, state.email, 'Contact preference', CONFIG.PREFS_SHEET, viaKey || '',
+      name + ' → ' + (pref || '(cleared)'), ''];
+    state.activity.push(entry);
+    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+  }
+}
 
 function filterDefs(tab){
   if (tab.id === 'quotes'){
@@ -1319,13 +1413,15 @@ function renderAll(){
     fb.innerHTML = '';
     const T = computeThreads();
     const chips = [
-      { id:'all',    label:'All',    n:T.length },
-      { id:'unread', label:'Unread', n:T.filter(t => t.unread > 0).length }
+      { id:'open',   label:'Open',   n:T.filter(t => !t.done).length },
+      { id:'unread', label:'Unread', n:T.filter(t => t.unread > 0).length },
+      { id:'done',   label:'Done',   n:T.filter(t => t.done).length },
+      { id:'all',    label:'All',    n:T.length }
     ];
     chips.forEach(f => {
       const b = document.createElement('button');
-      b.className = 'fchip' + ((state.textsFilter || 'all') === f.id ? ' active' : '');
-      b.setAttribute('aria-pressed', (state.textsFilter || 'all') === f.id ? 'true' : 'false');
+      b.className = 'fchip' + ((state.textsFilter || 'open') === f.id ? ' active' : '');
+      b.setAttribute('aria-pressed', (state.textsFilter || 'open') === f.id ? 'true' : 'false');
       b.innerHTML = `${esc(f.label)}<span class="n">${f.n}</span>`;
       b.addEventListener('click', () => { state.textsFilter = f.id; renderAll(); });
       fb.appendChild(b);
@@ -1487,13 +1583,17 @@ function rowMeta(tab, r){
   if (tab.id === 'quotes'){
     const parts = [];
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
+    const pb = prefBadge(r.cells[1]);
+    if (pb) parts.push(pb);
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
-    parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
-    if ((r.cells[3]||'').trim()) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
+    if (!prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
+    if ((r.cells[3]||'').trim() && !prefNoText(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
   }
   const parts = [ statusBadge(r.cells[3]), wixBadge(r.cells[4]) ];
+  const pb2 = prefBadge(r.cells[1]);
+  if (pb2) parts.push(pb2);
   if (r.cells[13]) parts.push(jobBadge(r.cells[13]));
   if (r.cells[8]) parts.push(`<span class="badge b-blue">${esc(r.cells[8])}${r.cells[7] ? ' · ' + esc(r.cells[7]) : ''}</span>`);
   return parts.filter(Boolean).join('');
@@ -1665,7 +1765,7 @@ function renderDrawer(){
   const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
   if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="tel:${esc(phone)}">📞 Call</a>`);
   const dPhone = phone || (state.customers[normName(r.cells[1])] || {}).phone || '';
-  if (dPhone){
+  if (dPhone && !prefNoText(r.cells[1])){
     const tb = document.createElement('button');
     tb.className = 'act-btn';
     tb.textContent = '💬 Text';
@@ -1676,7 +1776,7 @@ function renderDrawer(){
     });
     acts.appendChild(tb);
   }
-  if (tab.id === 'quotes'){
+  if (tab.id === 'quotes' && !prefNoContact(r.cells[1])){
     const db = document.createElement('button');
     db.className = 'act-btn';
     db.textContent = '✉ Draft email';
@@ -1721,6 +1821,7 @@ function renderDrawer(){
   const add = (k, vHtml) => { if (vHtml) grid.insertAdjacentHTML('beforeend', `<div class="k">${k}</div><div class="v">${vHtml}</div>`); };
   const title = tab.id === 'quotes' ? r.cells[4] : r.cells[2];
   add('Job', esc(title));
+  add('Contact', prefBadge(r.cells[1]));
   if (tab.id === 'quotes'){
     add('Expires', `${daysBadge(r)}${r.cells[6] ? ` <span style="color:var(--muted);font-size:12px">${esc(String(r.cells[6]).slice(0,10))}</span>` : ''}`);
     add('Status', r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '');
@@ -1740,6 +1841,38 @@ function renderDrawer(){
   const ed = document.createElement('div');
   ed.className = 'd-sec';
   ed.innerHTML = '<h3>Team updates</h3>';
+  /* contact preference — per customer, saved instantly, applies to every record with this name */
+  {
+    const f = document.createElement('div');
+    f.className = 'd-field';
+    f.innerHTML = '<label for="fld-pref">Contact preference</label>';
+    const box = document.createElement('div');
+    box.className = 'ctl';
+    const sel = document.createElement('select');
+    sel.id = 'fld-pref';
+    sel.appendChild(new Option('— none —', ''));
+    PREF_OPTIONS.forEach(o => sel.appendChild(new Option(o, o)));
+    sel.value = PREF_OPTIONS.includes(prefOf(r.cells[1])) ? prefOf(r.cells[1]) : '';
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      try {
+        await savePref(r.cells[1], sel.value, r.key);
+        toast(sel.value ? 'Contact preference saved: ' + sel.value : 'Contact preference cleared', 'ok');
+        renderDrawer();
+        renderContent();
+      } catch(e){
+        if (e.message !== 'auth') toast('Could not save — run installSmsTriggers() in Apps Script to create the Contact Prefs tab', 'err');
+        sel.disabled = false;
+      }
+    });
+    box.appendChild(sel);
+    f.appendChild(box);
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11.5px;color:var(--muted);margin-top:4px';
+    note.textContent = 'Saves instantly for this customer everywhere. "No text" and "Do not contact" also block auto-reminders.';
+    f.appendChild(note);
+    ed.appendChild(f);
+  }
   const hdr = state.headers[tab.id] || [];
   tab.editable.forEach(colIdx => {
     const f = document.createElement('div');
@@ -2173,9 +2306,10 @@ function renderRenewals(){
         </div>
         <div class="r-ttl">${esc(x.cat)} — last serviced ${fmtFull(x.last)} · job #${esc(x.srcKey)}${x.src ? '' : ' (archived)'}</div>
         <div class="r-meta">
-          <button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>
+          ${prefBadge(x.name)}
+          ${prefNoContact(x.name) ? '' : '<button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>'}
           ${x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : ''}
-          ${x.phone ? `<button type="button" class="fu draft" data-act="rentext" title="Draft & send a renewal text">💬 Text</button>` : ''}
+          ${x.phone && !prefNoText(x.name) ? `<button type="button" class="fu draft" data-act="rentext" title="Draft & send a renewal text">💬 Text</button>` : ''}
           ${x.quote ? `<span class="badge b-blue">Quote #${esc(x.quote.key)} out</span>` : ''}
           ${x.upcoming ? `<span class="badge b-green">Already scheduled</span>` : ''}
         </div>
@@ -2314,8 +2448,8 @@ async function draftQuoteEmail(r, btn){
 /* ---- compose & send via the signed-in Gmail account ----
    From = role alias (must be a verified "Send mail as" alias on the
    signed-in account, otherwise Gmail silently sends as the signed-in
-   address). Sent by = team member for display name + logging. */
-const MAIL_TEAM = ['Paola','Sofia','Ernesto','Hugo','Miguel','Jony','Carlos'];
+   address). Sent by is stamped automatically from the signed-in
+   Google account — no picker, no forgetting to switch names. */
 const MAIL_ALIASES = [
   { addr:'schedule@acefirela.com', label:'schedule@ — renewals & booking' },
   { addr:'support@acefirela.com',  label:'support@ — billing & general' },
@@ -2334,18 +2468,20 @@ function initMailSelects(){
   const from = $('#mFrom');
   if (!from.options.length){
     MAIL_ALIASES.forEach(a => from.appendChild(new Option(a.label, a.addr)));
-    const who = $('#mWho');
-    who.appendChild(new Option('— team —', ''));
-    MAIL_TEAM.forEach(n => who.appendChild(new Option(n, n)));
-    who.addEventListener('change', () => localStorage.setItem('acefire_sender', who.value));
   }
-  $('#mWho').value = localStorage.getItem('acefire_sender') || '';
+  /* Reply-To groups come from Settings!D2:E20 (seeded by installSmsTriggers) */
+  const rep = $('#mReply');
+  rep.innerHTML = '';
+  rep.appendChild(new Option('— the From address —', ''));
+  (state.replyGroups || []).forEach(g =>
+    rep.appendChild(new Option(g.label ? g.label + ' — ' + g.addr : g.addr, g.addr)));
 }
 function openMailer(x, draft, source, type){
   mailCtx = x;
   mailType = type || 'renewal';
   initMailSelects();
   $('#mFrom').value = MAIL_TYPE_FROM[mailType] || MAIL_ALIASES[0].addr;
+  $('#mReply').value = '';   // default: replies go back to the From alias; pick a group per email
   const tag = $('#mSrc');
   tag.textContent = source === 'ai' ? 'AI draft' : 'Template';
   tag.className = 'badge ' + (source === 'ai' ? 'b-blue' : 'b-gray');
@@ -2386,16 +2522,17 @@ $('#mGmail').addEventListener('click', () => {
 });
 $('#mSend').addEventListener('click', async () => {
   const to = $('#mTo').value.trim(), subject = $('#mSubj').value.trim(), body = $('#mBody').value;
-  const person = $('#mWho').value;
+  const person = autoSenderName();
   const alias = $('#mFrom').value;
+  const replyTo = $('#mReply').value;
   const from = '"' + (person ? person + ' — ' : '') + 'ACE Fire LA" <' + alias + '>';
   const btn = $('#mSend');
   btn.disabled = true;
   btn.textContent = 'Sending…';
   try {
-    await gmailSend(to, subject, body, from);
+    await gmailSend(to, subject, body, from, replyTo);
     toast('Sent to ' + to, 'ok');
-    logEmail(person, alias, to, subject);
+    logEmail(person, alias, to, subject, replyTo);
     closeMailer();
   } catch(e){
     if (e.message !== 'auth') toast(e.message, 'err');
@@ -2408,10 +2545,15 @@ $('#mSend').addEventListener('click', async () => {
 function b64url(str){
   return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function gmailSend(to, subject, body, from, retry = true){
+async function gmailSend(to, subject, body, from, replyTo, retry = true){
+  /* strip CR/LF from header values — a pasted address can't inject extra headers
+     (the subject is already neutralized by its base64 encoding below) */
+  const hdr = v => String(v || '').replace(/[\r\n]+/g, ' ').trim();
+  to = hdr(to); from = hdr(from); replyTo = hdr(replyTo);
   const encSubj = '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(subject))) + '?=';
   const raw = 'To: ' + to + '\r\n' +
     (from ? 'From: ' + from + '\r\n' : '') +
+    (replyTo ? 'Reply-To: ' + replyTo + '\r\n' : '') +
     'Subject: ' + encSubj +
     '\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\n' + body;
   const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -2421,7 +2563,7 @@ async function gmailSend(to, subject, body, from, retry = true){
   });
   if (r.status === 401 && retry){
     const ok = await silentToken(state.email);
-    if (ok) return gmailSend(to, subject, body, from, false);
+    if (ok) return gmailSend(to, subject, body, from, replyTo, false);
     throw new Error('Session expired — sign in again, then retry');
   }
   if (r.status === 403){
@@ -2433,7 +2575,7 @@ async function gmailSend(to, subject, body, from, retry = true){
     throw new Error(msg);
   }
 }
-function logEmail(person, fromAlias, to, subject){
+function logEmail(person, fromAlias, to, subject, replyTo){
   const key = mailCtx ? (mailCtx.srcKey || '') : '';
   const qr = (mailType === 'quote' && mailCtx) ? mailCtx._quoteRow : null;
   if (qr){
@@ -2452,7 +2594,7 @@ function logEmail(person, fromAlias, to, subject){
   /* keep the Activity Log entry so History + the drawer still show it */
   if (CONFIG.ACTIVITY_LOG_SHEET){
     const entry = [new Date().toLocaleString(), state.email, 'Email sent (' + mailType + ')', 'Renewals', key,
-      'To ' + to + ' — ' + subject + (person ? ' — by ' + person : ''), ''];
+      'To ' + to + ' — ' + subject + (person ? ' — by ' + person : '') + (replyTo ? ' — replies to ' + replyTo : ''), ''];
     state.activity.push(entry);
     api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
       { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
@@ -2470,21 +2612,12 @@ let smsCtx = null, smsType = 'quote';
 
 function smsQuoteTemplate(r){
   const org = String(r.cells[1]||'').split(',')[0].trim() || 'there';
-  const who = localStorage.getItem('acefire_sender');
+  const who = autoSenderName();
   return `Hi ${org}, this is ${who ? who + ' with ' : ''}ACE Fire LA following up on quote #${r.key}${r.cells[4] ? ' for ' + r.cells[4] : ''}. Happy to answer any questions \u2014 call or text us at ${CONFIG.COMPANY_PHONE}.`;
 }
 function smsRenewalTemplate(x){
   const org = String(x.name||'').split(',')[0].trim() || 'there';
   return `Hi ${org}, this is ACE Fire LA. Your ${x.cyc.label.toLowerCase()} ${x.cat.toLowerCase()} service is due by ${fmtFull(x.due)} per LAFD Reg 4. Reply here or call ${CONFIG.COMPANY_PHONE} to get on the schedule.`;
-}
-function initSmsSelects(){
-  const who = $('#sWho');
-  if (!who.options.length){
-    who.appendChild(new Option('\u2014 team \u2014', ''));
-    MAIL_TEAM.forEach(n => who.appendChild(new Option(n, n)));
-    who.addEventListener('change', () => localStorage.setItem('acefire_sender', who.value));
-  }
-  who.value = localStorage.getItem('acefire_sender') || '';
 }
 function smsSegInfo(){
   const t = $('#sBody').value;
@@ -2496,7 +2629,6 @@ function smsSegInfo(){
 function openTexter(x, body, type){
   smsCtx = x;
   smsType = type || 'quote';
-  initSmsSelects();
   $('#sTo').value = x.phone || '';
   $('#sBody').value = body || '';
   smsSegInfo();
@@ -2525,7 +2657,7 @@ $('#sCopy').addEventListener('click', async () => {
   catch(e){ toast('Copy failed', 'err'); }
 });
 $('#sSend').addEventListener('click', async () => {
-  const to = $('#sTo').value.trim(), body = $('#sBody').value.trim(), person = $('#sWho').value;
+  const to = $('#sTo').value.trim(), body = $('#sBody').value.trim(), person = autoSenderName();
   const btn = $('#sSend');
   btn.disabled = true;
   btn.textContent = 'Queuing\u2026';
@@ -2583,6 +2715,8 @@ function watchSmsStatus(range, to){
       const st = String(v[0] || '').toUpperCase();
       if (st === 'SENT') toast('Text sent to ' + to, 'ok');
       else if (st === 'FAILED') toast('Text failed: ' + (v[3] || 'see SMS Outbox tab'), 'err');
+      else if (st === 'SENDING') toast('Still sending to ' + to + ' \u2014 check the Texts tab in a moment');
+      else if (st === 'REVIEW') toast('Send state unclear \u2014 see the SMS Outbox tab before retrying', 'err');
       else toast('Still queued \u2014 check the SMS Outbox tab / Apps Script trigger', 'err');
     } catch(e){}
   }, 8000);
@@ -2671,6 +2805,8 @@ function computeThreads(){
   const th = {};
   const touch = k => th[k] || (th[k] = { key:k, name:'', msgs:[], unread:0 });
   (state.smsOut || []).forEach(r => {
+    const st = String(r.cells[7] || '').toUpperCase();
+    if (st === 'PREVIEW' || st === 'SKIPPED' || st === 'EXCLUDED') return;   // reminder-queue rows live in the panel, not the thread
     const k = phoneKey(r.cells[2]);
     if (k.length < 10) return;
     const t = touch(k);
@@ -2696,6 +2832,8 @@ function computeThreads(){
     t.last = t.msgs[t.msgs.length - 1];
     t.phone = fmtPhone(t.key);
     if (!t.name) t.name = pn[t.key] || '';
+    const ds = state.threadDone[t.key];
+    t.done = !!(ds && ds.done && t.last && t.last.ts <= ds.ts);   // any newer message reopens the thread automatically
     return t;
   }).sort((a, b) => (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0));
 }
@@ -2703,10 +2841,15 @@ function renderTexts(){
   const main = $('#main');
   main.innerHTML = '';
   let items = computeThreads();
-  if ((state.textsFilter || 'all') === 'unread') items = items.filter(t => t.unread > 0);
+  const tf = state.textsFilter || 'open';
+  if (tf === 'unread') items = items.filter(t => t.unread > 0);
+  else if (tf === 'open') items = items.filter(t => !t.done);
+  else if (tf === 'done') items = items.filter(t => t.done);
   const q = state.search.trim().toLowerCase();
   if (q) items = items.filter(t =>
     (t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' ')).toLowerCase().includes(q));
+  const rq = renderReminderQueue();
+  if (rq) main.appendChild(rq);
   const list = document.createElement('div');
   list.className = 'list';
   if (!items.length){
@@ -2733,14 +2876,145 @@ function renderTexts(){
         <div class="r-meta">
           ${t.name ? `<span class="badge b-gray">${esc(t.phone)}</span>` : ''}
           <span class="badge b-gray">${t.msgs.length} message${t.msgs.length === 1 ? '' : 's'}</span>
+          ${t.done ? '<span class="badge b-green">Done</span>' : ''}
+          <button type="button" class="fu ${t.done ? '' : 'draft'}" data-act="tdone">${t.done ? '↺ Reopen' : '✓ Done'}</button>
         </div>
       </div>
       <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
     row.addEventListener('click', () => openThread(t.key));
     row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openThread(t.key); } });
+    const db = row.querySelector('[data-act="tdone"]');
+    if (db){
+      db.addEventListener('click', e => { e.stopPropagation(); markThreadDone(t, !t.done, db); });
+      db.addEventListener('keydown', e => e.stopPropagation());
+    }
     list.appendChild(row);
   });
   main.appendChild(list);
+}
+
+/* ---- Open / Done per conversation (Thread Status tab) ----
+   Done drops the thread out of the default Open list. Any NEWER message
+   (usually a client reply) reopens it automatically — nothing to clean up. */
+async function markThreadDone(t, done, btn){
+  if (btn) btn.disabled = true;
+  const who = autoSenderName();
+  const when = done ? new Date().toLocaleString() : '';
+  const rec = state.threadDone[t.key];
+  try {
+    if (rec && rec.row){
+      await api('/values:batchUpdate', {
+        method:'POST',
+        body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+          data:[{ range:`'${CONFIG.THREAD_STATUS_SHEET}'!A${rec.row}:D${rec.row}`, values:[[t.key, done ? 'DONE' : '', when, who]] }] })
+      });
+      rec.done = done;
+      rec.ts = done ? Date.now() : 0;
+    } else {
+      const res = await api(`/values/${encodeURIComponent(`'${CONFIG.THREAD_STATUS_SHEET}'!A:D`)}:append?valueInputOption=USER_ENTERED`, {
+        method:'POST', body: JSON.stringify({ values:[[t.key, done ? 'DONE' : '', when, who]] })
+      });
+      const m = String(res.updates ? res.updates.updatedRange : '').match(/![A-Z]+(\d+):/);
+      state.threadDone[t.key] = { done, ts: done ? Date.now() : 0, row: m ? +m[1] : 0 };
+    }
+    saveCache();
+    toast(done ? 'Done — reopens automatically if they text back' : 'Reopened', 'ok');
+  } catch(e){
+    if (e.message !== 'auth') toast('Could not update — run installSmsTriggers() in Apps Script to create the Thread Status tab', 'err');
+  } finally {
+    renderAll();
+  }
+}
+
+/* ---- Reminder Queue — who the next auto-reminder run will text ----
+   Rows come straight from SMS Outbox (refreshed hourly by Apps Script):
+   PREVIEW = will send (Skip available) · SKIPPED = held back until the
+   appointment date passes · EXCLUDED = blocked by a contact preference. */
+const fmtHour = h => { const x = h % 12 || 12; return x + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+function computeReminderQueue(){
+  return (state.smsOut || []).filter(r =>
+    String(r.cells[5]).trim() === 'appt_reminder' &&
+    ['PREVIEW','SKIPPED','EXCLUDED'].includes(String(r.cells[7] || '').toUpperCase())
+  ).map(r => ({
+    sheetRow: r.sheetRow, name: r.cells[3] || '', to: r.cells[2] || '',
+    body: r.cells[6] || '', status: String(r.cells[7] || '').toUpperCase(),
+    reason: r.cells[10] || '', purpose: r.cells[11] || ''
+  }));
+}
+function renderReminderQueue(){
+  if (!state.smsMode || state.smsMode === 'OFF') return null;
+  const rows = computeReminderQueue();
+  const live = state.smsMode === 'LIVE';
+  const box = document.createElement('div');
+  box.className = 'list';
+  box.style.marginBottom = '12px';
+  const head = document.createElement('div');
+  head.style.cssText = 'padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  head.innerHTML = `<b style="font-family:'Barlow Condensed';font-size:16px;letter-spacing:.08em;text-transform:uppercase">🤖 Upcoming auto-reminders</b>
+    <span class="badge ${live ? 'b-green' : 'b-amber'}">${live ? 'Live — sends around ' + fmtHour(state.smsHour) : 'Preview mode — nothing sends'}</span>
+    <span class="badge b-gray">${rows.filter(x => x.status === 'PREVIEW').length} queued</span>`;
+  box.appendChild(head);
+  if (!rows.length){
+    box.insertAdjacentHTML('beforeend',
+      '<div class="empty" style="padding:14px 20px">Nothing queued for the next run — this list refreshes hourly from upcoming appointments.</div>');
+    return box;
+  }
+  rows.forEach(x => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.cursor = 'default';
+    const badge = x.status === 'PREVIEW'
+      ? `<span class="badge ${live ? 'b-green' : 'b-blue'}">Will send</span>`
+      : x.status === 'SKIPPED'
+        ? '<span class="badge b-gray">Skipped</span>'
+        : `<span class="badge b-amber" title="${esc(x.reason)}">Excluded — ${esc(x.reason || 'contact preference')}</span>`;
+    const btn = x.status === 'PREVIEW'
+      ? '<button type="button" class="fu" data-act="rqskip">Skip this one</button>'
+      : x.status === 'SKIPPED'
+        ? '<button type="button" class="fu draft" data-act="rqunskip">↺ Restore</button>'
+        : '';
+    row.innerHTML = `
+      <div class="r-main">
+        <div class="r-top">
+          <span class="r-nm">${esc(x.name || fmtPhone(phoneKey(x.to)))}</span>
+          <span class="badge b-gray">${esc(fmtPhone(phoneKey(x.to)))}</span>
+          <span class="r-side">${badge}</span>
+        </div>
+        <div class="r-ttl" style="white-space:normal">${esc(x.body)}</div>
+        <div class="r-meta">${btn}</div>
+      </div>`;
+    row.querySelectorAll('[data-act]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        setReminderSkip(x, el.dataset.act === 'rqskip', el);
+      });
+    });
+    box.appendChild(row);
+  });
+  return box;
+}
+async function setReminderSkip(x, skip, btn){
+  if (btn) btn.disabled = true;
+  try {
+    /* verify the row hasn't shifted since load — the hourly refresh rewrites preview rows */
+    const chk = await api(`/values/${encodeURIComponent(`'SMS Outbox'!A${x.sheetRow}:L${x.sheetRow}`)}`);
+    const v = (chk.values && chk.values[0]) || [];
+    const samePurpose = x.purpose && String(v[11] || '') === x.purpose;
+    const sameTo = phoneKey(v[2]) === phoneKey(x.to) && String(v[5] || '').trim() === 'appt_reminder';
+    if (!(samePurpose || sameTo)) throw new Error('The queue just refreshed — reloading');
+    await api('/values:batchUpdate', {
+      method:'POST',
+      body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+        data:[{ range:`'SMS Outbox'!H${x.sheetRow}`, values:[[skip ? 'SKIPPED' : 'PREVIEW']] }] })
+    });
+    const local = (state.smsOut || []).find(r => r.sheetRow === x.sheetRow);
+    if (local) local.cells[7] = skip ? 'SKIPPED' : 'PREVIEW';
+    saveCache();
+    toast(skip ? 'Skipped — this reminder will not send' : 'Restored to the queue', 'ok');
+    renderContent();
+  } catch(e){
+    if (e.message !== 'auth'){ toast(e.message || 'Could not update', 'err'); loadAll(); }
+  }
 }
 
 /* emails sent to this customer, matched via their email address
@@ -2796,13 +3070,20 @@ function closeThread(){
 function renderThread(){
   const t = currentThread();
   if (!t) return;
-  const can = !!threadKey && threadKey.length === 10;
+  const blocked = !!(t.name && prefNoText(t.name));
+  const can = !!threadKey && threadKey.length === 10 && !blocked;
   $('#tReply').disabled = !can;
   $('#tSend').disabled = !can;
-  $('#tReply').placeholder = can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
+  $('#tReply').placeholder = blocked ? 'Contact preference: no texts for this customer'
+    : can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
   $('#tName').textContent = t.name || t.phone;
   $('#tPhone').textContent = t.name ? t.phone : '';
   $('#tNameBtn').style.display = t.name ? 'none' : '';
+  const tdb = $('#tDoneBtn');
+  tdb.style.display = (threadKey && threadKey.length === 10) ? '' : 'none';
+  tdb.textContent = t.done ? '↺ Reopen' : '✓ Done';
+  tdb.disabled = false;
+  tdb.onclick = () => { markThreadDone(t, !t.done, tdb).then(() => { tdb.disabled = false; if (threadKey) renderThread(); }); };
   const tb = $('#tBody');
   tb.innerHTML = '';
   let lastDay = '';
@@ -2822,7 +3103,8 @@ function renderThread(){
     let cls = 'bub ' + m.dir, note = '';
     if (m.dir === 'out'){
       if (m.status === 'FAILED'){ cls += ' failed'; note = ' \u00b7 failed'; }
-      else if (m.status === 'QUEUED'){ cls += ' pending'; note = ' \u00b7 sending\u2026'; }
+      else if (m.status === 'REVIEW'){ cls += ' failed'; note = ' \u00b7 needs review'; }
+      else if (m.status === 'QUEUED' || m.status === 'SENDING'){ cls += ' pending'; note = ' \u00b7 sending\u2026'; }
       else if (m.status === 'PREVIEW'){ cls += ' pending'; note = ' \u00b7 preview \u2014 not sent'; }
     }
     tb.insertAdjacentHTML('beforeend',
@@ -2886,7 +3168,7 @@ $('#tSend').addEventListener('click', async () => {
   if (!t) return;
   const btn = $('#tSend');
   btn.disabled = true;
-  const person = localStorage.getItem('acefire_sender') || '';
+  const person = autoSenderName();
   smsCtx = { name: t.name || '', srcKey:'' };
   smsType = 'reply';
   try {
