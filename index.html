@@ -3324,6 +3324,9 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('beforeunload', e => {
   if (hasUnsaved()){ e.preventDefault(); e.returnValue = ''; }
 });
+/* Expose app internals for additive modules (top-level const/let never become window properties) */
+window.CONFIG = CONFIG; window.TABS = TABS; window.state = state;
+window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="gisReady()"></script>
 
@@ -3333,6 +3336,7 @@ window.addEventListener('beforeunload', e => {
   var SID='1PPnBTp28dpIg3izT8yxfisxpW0sv8VVaEqImcOH9qsc';
   var RANGE='Transcripts!A2:L';
   var aiCalls={ loaded:false, loading:false, byPhone:{}, byQuote:{}, inByPhone:{}, outByPhone:{} };
+  var aiRDHooked=false, aiODHooked=false, aiRMHooked=false;
   function st(){ return window.state||null; }
   function norm(p){ return String(p==null?'':p).replace(/[^0-9]/g,'').replace(/^1([0-9]{10})$/,'$1'); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -3371,7 +3375,7 @@ window.addEventListener('beforeunload', e => {
     return out;
   }
   function render(){
-    var dr=document.querySelector('.drawer'); if(!dr||!dr.classList.contains('on')) return;
+    var dr=document.getElementById('drawer'); if(!dr||!dr.classList.contains('on')) return;
     var old=dr.querySelector('#aiCallLogSec'); if(old) old.remove();
     var s=st(); var uid=s&&s.drawerUid; if(!uid||typeof window.rowByUid!=='function') return;
     var rec=window.rowByUid(uid); if(!rec) return;
@@ -3399,28 +3403,442 @@ window.addEventListener('beforeunload', e => {
     else { var firstSec=dr.querySelector('.d-sec'); if(firstSec&&firstSec.parentNode){ firstSec.parentNode.insertBefore(sec, firstSec.nextSibling); } else { dr.appendChild(sec); } }
   }
   function hookDrawer(){
-    if(typeof window.renderDrawer==='function' && !window.renderDrawer.__aiHooked){
-      var o1=window.renderDrawer; window.renderDrawer=function(){ var r=o1.apply(this,arguments); try{render();}catch(e){console.warn(e);} return r; }; window.renderDrawer.__aiHooked=true;
+    if(!aiRDHooked && typeof window.renderDrawer==='function'){
+      aiRDHooked=true;
+      var o1=window.renderDrawer; window.renderDrawer=function(){ var r=o1.apply(this,arguments); try{render();}catch(e){console.warn(e);} return r; };
     }
-    if(typeof window.openDrawer==='function' && !window.openDrawer.__aiHooked){
-      var o2=window.openDrawer; window.openDrawer=function(){ var r=o2.apply(this,arguments); try{ load(render); render(); }catch(e){console.warn(e);} return r; }; window.openDrawer.__aiHooked=true;
+    if(!aiODHooked && typeof window.openDrawer==='function'){
+      aiODHooked=true;
+      var o2=window.openDrawer; window.openDrawer=function(){ var r=o2.apply(this,arguments); try{ load(render); render(); }catch(e){console.warn(e);} return r; };
     }
   }
   function hookBadge(){
-    if(typeof window.rowMeta!=='function'||window.rowMeta.__aiBadge) return;
+    if(aiRMHooked||typeof window.rowMeta!=='function') return;
+    aiRMHooked=true;
     var orig=window.rowMeta;
     window.rowMeta=function(tab,r){
       var out=orig.apply(this,arguments);
       try{ if(tab&&tab.id==='quotes'&&aiCalls.loaded&&r&&r.cells){ var ph=norm(r.cells[3]); var nin=ph?(aiCalls.inByPhone[ph]||0):0, nout=ph?(aiCalls.outByPhone[ph]||0):0; if(nin||nout){ var label=nout?(nin+' in \u00b7 '+nout+' out'):(''+nin); var title=nin+' received AI call'+(nin===1?'':'s')+(nout?(', '+nout+' outbound'):'')+' on file'; out=(out||'')+'<span class="badge b-blue" title="'+title+'">\uD83E\uDD16 '+label+'</span>'; } } }catch(e){}
       return out;
     };
-    window.rowMeta.__aiBadge=true;
   }
   var tries=0, t=setInterval(function(){
     tries++; hookDrawer(); hookBadge(); load();
     if(tries>240) clearInterval(t);
   },500);
 })();
+</script>
+
+  <!-- Team Chat module (dashboard-native team messaging: Supabase auth+data+realtime, Google Chat pings via DB trigger; additive) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/*TEAMCHAT_START*/
+(function(){
+  'use strict';
+  var SB_URL = 'https://uqikcjfshbvthkjgdwgr.supabase.co';
+  var SB_KEY = 'sb_publishable_3DnUFAIo4nC4goFO6ZdVXw_h_rggawn';
+  if (!(window.supabase && window.supabase.createClient)){ console.warn('TeamChat: supabase-js not loaded'); return; }
+  var sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+  var TC = { session:null, me:null, roster:[], msgs:{}, recent:[], reads:{}, unread:{}, mentionUnread:0, channel:null, deepLinked:false, threadLoading:{}, threadErr:{}, rosterErr:false };
+
+  function byId(s){ return document.getElementById(s); }
+  function escTC(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function reName(n){ return String(n||'').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function fmtT(s){ var d = new Date(s); if (isNaN(d)) return ''; return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+  function notify(msg, kind){ if (typeof window.toast === 'function') window.toast(msg, kind || 'ok'); }
+  function totalUnread(){ var n = 0; Object.keys(TC.unread).forEach(function(k){ n += TC.unread[k]; }); return n; }
+
+  /* ---------- styles ---------- */
+  document.head.insertAdjacentHTML('beforeend', '<style>' +
+    '#teamChatSec .tc-thread{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:4px 2px}' +
+    '#teamChatSec .tc-b{max-width:86%;padding:7px 10px;border-radius:12px;font-size:13.5px;line-height:1.35;white-space:pre-wrap;word-break:break-word}' +
+    '#teamChatSec .tc-mine{align-self:flex-end;background:var(--blue-bg);border:1px solid #CBD9EC;border-bottom-right-radius:4px}' +
+    '#teamChatSec .tc-them{align-self:flex-start;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:4px}' +
+    '#teamChatSec .tc-meta{font-size:11px;color:var(--muted);margin-bottom:2px}' +
+    '#teamChatSec .tc-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}' +
+    '#teamChatSec .tc-chip{font-size:12px;padding:3px 9px;border-radius:10px;background:var(--blue-bg);color:var(--blue-dk);border:1px solid #CBD9EC;cursor:pointer}' +
+    '#teamChatSec .tc-send{display:flex;gap:6px;margin-top:6px;align-items:flex-end}' +
+    '#teamChatSec .tc-send textarea{flex:1;resize:none;border:1px solid var(--line2);border-radius:8px;padding:8px;font:inherit;font-size:13.5px;min-height:38px;max-height:110px;background:var(--card)}' +
+    '#teamChatSec .tc-send button{border:0;border-radius:8px;background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:9px 14px;cursor:pointer}' +
+    '#teamChatSec .tc-send button:disabled{opacity:.5}' +
+    '#teamChatSec .tc-mention{color:var(--blue-dk);font-weight:700}' +
+    '#teamChatSec .tc-note{color:var(--muted);font-size:12.5px;margin-top:4px}' +
+    '</style>');
+
+  /* ---------- auth (proper nonce flow: SHA-256 hash to Google, raw nonce to Supabase) ---------- */
+  function initSession(){
+    sb.auth.getSession().then(function(res){ setSession(res.data ? res.data.session : null); });
+    sb.auth.onAuthStateChange(function(_e, s){ setSession(s); });
+  }
+  var lastEmail = null;
+  function setSession(s){
+    TC.session = s || null;
+    var email = s && s.user ? String(s.user.email || '').toLowerCase() : null;
+    if (email === lastEmail){ return; }
+    lastEmail = email;
+    if (TC.session){ afterSignIn(); } else { TC.me = null; renderSection(); }
+  }
+  function afterSignIn(){
+    loadRoster().then(function(){
+      var email = String((TC.session.user || {}).email || '').toLowerCase();
+      TC.me = null;
+      TC.roster.forEach(function(m){ if (m.email === email) TC.me = m; });
+      if (TC.me){ return loadRecent().then(function(){ subscribe(); }); }
+    }).then(function(){ renderSection(); refreshBadges(); });
+  }
+  function mountGoogleButton(el){
+    if (!(window.google && google.accounts && google.accounts.id)){
+      el.innerHTML = '<div class="tc-note">Google sign-in is still loading — reopen this record in a moment.</div>';
+      return;
+    }
+    var raw = crypto.randomUUID() + '-' + crypto.randomUUID();
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw)).then(function(buf){
+      var hashed = Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      google.accounts.id.initialize({
+        client_id: CONFIG.CLIENT_ID,
+        nonce: hashed,
+        callback: function(resp){
+          sb.auth.signInWithIdToken({ provider:'google', token: resp.credential, nonce: raw })
+            .then(function(res){ if (res.error) throw res.error; })
+            .catch(function(e){ console.warn('TeamChat sign-in', e); notify('Chat sign-in failed: ' + (e.message || e), 'err'); });
+        }
+      });
+      google.accounts.id.renderButton(el, { theme:'outline', size:'medium', text:'signin_with', shape:'pill' });
+    });
+  }
+
+  /* ---------- data ---------- */
+  function loadRoster(){
+    return sb.from('team_members').select('email,display_name').eq('active', true).order('display_name')
+      .then(function(res){ if (res.error) throw res.error; TC.roster = (res.data || []).map(function(m){ m.email = String(m.email || '').toLowerCase(); return m; }); TC.rosterErr = false; })
+      .catch(function(e){ console.warn('TeamChat roster', e); TC.roster = []; TC.rosterErr = true; });
+  }
+  function loadRecent(){
+    var since = new Date(Date.now() - 45 * 864e5).toISOString();
+    return Promise.all([
+      sb.from('team_chat_messages').select('*').gte('created_at', since).order('created_at', { ascending:false }).limit(400),
+      sb.from('team_chat_reads').select('record_id,last_read_at').eq('user_email', TC.me.email)
+    ]).then(function(rs){
+      if (rs[0].error) throw rs[0].error;
+      if (rs[1].error) throw rs[1].error;
+      TC.recent = rs[0].data || [];
+      TC.reads = {};
+      (rs[1].data || []).forEach(function(x){ TC.reads[x.record_id] = x.last_read_at; });
+      computeUnread();
+    }).catch(function(e){ console.warn('TeamChat recent', e); });
+  }
+  function mentionsMe(m){
+    return !!(TC.me && (m.mentions || []).some(function(n){ return String(n).toLowerCase() === TC.me.display_name.toLowerCase(); }));
+  }
+  function computeUnread(){
+    var un = {}, mention = 0;
+    if (TC.me) TC.recent.forEach(function(m){
+      if (m.sender_email === TC.me.email) return;
+      var lr = TC.reads[m.record_id];
+      if (!lr || new Date(m.created_at) > new Date(lr)){
+        un[m.record_id] = (un[m.record_id] || 0) + 1;
+        if (mentionsMe(m)) mention++;
+      }
+    });
+    TC.unread = un; TC.mentionUnread = mention;
+  }
+  function loadThread(key){
+    if (TC.threadLoading[key]) return Promise.resolve();
+    TC.threadLoading[key] = true;
+    return sb.from('team_chat_messages').select('*').eq('record_id', key).order('created_at').limit(300)
+      .then(function(res){ if (res.error) throw res.error; TC.msgs[key] = res.data || []; delete TC.threadErr[key]; })
+      .catch(function(e){ console.warn('TeamChat thread', e); TC.threadErr[key] = true; })
+      .then(function(){ TC.threadLoading[key] = false; });
+  }
+  function markRead(key, force){
+    if (!TC.me) return;
+    if (!force && !TC.unread[key] && TC.reads[key]) return;
+    var now = new Date().toISOString();
+    TC.reads[key] = now; computeUnread(); refreshBadges();
+    sb.from('team_chat_reads').upsert({ user_email: TC.me.email, record_id:String(key), last_read_at: now })
+      .then(function(res){ if (res && res.error) console.warn('TeamChat markRead', res.error); }, function(e){ console.warn('TeamChat markRead', e); });
+  }
+  function parseMentions(text){
+    var out = [];
+    TC.roster.forEach(function(m){
+      if (new RegExp('@' + reName(m.display_name) + '(\\b|$)', 'i').test(text)) out.push(m.display_name);
+    });
+    return out;
+  }
+  function sendMsg(rec, tabId){
+    var ta = byId('tcInput'), btn = byId('tcSend');
+    if (!ta || !TC.me) return;
+    var body = ta.value.trim(); if (!body) return;
+    if (btn) btn.disabled = true;
+    var row = {
+      record_type: tabId === 'tracker' ? 'job' : 'quote',
+      record_id: String(rec.key),
+      record_name: String((rec.cells && rec.cells[1]) || ''),
+      sender_name: TC.me.display_name,
+      sender_email: TC.me.email,
+      body: body,
+      mentions: parseMentions(body)
+    };
+    sb.from('team_chat_messages').insert(row).select().single()
+      .then(function(res){
+        if (res.error) throw res.error;
+        var m = res.data, k = row.record_id;
+        TC.msgs[k] = TC.msgs[k] || [];
+        if (!TC.msgs[k].some(function(x){ return x.id === m.id; })) TC.msgs[k].push(m);
+        TC.recent.unshift(m);
+        renderSection(); markRead(k);
+      })
+      .catch(function(e){
+        notify('Message failed: ' + (e.message || e), 'err');
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  /* ---------- realtime ---------- */
+  function subscribe(){
+    if (TC.channel) return;
+    TC.channel = sb.channel('team-chat')
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'team_chat_messages' }, function(payload){
+        var m = payload["new"]; if (!m || !TC.me) return;
+        if (!TC.recent.some(function(x){ return x.id === m.id; })) TC.recent.unshift(m);
+        if (TC.msgs[m.record_id] && !TC.msgs[m.record_id].some(function(x){ return x.id === m.id; })) TC.msgs[m.record_id].push(m);
+        var dr = byId('drawer');
+        if (dr && dr.classList.contains('on') && currentDrawerKey() === m.record_id){
+          markRead(m.record_id, true); renderSection();
+        } else if (m.sender_email !== TC.me.email){
+          computeUnread(); refreshBadges();
+          if (mentionsMe(m)) notify('\uD83D\uDCAC ' + m.sender_name + ' mentioned you on #' + m.record_id, 'ok');
+        }
+      })
+      .subscribe();
+  }
+
+  /* ---------- UI ---------- */
+  function currentDrawerKey(){
+    try{
+      var r = (window.rowByUid && window.state) ? window.rowByUid(window.state.drawerUid) : null;
+      return r ? String(r.key) : null;
+    }catch(e){ return null; }
+  }
+  function findByKey(key, preferTab){
+    if (!(window.state && window.state.data)) return null;
+    var hit = null;
+    var tabs = (window.TABS || []).slice();
+    if (preferTab) tabs.sort(function(a, b){ return (b.id === preferTab ? 1 : 0) - (a.id === preferTab ? 1 : 0); });
+    tabs.forEach(function(t){
+      if (hit) return;
+      (window.state.data[t.id] || []).forEach(function(r){ if (!hit && String(r.key) === String(key)) hit = r; });
+    });
+    return hit;
+  }
+  function bodyHtml(m){
+    var b = escTC(m.body);
+    TC.roster.forEach(function(mm){
+      b = b.replace(new RegExp('@' + reName(mm.display_name), 'gi'), function(s){ return '<span class="tc-mention">' + escTC(s) + '</span>'; });
+    });
+    return b;
+  }
+  function threadHtml(key){
+    if (TC.threadErr[key]) return '<div class="tc-note">Couldn\u2019t load messages \u2014 <a href="#" id="tcRetryThread">retry</a></div>';
+    var list = TC.msgs[key];
+    if (!list){
+      loadThread(key).then(function(){ renderSection(); markRead(key); });
+      return '<div class="tc-note">Loading\u2026</div>';
+    }
+    if (!list.length) return '<div class="tc-note">No messages yet \u2014 start the thread. Everyone on the team can see it, and it posts a ping to the ACE Dashboard space in Google Chat.</div>';
+    return '<div class="tc-thread" id="tcThread">' + list.map(function(m){
+      var mine = TC.me && m.sender_email === TC.me.email;
+      return '<div class="tc-b ' + (mine ? 'tc-mine' : 'tc-them') + '">' +
+        (mine ? '' : '<div class="tc-meta">' + escTC(m.sender_name) + ' \u00b7 ' + fmtT(m.created_at) + '</div>') +
+        bodyHtml(m) +
+        (mine ? '<div class="tc-meta" style="text-align:right;margin:2px 0 0">' + fmtT(m.created_at) + '</div>' : '') +
+        '</div>';
+    }).join('') + '</div>';
+  }
+  function renderSection(){
+    var dr = byId('drawer'); if (!dr || !dr.classList.contains('on')) return;
+    var body = byId('dBody'); if (!body) return;
+    var r = null;
+    try{ r = window.rowByUid(window.state.drawerUid); }catch(e){}
+    if (!r) return;
+    var tab = null;
+    try{ tab = window.tabOfUid ? window.tabOfUid(r.uid) : null; }catch(e){}
+    var tabId = tab ? tab.id : 'quotes';
+    var key = String(r.key);
+
+    var sec = byId('teamChatSec');
+    if (!sec){
+      sec = document.createElement('div'); sec.className = 'd-sec'; sec.id = 'teamChatSec';
+      var anchor = null;
+      body.querySelectorAll('.d-sec h3').forEach(function(h){ if (/^details$/i.test(h.textContent.trim())) anchor = h.closest('.d-sec'); });
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+      else body.appendChild(sec);
+    }
+
+    var n = TC.unread[key] || 0;
+    var html = '<h3>\uD83D\uDCAC Team chat' + (n ? ' <span class="badge b-red" style="margin-left:4px">' + n + ' new</span>' : '') + '</h3>';
+
+    if (!TC.session){
+      html += '<div class="tc-note" style="margin:0 0 8px">Sign in once to send and read internal team messages on this record.</div><div id="tcGsi"></div>';
+      sec.innerHTML = html;
+      var g = byId('tcGsi'); if (g) mountGoogleButton(g);
+      return;
+    }
+    if (!TC.me){
+      if (TC.rosterErr){
+        html += '<div class="tc-note">Couldn\u2019t load the team roster \u2014 <a href="#" id="tcRetryRoster">retry</a></div>';
+        sec.innerHTML = html;
+        var rr = byId('tcRetryRoster'); if (rr) rr.addEventListener('click', function(ev){ ev.preventDefault(); afterSignIn(); });
+        return;
+      }
+      html += '<div class="tc-note">' + escTC(String((TC.session.user || {}).email || 'This account')) + ' isn\u2019t on the team roster, so chat is hidden. Ask Carlos to add you. <a href="#" id="tcOut">Use a different account</a></div>';
+      sec.innerHTML = html;
+      var o = byId('tcOut'); if (o) o.addEventListener('click', function(ev){ ev.preventDefault(); sb.auth.signOut(); });
+      return;
+    }
+
+    html += threadHtml(key);
+    var dashEmail = (window.state && window.state.email) ? String(window.state.email).toLowerCase() : '';
+    if (dashEmail && dashEmail !== TC.me.email){
+      html += '<div class="tc-note" style="color:var(--amber)">Sending is paused: the dashboard is signed in as ' + escTC(dashEmail) + ' but chat is signed in as ' + escTC(TC.me.display_name) + ' (' + escTC(TC.me.email) + '). <a href="#" id="tcOut">Sign out of chat</a>, then sign back in with the matching account.</div>';
+    } else {
+      html += '<div class="tc-chips">' + TC.roster
+        .filter(function(m){ return m.email !== TC.me.email; })
+        .map(function(m){ return '<button type="button" class="tc-chip" data-n="' + escTC(m.display_name) + '">@' + escTC(m.display_name) + '</button>'; })
+        .join('') + '</div>';
+      html += '<div class="tc-send"><textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"></textarea><button type="button" id="tcSend">Send</button></div>';
+      html += '<div class="tc-note" style="display:flex;justify-content:space-between"><span>Pings the ACE Dashboard space in Google Chat.</span><a href="#" id="tcOut">Sign out</a></div>';
+    }
+    sec.innerHTML = html;
+
+    var out = byId('tcOut');
+    if (out) out.addEventListener('click', function(ev){ ev.preventDefault(); sb.auth.signOut(); });
+    var rt = byId('tcRetryThread');
+    if (rt) rt.addEventListener('click', function(ev){ ev.preventDefault(); delete TC.threadErr[key]; delete TC.msgs[key]; renderSection(); });
+    var th = byId('tcThread'); if (th) th.scrollTop = th.scrollHeight;
+    sec.querySelectorAll('.tc-chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var ta = byId('tcInput'); if (!ta) return;
+        ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + '@' + c.dataset.n + ' ';
+        ta.focus();
+      });
+    });
+    var sendBtn = byId('tcSend');
+    if (sendBtn) sendBtn.addEventListener('click', function(){ sendMsg(r, tabId); });
+    var ta2 = byId('tcInput');
+    if (ta2) ta2.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter' && !ev.shiftKey && !('ontouchstart' in window)){ ev.preventDefault(); sendMsg(r, tabId); }
+    });
+    if (TC.msgs[key]) markRead(key);
+  }
+
+  /* ---------- badges (attention bar chip + list-row badge) ---------- */
+  var lastBadgeSig = '';
+  function refreshBadges(){
+    if (typeof window.renderSummary === 'function'){ try{ window.renderSummary(); }catch(e){} }
+    var sig = JSON.stringify(TC.unread);
+    if (sig !== lastBadgeSig){
+      lastBadgeSig = sig;
+      if (typeof window.renderContent === 'function'){ try{ window.renderContent(); }catch(e){} }
+    }
+  }
+  var tcSumHooked = false;
+  function hookSummary(){
+    if (tcSumHooked || typeof window.renderSummary !== 'function') return;
+    tcSumHooked = true;
+    var orig = window.renderSummary;
+    window.renderSummary = function(){
+      var out = orig.apply(this, arguments);
+      try{
+        var tot = totalUnread();
+        if (tot){
+          var bar = document.querySelector('#summary .attn');
+          if (bar){
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'stat';
+            b.style.cssText = 'background:var(--blue-bg);color:var(--blue-dk);border:1px solid #CBD9EC';
+            b.innerHTML = '<b>' + tot + '</b> team message' + (tot === 1 ? '' : 's') + (TC.mentionUnread ? ' \u00b7 ' + TC.mentionUnread + ' @you' : '');
+            b.addEventListener('click', function(){
+              var m = TC.recent.find(function(x){ return TC.unread[x.record_id]; });
+              var hit = m && findByKey(m.record_id, m.record_type === 'job' ? 'tracker' : 'quotes');
+              if (hit && typeof window.openDrawer === 'function') window.openDrawer(hit.uid);
+            });
+            bar.appendChild(b);
+          }
+        }
+      }catch(e){}
+      return out;
+    };
+  }
+  var tcRMHooked = false;
+  function hookRowMeta(){
+    if (tcRMHooked || typeof window.rowMeta !== 'function') return;
+    tcRMHooked = true;
+    var orig = window.rowMeta;
+    window.rowMeta = function(tab, r){
+      var out = orig.apply(this, arguments);
+      try{
+        var n = r && TC.unread[String(r.key)];
+        if (n) out = (out || '') + '<span class="badge b-blue" title="' + n + ' unread team message' + (n === 1 ? '' : 's') + '">\uD83D\uDCAC ' + n + '</span>';
+      }catch(e){}
+      return out;
+    };
+  }
+  var tcRDHooked = false, tcODHooked = false;
+  function hookDrawer(){
+    if (!tcRDHooked && typeof window.renderDrawer === 'function'){
+      tcRDHooked = true;
+      var o1 = window.renderDrawer;
+      window.renderDrawer = function(){ var r = o1.apply(this, arguments); try{ renderSection(); }catch(e){ console.warn(e); } return r; };
+    }
+    if (!tcODHooked && typeof window.openDrawer === 'function'){
+      tcODHooked = true;
+      var o2 = window.openDrawer;
+      window.openDrawer = function(){ var r = o2.apply(this, arguments); try{ renderSection(); }catch(e){ console.warn(e); } return r; };
+    }
+  }
+
+  function hookSignout(){
+    var b = document.getElementById('btnSignout');
+    if (!b || b.__tcHooked) return;
+    b.__tcHooked = true;
+    b.addEventListener('click', function(){
+      /* synchronous local clear first, so an immediate page reload can't race the async sign-out */
+      try{ Object.keys(localStorage).forEach(function(k){ if (k.indexOf('sb-uqikcjfshbvthkjgdwgr-') === 0) localStorage.removeItem(k); }); }catch(e){}
+      try{ sb.auth.signOut(); }catch(e){}
+    }, true);
+  }
+
+  /* ---------- deep link (?chat=KEY from Google Chat notifications) ---------- */
+  function tryDeepLink(){
+    if (TC.deepLinked) return;
+    var params = new URLSearchParams(location.search);
+    var key = params.get('chat');
+    if (!key){ TC.deepLinked = true; return; }
+    if (!(window.state && window.state.data)) return;
+    var loaded = (window.TABS || []).some(function(t){ return (window.state.data[t.id] || []).length; });
+    if (!loaded) return;
+    TC.deepLinked = true;
+    var typ = params.get('type');
+    var hit = findByKey(key, typ === 'job' ? 'tracker' : (typ === 'quote' ? 'quotes' : null));
+    if (hit && typeof window.openDrawer === 'function'){
+      window.openDrawer(hit.uid);
+      setTimeout(function(){ var s = byId('teamChatSec'); if (s) s.scrollIntoView({ behavior:'smooth', block:'center' }); }, 400);
+    } else {
+      notify('Record #' + key + ' not found in the current data', 'err');
+    }
+  }
+
+  /* ---------- boot ---------- */
+  initSession();
+  var tries = 0, t = setInterval(function(){
+    tries++;
+    hookDrawer(); hookSummary(); hookRowMeta(); hookSignout(); tryDeepLink();
+    if (tries > 240) clearInterval(t);
+  }, 500);
+})();
+/*TEAMCHAT_END*/
 </script>
 </body>
 </html>
