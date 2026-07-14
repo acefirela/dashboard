@@ -250,7 +250,10 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .icon-btn:hover{border-color:var(--ink2)}
 .icon-btn:disabled{opacity:.35; cursor:default}
 .d-title{flex:1; min-width:0; text-align:center}
-.d-title .q{font-family:'Barlow Condensed'; font-weight:700; font-size:21px; color:var(--red-dk)}
+.d-title .q{font-family:'Barlow Condensed'; font-weight:700; font-size:21px; color:var(--ink)}
+.d-title .q.u-exp{color:var(--red-dk)}
+.d-title .q.u-soon{color:var(--amber)}
+.d-title .q.u-closed{color:var(--muted)}
 .d-title .n{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .d-search{padding:10px 14px; border-bottom:1px solid var(--line); position:relative}
 .d-search input{
@@ -1756,6 +1759,16 @@ function renderDrawer(){
   if (!r){ body.innerHTML = '<div class="empty">Record not found — it may have been removed. Refresh the data.</div>'; syncFoot(null); return; }
 
   $('#dQuote').textContent = '#' + r.key;
+  let dq = '';
+  if (tab.id === 'quotes'){
+    if (isClosed(r)) dq = 'u-closed';
+    else {
+      const d = daysNum(r);
+      if (d !== null && d < 0) dq = 'u-exp';
+      else if (d !== null && d <= 7) dq = 'u-soon';
+    }
+  }
+  $('#dQuote').className = 'q' + (dq ? ' ' + dq : '');
   $('#dName').textContent = r.cells[1];
   const i = state.drawerList.indexOf(r.uid);
   $('#dPrev').disabled = i <= 0;
