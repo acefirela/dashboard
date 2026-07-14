@@ -179,7 +179,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .r-main{flex:1; min-width:0}
 .r-top{display:flex; align-items:baseline; gap:8px; min-width:0}
 .r-top .r-side{margin-left:auto; flex:none; padding-left:8px}
-.r-q{font-family:'Barlow Condensed'; font-weight:700; font-size:16.5px; color:var(--red-dk); white-space:nowrap}
+.r-q{font-family:'Barlow Condensed'; font-weight:700; font-size:16.5px; color:var(--ink); white-space:nowrap}
+.row.u-exp .r-q{color:var(--red-dk)}
+.row.u-soon .r-q{color:var(--amber)}
+.row.u-closed .r-q{color:var(--muted)}
 .r-nm{font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; align-self:center}
 .r-ttl{color:var(--muted); font-size:12.5px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -1526,7 +1529,9 @@ function renderList(){
     b.setAttribute('role', 'button');
     b.tabIndex = 0;
     let urgency = '';
-    if (tab.id === 'quotes' && !isClosed(r)){
+    if (tab.id === 'quotes' && isClosed(r)){
+      urgency = ' u-closed';
+    } else if (tab.id === 'quotes'){
       const d = daysNum(r);
       if (d !== null && d < 0) urgency = ' u-exp';
       else if (d !== null && d <= 7) urgency = ' u-soon';
