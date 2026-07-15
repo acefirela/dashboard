@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ACE Fire LA — Job Dashboard · v0.3 — Team Chat file attachments (Google Drive) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -54,6 +55,8 @@ h1.ace b{color:#E8534E; font-weight:700}
 .hd-btn:hover{background:#262A31; border-color:#5A5F6A}
 .hd-btn.spin svg{animation:rot 1s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
+.brand .ver{font-family:'Inter'; font-size:10.5px; font-weight:600; color:#9BA0AB; border:1px solid #464B55; border-radius:99px; padding:2px 8px; align-self:center}
+.gate-card .ver{display:block; font-size:11px; color:var(--muted); margin-top:4px}
 .stripe{height:6px; background:repeating-linear-gradient(-45deg, var(--red) 0 14px, var(--ink) 14px 28px)}
 
 /* ============ Attention bar + KPI cards ============ */
@@ -599,6 +602,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     <div class="brand">
       <h1 class="ace"><b>ACE</b> Fire LA</h1>
       <span class="sub">Job Dashboard</span>
+      <span class="ver"></span>
     </div>
     <div class="hd-user" id="hdUser" style="display:none">
       <span class="email" id="userEmail"></span>
@@ -618,6 +622,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 <div class="gate" id="gate">
   <div class="gate-card">
     <div class="glogo"><b>ACE</b> Fire LA</div>
+    <span class="ver"></span>
     <p>Team job dashboard. Sign in with your Google account (the one with access to the Wix quotes sheet).</p>
     <button class="gbtn" id="btnSignin">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
@@ -774,8 +779,11 @@ const CONFIG = {
   CUSTOMERS_SHEET: 'Customers',   // auto-maintained directory (Apps Script) — primary contact source for renewals
   AI_WEBHOOK_URL: '',   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
-  THREAD_STATUS_SHEET: 'Thread Status'  // per-conversation Open/Done state (Texts tab)
+  THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
+  CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
+  VERSION: '0.3'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
+document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
 /* Column maps (0-based, A=0)
    Quotes : A # | B Name | C Email | D Phone | E Title | F Link | G Exp | H Total
@@ -3459,12 +3467,22 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   var sb = window.supabase.createClient(SB_URL, SB_KEY);
 
   var TC = { session:null, me:null, roster:[], msgs:{}, recent:[], reads:{}, unread:{}, mentionUnread:0, channel:null, deepLinked:false, threadLoading:{}, threadErr:{}, rosterErr:false };
+  var UPLOAD_URL = String((window.CONFIG && window.CONFIG.CHAT_UPLOAD_URL) || '').trim();
+  var MAX_ATTACH_BYTES = 15 * 1024 * 1024;   /* raw file cap; Apps Script enforces the same limit server-side */
+  var pendAttach = null;                      /* {file,name,size,type} — one attachment per message (v1) */
+  var uploading = false;
 
   function byId(s){ return document.getElementById(s); }
   function escTC(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function reName(n){ return String(n||'').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   function fmtT(s){ var d = new Date(s); if (isNaN(d)) return ''; return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
   function notify(msg, kind){ if (typeof window.toast === 'function') window.toast(msg, kind || 'ok'); }
+  function fmtSize(n){
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return Math.round(n / 1024) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
   function totalUnread(){ var n = 0; Object.keys(TC.unread).forEach(function(k){ n += TC.unread[k]; }); return n; }
 
   /* ---------- styles ---------- */
@@ -3482,6 +3500,16 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '#teamChatSec .tc-send button:disabled{opacity:.5}' +
     '#teamChatSec .tc-mention{color:var(--blue-dk);font-weight:700}' +
     '#teamChatSec .tc-note{color:var(--muted);font-size:12.5px;margin-top:4px}' +
+    '#teamChatSec .tc-att-img{display:block;margin-top:5px}' +
+    '#teamChatSec .tc-att-img img{display:block;max-width:230px;max-height:180px;border-radius:8px;border:1px solid var(--line)}' +
+    '#teamChatSec .tc-att{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:12.5px;padding:5px 9px;border-radius:8px;background:var(--card);border:1px solid var(--line2);color:var(--blue-dk);text-decoration:none;max-width:100%}' +
+    '#teamChatSec .tc-attach{border:1px solid var(--line2);background:var(--card);border-radius:8px;width:38px;height:38px;cursor:pointer;font-size:15px;flex:none;padding:0}' +
+    '#teamChatSec .tc-attach:hover{border-color:var(--blue)}' +
+    '#teamChatSec .tc-attach:disabled{opacity:.5;cursor:default}' +
+    '#teamChatSec .tc-pend{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;background:var(--paper);border:1px dashed var(--line2);border-radius:8px;padding:6px 9px}' +
+    '#teamChatSec .tc-pend-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#teamChatSec .tc-pend-s{color:var(--muted);flex:none}' +
+    '#teamChatSec .tc-pend button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:13px;margin-left:auto;padding:2px 4px}' +
     '</style>');
 
   /* ---------- auth (proper nonce flow: SHA-256 hash to Google, raw nonce to Supabase) ---------- */
@@ -3584,33 +3612,100 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     });
     return out;
   }
+  /* ---------- attachments (Google Drive via the Apps Script relay) ---------- */
+  function attList(m){
+    var a = m && m.attachments;
+    if (!a) return [];
+    if (typeof a === 'string'){ try{ a = JSON.parse(a); }catch(e){ return []; } }
+    return Array.isArray(a) ? a : [];
+  }
+  function attHtml(m){
+    var atts = attList(m);
+    if (!atts.length) return '';
+    return atts.map(function(a){
+      var id = String((a && a.file_id) || '').replace(/[^A-Za-z0-9_-]/g, '');
+      if (!id) return '';
+      var view = 'https://drive.google.com/file/d/' + id + '/view';
+      var nm = String((a && a.name) || 'file');
+      if (/^image\//i.test(String((a && a.mime_type) || ''))){
+        return '<a class="tc-att-img" href="' + view + '" target="_blank" rel="noopener" title="' + escTC(nm) + '"><img src="https://drive.google.com/thumbnail?id=' + id + '&amp;sz=w480" alt="' + escTC(nm) + '" loading="lazy"></a>';
+      }
+      return '<a class="tc-att" href="' + view + '" target="_blank" rel="noopener">\uD83D\uDCCE ' + escTC(nm) + '</a>';
+    }).join('');
+  }
+  function readB64(file){
+    return new Promise(function(resolve, reject){
+      var rd = new FileReader();
+      rd.onload = function(){ var v = String(rd.result || ''); resolve(v.slice(v.indexOf(',') + 1)); };
+      rd.onerror = function(){ reject(new Error('Could not read the file')); };
+      rd.readAsDataURL(file);
+    });
+  }
+  function uploadAttachment(file){
+    if (!UPLOAD_URL) return Promise.reject(new Error('Uploads not configured'));
+    return readB64(file).then(function(b64){
+      return sb.auth.getSession().then(function(res){
+        var tok = res && res.data && res.data.session && res.data.session.access_token;
+        if (!tok) throw new Error('Chat session expired \u2014 sign in again');
+        /* no custom headers = simple CORS request; Apps Script can't answer preflight OPTIONS */
+        return fetch(UPLOAD_URL, { method:'POST', body: JSON.stringify({
+          chatUpload:true, token:tok, filename:file.name || 'attachment',
+          mimeType:file.type || 'application/octet-stream', data:b64
+        }) });
+      });
+    }).then(function(r){
+      if (!r.ok) throw new Error('Upload failed (' + r.status + ')');
+      return r.json();
+    }).then(function(j){
+      if (!j || !j.success || !j.attachment) throw new Error((j && j.error) || 'Upload failed');
+      return j.attachment;
+    });
+  }
   function sendMsg(rec, tabId){
     var ta = byId('tcInput'), btn = byId('tcSend');
-    if (!ta || !TC.me) return;
-    var body = ta.value.trim(); if (!body) return;
-    if (btn) btn.disabled = true;
-    var row = {
-      record_type: tabId === 'tracker' ? 'job' : 'quote',
-      record_id: String(rec.key),
-      record_name: String((rec.cells && rec.cells[1]) || ''),
-      sender_name: TC.me.display_name,
-      sender_email: TC.me.email,
-      body: body,
-      mentions: parseMentions(body)
-    };
-    sb.from('team_chat_messages').insert(row).select().single()
-      .then(function(res){
+    if (!ta || !TC.me || uploading) return;
+    var body = ta.value.trim();
+    if (!body && !pendAttach) return;
+    function doInsert(atts){
+      var row = {
+        record_type: tabId === 'tracker' ? 'job' : 'quote',
+        record_id: String(rec.key),
+        record_name: String((rec.cells && rec.cells[1]) || ''),
+        sender_name: TC.me.display_name,
+        sender_email: TC.me.email,
+        body: body,
+        mentions: parseMentions(body)
+      };
+      if (atts && atts.length) row.attachments = atts;
+      return sb.from('team_chat_messages').insert(row).select().single().then(function(res){
         if (res.error) throw res.error;
         var m = res.data, k = row.record_id;
         TC.msgs[k] = TC.msgs[k] || [];
         if (!TC.msgs[k].some(function(x){ return x.id === m.id; })) TC.msgs[k].push(m);
         TC.recent.unshift(m);
+        pendAttach = null;
+        var taNow = byId('tcInput'); if (taNow) taNow.value = '';
         renderSection(); markRead(k);
-      })
-      .catch(function(e){
-        notify('Message failed: ' + (e.message || e), 'err');
-        if (btn) btn.disabled = false;
       });
+    }
+    if (pendAttach){
+      uploading = true;
+      renderSection();   /* shows the disabled "Uploading…" state, keeps the draft text */
+      uploadAttachment(pendAttach.file)
+        .then(function(att){ return doInsert([att]); })
+        .then(function(){ uploading = false; renderSection(); })
+        .catch(function(e){
+          uploading = false;
+          notify('Message failed: ' + (e.message || e), 'err');
+          renderSection();   /* draft text and pending file are kept for retry */
+        });
+    } else {
+      if (btn) btn.disabled = true;
+      doInsert(null).catch(function(e){
+        notify('Message failed: ' + (e.message || e), 'err');
+        var b2 = byId('tcSend'); if (b2) b2.disabled = false;
+      });
+    }
   }
 
   /* ---------- realtime ---------- */
@@ -3669,7 +3764,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       var mine = TC.me && m.sender_email === TC.me.email;
       return '<div class="tc-b ' + (mine ? 'tc-mine' : 'tc-them') + '">' +
         (mine ? '' : '<div class="tc-meta">' + escTC(m.sender_name) + ' \u00b7 ' + fmtT(m.created_at) + '</div>') +
-        bodyHtml(m) +
+        bodyHtml(m) + attHtml(m) +
         (mine ? '<div class="tc-meta" style="text-align:right;margin:2px 0 0">' + fmtT(m.created_at) + '</div>' : '') +
         '</div>';
     }).join('') + '</div>';
@@ -3684,6 +3779,8 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     try{ tab = window.tabOfUid ? window.tabOfUid(r.uid) : null; }catch(e){}
     var tabId = tab ? tab.id : 'quotes';
     var key = String(r.key);
+    var prevTa = byId('tcInput');
+    var draftVal = prevTa ? prevTa.value : '';
 
     var sec = byId('teamChatSec');
     if (!sec){
@@ -3725,10 +3822,18 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         .filter(function(m){ return m.email !== TC.me.email; })
         .map(function(m){ return '<button type="button" class="tc-chip" data-n="' + escTC(m.display_name) + '">@' + escTC(m.display_name) + '</button>'; })
         .join('') + '</div>';
-      html += '<div class="tc-send"><textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"></textarea><button type="button" id="tcSend">Send</button></div>';
+      if (pendAttach){
+        html += '<div class="tc-pend">\uD83D\uDCCE <span class="tc-pend-n">' + escTC(pendAttach.name) + '</span><span class="tc-pend-s">' + fmtSize(pendAttach.size) + '</span>' + (uploading ? '' : '<button type="button" id="tcPendX" title="Remove attachment">\u2715</button>') + '</div>';
+      }
+      html += '<div class="tc-send">' +
+        (UPLOAD_URL ? '<button type="button" class="tc-attach" id="tcAttach" title="Attach a photo or file"' + (uploading ? ' disabled' : '') + '>\uD83D\uDCCE</button><input type="file" id="tcFile" style="display:none">' : '') +
+        '<textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"' + (uploading ? ' disabled' : '') + '></textarea>' +
+        '<button type="button" id="tcSend"' + (uploading ? ' disabled' : '') + '>' + (uploading ? 'Uploading\u2026' : 'Send') + '</button></div>';
       html += '<div class="tc-note" style="display:flex;justify-content:space-between"><span>Pings the ACE Dashboard space in Google Chat.</span><a href="#" id="tcOut">Sign out</a></div>';
     }
     sec.innerHTML = html;
+    var taKeep = byId('tcInput');
+    if (taKeep && draftVal) taKeep.value = draftVal;
 
     var out = byId('tcOut');
     if (out) out.addEventListener('click', function(ev){ ev.preventDefault(); sb.auth.signOut(); });
@@ -3748,6 +3853,19 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (ta2) ta2.addEventListener('keydown', function(ev){
       if (ev.key === 'Enter' && !ev.shiftKey && !('ontouchstart' in window)){ ev.preventDefault(); sendMsg(r, tabId); }
     });
+    var ab = byId('tcAttach'), fi = byId('tcFile');
+    if (ab && fi){
+      ab.addEventListener('click', function(){ fi.click(); });
+      fi.addEventListener('change', function(){
+        var f = fi.files && fi.files[0];
+        if (!f) return;
+        if (f.size > MAX_ATTACH_BYTES){ notify('File too large \u2014 15 MB max', 'err'); fi.value = ''; return; }
+        pendAttach = { file:f, name:f.name || 'attachment', size:f.size, type:f.type || '' };
+        renderSection();
+      });
+    }
+    var px = byId('tcPendX');
+    if (px) px.addEventListener('click', function(){ if (uploading) return; pendAttach = null; renderSection(); });
     if (TC.msgs[key]) markRead(key);
   }
 
