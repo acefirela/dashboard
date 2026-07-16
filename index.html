@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.3 — Team Chat file attachments (Google Drive) -->
+<!-- ACE Fire LA — Job Dashboard · v0.6 — review fixes: keystroke-level drafts, per-record upload state -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -780,8 +780,9 @@ const CONFIG = {
   AI_WEBHOOK_URL: '',   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
+  ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
-  VERSION: '0.3'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.6'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -811,7 +812,7 @@ const state = {
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
   smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
-  prefs:{}, threadDone:{}, replyGroups:[],
+  prefs:{}, threadDone:{}, replyGroups:[], roles:{}, role:'back',
   renBucket:'d30',
   drawerUid:null, drawerList:[], lastLoad:0
 };
@@ -831,6 +832,20 @@ const filledVal = v => { const t = String(v||'').trim(); return !!t && !/^not se
 const isX = v => String(v||'').trim().toUpperCase() === 'X';
 const normName = v => String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
 const low = v => String(v||'').trim().toLowerCase();
+/* ---- roles: Admin (everything + financials), Back office (default, today's behavior), Field (Tracker only, no client contact) ---- */
+const ROLE_OF = v => { const r = String(v||'').toLowerCase(); return /admin/.test(r) ? 'admin' : /field|tech/.test(r) ? 'field' : 'back'; };
+function computeRole(){ state.role = ROLE_OF(state.roles[low(state.email)]); }
+const isAdmin = () => state.role === 'admin';
+const isField = () => state.role === 'field';
+const canContact = () => !isField();
+const visibleTabs = () => isField() ? UI_TABS.filter(t => t.id === 'tracker') : UI_TABS;
+function applyRoleUI(){
+  if (!visibleTabs().some(t => t.id === state.activeTab)) state.activeTab = 'tracker';
+  const em = $('#userEmail');
+  if (em && state.email) em.textContent = state.email.split('@')[0] + (isAdmin() ? ' · Admin' : isField() ? ' · Field' : '');
+  buildTabBar();
+  renderSmsMode();
+}
 const DAY = 86400000;
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d, n) => new Date(d.getTime() + n * DAY);
@@ -870,7 +885,7 @@ function saveCache(){
       archive: state.archive.map(r => r.cells),
       qarchive: state.qarchive.map(r => r.cells),
       customers: state.customers,
-      prefs: state.prefs, threadDone: state.threadDone, replyGroups: state.replyGroups,
+      prefs: state.prefs, threadDone: state.threadDone, replyGroups: state.replyGroups, roles: state.roles,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
@@ -895,6 +910,7 @@ function hydrateCache(){
     state.prefs = p.prefs || {};
     state.threadDone = p.threadDone || {};
     state.replyGroups = p.replyGroups || [];
+    state.roles = p.roles || {};
     state.lastLoad = p.ts || 0;
     return true;
   } catch(e){ return false; }
@@ -962,6 +978,8 @@ async function onSignedIn(){
   em.title = state.email;
   buildTabBar();
   if (hydrateCache()){
+    computeRole();
+    applyRoleUI();
     renderAll();
   } else {
     renderSkeleton();
@@ -1110,6 +1128,18 @@ async function loadAll(showToast){
         { addr:'materials@acefirela.com', label:'Materials group' }
       ];
     }
+
+    // team roles — optional "Roles" tab: A=email, B=role (Admin / Back office / Field)
+    try {
+      const ro = await api(`/values/${encodeURIComponent(`'${CONFIG.ROLES_SHEET}'!A2:B`)}`);
+      state.roles = {};
+      (ro.values || []).forEach(row => {
+        const k = low(row[0]);
+        if (k) state.roles[k] = String(row[1] || '').trim();
+      });
+    } catch(e){ state.roles = {}; }
+    computeRole();
+    applyRoleUI();
 
     state.lastLoad = Date.now();
     saveCache();
@@ -1275,7 +1305,7 @@ function visibleRows(tab){
 }
 
 function searchText(tab, r){
-  const skip = (tab.id === 'quotes' && !CONFIG.SHOW_FINANCIALS) ? [7] : [];
+  const skip = (tab.id === 'quotes' && !(CONFIG.SHOW_FINANCIALS || isAdmin())) ? [7] : [];
   return r.cells.filter((_, i) => !skip.includes(i)).join(' ').toLowerCase();
 }
 
@@ -1285,7 +1315,7 @@ function searchText(tab, r){
 function buildTabBar(){
   const bar = $('#tabbar');
   bar.innerHTML = '';
-  UI_TABS.forEach(t => {
+  visibleTabs().forEach(t => {
     const b = document.createElement('button');
     b.className = 'tab' + (state.activeTab === t.id ? ' active' : '');
     b.setAttribute('role', 'tab');
@@ -1327,7 +1357,7 @@ function jumpTo(tabId, filterId){
   state.filter[tabId] = filterId;
   if (tabId === 'tracker') state.trackerStatus = '';
   $$('.tab').forEach((x, i) => {
-    const on = UI_TABS[i].id === tabId;
+    const on = (visibleTabs()[i] || {}).id === tabId;
     x.classList.toggle('active', on);
     x.setAttribute('aria-selected', on ? 'true' : 'false');
   });
@@ -1336,6 +1366,7 @@ function jumpTo(tabId, filterId){
 function renderSummary(){
   const box = $('#summary');
   box.innerHTML = '';
+  if (isField()) return;   // field view keeps the header lean — no office KPIs
 
   const bar = document.createElement('div');
   bar.className = 'attn';
@@ -1598,12 +1629,13 @@ function rowSide(tab, r){
 function rowMeta(tab, r){
   if (tab.id === 'quotes'){
     const parts = [];
+    if (isAdmin() && (r.cells[7]||'').trim()) parts.push(`<span class="badge b-gray" title="Quote total">${esc(r.cells[7])}</span>`);
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
     const pb = prefBadge(r.cells[1]);
     if (pb) parts.push(pb);
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
-    if (!prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
-    if ((r.cells[3]||'').trim() && !prefNoText(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
+    if (canContact() && !prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
+    if (canContact() && (r.cells[3]||'').trim() && !prefNoText(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
   }
@@ -1627,6 +1659,11 @@ function jobBadge(v){
 function fuTag(r, col, icon){
   const verb = QC_LABEL[col];
   const t = (r.cells[col] || '').trim();
+  if (!canContact()){
+    if (!t || /^not sent$/i.test(t) || isX(t)) return '';
+    const short = t.length > 10 ? t.slice(0,10) + '…' : t;
+    return `<span class="badge b-gray" title="${verb} ${esc(t)}">${icon} ${verb} ${esc(short)}</span>`;
+  }
   if (!t || /^not sent$/i.test(t)){
     return `<button type="button" class="fu off" data-qc="${col}" title="Not ${verb.toLowerCase()} yet — tap to mark ${verb.toLowerCase()} today" aria-label="Mark ${verb.toLowerCase()} today">${icon} ${QC_ACTION[col]}</button>`;
   }
@@ -1791,7 +1828,7 @@ function renderDrawer(){
   const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
   if (phone) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="tel:${esc(phone)}">📞 Call</a>`);
   const dPhone = phone || (state.customers[normName(r.cells[1])] || {}).phone || '';
-  if (dPhone && !prefNoText(r.cells[1])){
+  if (canContact() && dPhone && !prefNoText(r.cells[1])){
     const tb = document.createElement('button');
     tb.className = 'act-btn';
     tb.textContent = '💬 Text';
@@ -1802,13 +1839,13 @@ function renderDrawer(){
     });
     acts.appendChild(tb);
   }
-  if (tab.id === 'quotes' && !prefNoContact(r.cells[1])){
+  if (canContact() && tab.id === 'quotes' && !prefNoContact(r.cells[1])){
     const db = document.createElement('button');
     db.className = 'act-btn';
     db.textContent = '✉ Draft email';
     db.addEventListener('click', () => draftQuoteEmail(r));
     acts.appendChild(db);
-  } else if (email) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="mailto:${esc(email)}">✉ Email</a>`);
+  } else if (email && canContact()) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="mailto:${esc(email)}">✉ Email</a>`);
   if (/^https?:\/\//.test(link)) acts.insertAdjacentHTML('beforeend', `<a class="act-btn" href="${esc(link)}" target="_blank" rel="noopener">↗ Wix quote</a>`);
   const otherId = tab.id === 'quotes' ? 'tracker' : 'quotes';
   const twin = rowByKey(otherId, r.key);
@@ -1820,7 +1857,7 @@ function renderDrawer(){
     acts.appendChild(jb);
   }
   /* compact client history: one button, full timeline lives in the popup */
-  {
+  if (canContact()) {
     const nmK = normName(r.cells[1]);
     const thr = computeThreads().find(x =>
       (dPhone && x.key === phoneKey(dPhone)) || (x.name && normName(x.name) === nmK));
@@ -1849,6 +1886,7 @@ function renderDrawer(){
   add('Job', esc(title));
   add('Contact', prefBadge(r.cells[1]));
   if (tab.id === 'quotes'){
+    if (isAdmin()) add('Total', esc(r.cells[7]));
     add('Expires', `${daysBadge(r)}${r.cells[6] ? ` <span style="color:var(--muted);font-size:12px">${esc(String(r.cells[6]).slice(0,10))}</span>` : ''}`);
     add('Status', r.cells[9] ? `<span class="badge b-gray">${esc(r.cells[9])}</span>` : '');
     add('Ember', (r.cells[14] || r.cells[15]) ? `${r.cells[15] ? `<span class="badge b-blue">${esc(r.cells[15])}</span> ` : ''}${esc(r.cells[14])}` : '');
@@ -1864,11 +1902,12 @@ function renderDrawer(){
   info.appendChild(grid);
   body.appendChild(info);
 
+  if (!(isField() && tab.id === 'quotes')){
   const ed = document.createElement('div');
   ed.className = 'd-sec';
   ed.innerHTML = '<h3>Team updates</h3>';
   /* contact preference — per customer, saved instantly, applies to every record with this name */
-  {
+  if (canContact()) {
     const f = document.createElement('div');
     f.className = 'd-field';
     f.innerHTML = '<label for="fld-pref">Contact preference</label>';
@@ -1911,6 +1950,7 @@ function renderDrawer(){
     ed.appendChild(f);
   });
   body.appendChild(ed);
+  }
 
   const related = [];
   const nm = normName(r.cells[1]);
@@ -1953,9 +1993,10 @@ function renderDrawer(){
   syncFoot(r);
 }
 function switchToRecord(tabId, uid){
+  if (!visibleTabs().some(t => t.id === tabId)){ openDrawer(uid); return; }
   state.activeTab = tabId;
   $$('.tab').forEach((x, i) => {
-    const on = UI_TABS[i].id === tabId;
+    const on = (visibleTabs()[i] || {}).id === tabId;
     x.classList.toggle('active', on);
     x.setAttribute('aria-selected', on ? 'true' : 'false');
   });
@@ -2761,6 +2802,7 @@ const SMS_MODE_UI = {
 function renderSmsMode(){
   const b = $('#btnSmsMode');
   if (!b) return;
+  if (isField()){ b.style.display = 'none'; return; }
   if (!state.smsMode){ b.style.display = 'none'; return; }
   const ui = SMS_MODE_UI[state.smsMode] || SMS_MODE_UI.PREVIEW;
   b.textContent = ui.label;
@@ -3470,7 +3512,10 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   var UPLOAD_URL = String((window.CONFIG && window.CONFIG.CHAT_UPLOAD_URL) || '').trim();
   var MAX_ATTACH_BYTES = 15 * 1024 * 1024;   /* raw file cap; Apps Script enforces the same limit server-side */
   var pendAttach = null;                      /* {file,name,size,type} — one attachment per message (v1) */
+  var pendKey = null;                         /* which record the pending file belongs to */
   var uploading = false;
+  var drafts = {};                            /* per-record unsent input — survives re-renders, never leaks across records */
+  var lastRenderKey = null;
 
   function byId(s){ return document.getElementById(s); }
   function escTC(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -3483,6 +3528,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (n < 1048576) return Math.round(n / 1024) + ' KB';
     return (n / 1048576).toFixed(1) + ' MB';
   }
+  var CLIP = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;flex:none"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
   function totalUnread(){ var n = 0; Object.keys(TC.unread).forEach(function(k){ n += TC.unread[k]; }); return n; }
 
   /* ---------- styles ---------- */
@@ -3502,9 +3548,10 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '#teamChatSec .tc-note{color:var(--muted);font-size:12.5px;margin-top:4px}' +
     '#teamChatSec .tc-att-img{display:block;margin-top:5px}' +
     '#teamChatSec .tc-att-img img{display:block;max-width:230px;max-height:180px;border-radius:8px;border:1px solid var(--line)}' +
-    '#teamChatSec .tc-att{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:12.5px;padding:5px 9px;border-radius:8px;background:var(--card);border:1px solid var(--line2);color:var(--blue-dk);text-decoration:none;max-width:100%}' +
-    '#teamChatSec .tc-attach{border:1px solid var(--line2);background:var(--card);border-radius:8px;width:38px;height:38px;cursor:pointer;font-size:15px;flex:none;padding:0}' +
-    '#teamChatSec .tc-attach:hover{border-color:var(--blue)}' +
+    '#teamChatSec .tc-att{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:12.5px;padding:5px 9px;border-radius:8px;background:var(--card);border:1px solid var(--line2);color:var(--ink2);text-decoration:none;max-width:100%}' +
+    '#teamChatSec .tc-att:hover{border-color:var(--ink2)}' +
+    '#teamChatSec .tc-attach{border:1px solid var(--line2);background:var(--card);border-radius:8px;width:38px;height:38px;cursor:pointer;color:var(--ink2);flex:none;padding:0;display:flex;align-items:center;justify-content:center}' +
+    '#teamChatSec .tc-attach:hover{border-color:var(--ink2);background:var(--paper)}' +
     '#teamChatSec .tc-attach:disabled{opacity:.5;cursor:default}' +
     '#teamChatSec .tc-pend{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;background:var(--paper);border:1px dashed var(--line2);border-radius:8px;padding:6px 9px}' +
     '#teamChatSec .tc-pend-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
@@ -3630,7 +3677,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       if (/^image\//i.test(String((a && a.mime_type) || ''))){
         return '<a class="tc-att-img" href="' + view + '" target="_blank" rel="noopener" title="' + escTC(nm) + '"><img src="https://drive.google.com/thumbnail?id=' + id + '&amp;sz=w480" alt="' + escTC(nm) + '" loading="lazy"></a>';
       }
-      return '<a class="tc-att" href="' + view + '" target="_blank" rel="noopener">\uD83D\uDCCE ' + escTC(nm) + '</a>';
+      return '<a class="tc-att" href="' + view + '" target="_blank" rel="noopener">' + CLIP + ' ' + escTC(nm) + '</a>';
     }).join('');
   }
   function readB64(file){
@@ -3655,21 +3702,28 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       });
     }).then(function(r){
       if (!r.ok) throw new Error('Upload failed (' + r.status + ')');
-      return r.json();
-    }).then(function(j){
+      return r.text();
+    }).then(function(txt){
+      var j = null;
+      try { j = JSON.parse(txt); }
+      catch(e){ throw new Error('The upload endpoint returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
+      if (j && j.success && !j.attachment) throw new Error('The upload endpoint is running old code \u2014 deploy a New version in Apps Script');
       if (!j || !j.success || !j.attachment) throw new Error((j && j.error) || 'Upload failed');
       return j.attachment;
     });
   }
   function sendMsg(rec, tabId){
     var ta = byId('tcInput'), btn = byId('tcSend');
-    if (!ta || !TC.me || uploading) return;
+    if (!ta || !TC.me) return;
+    var key0 = String(rec.key);
+    var myAttach = (pendAttach && pendKey === key0) ? pendAttach : null;
+    if (myAttach && uploading){ notify('Still uploading the previous file \u2014 one at a time', 'err'); return; }
     var body = ta.value.trim();
-    if (!body && !pendAttach) return;
+    if (!body && !myAttach) return;
     function doInsert(atts){
       var row = {
         record_type: tabId === 'tracker' ? 'job' : 'quote',
-        record_id: String(rec.key),
+        record_id: key0,
         record_name: String((rec.cells && rec.cells[1]) || ''),
         sender_name: TC.me.display_name,
         sender_email: TC.me.email,
@@ -3683,15 +3737,17 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         TC.msgs[k] = TC.msgs[k] || [];
         if (!TC.msgs[k].some(function(x){ return x.id === m.id; })) TC.msgs[k].push(m);
         TC.recent.unshift(m);
-        pendAttach = null;
-        var taNow = byId('tcInput'); if (taNow) taNow.value = '';
+        if (atts && pendKey === k){ pendAttach = null; pendKey = null; }   /* consume the file — unless a new one was picked elsewhere */
+        drafts[k] = '';
+        var taNow = byId('tcInput');
+        if (taNow && lastRenderKey === k) taNow.value = '';   /* never wipe another record's textarea */
         renderSection(); markRead(k);
       });
     }
-    if (pendAttach){
+    if (myAttach){
       uploading = true;
-      renderSection();   /* shows the disabled "Uploading…" state, keeps the draft text */
-      uploadAttachment(pendAttach.file)
+      renderSection();   /* disabled "Uploading…" state on THIS record; other records stay fully usable */
+      uploadAttachment(myAttach.file)
         .then(function(att){ return doInsert([att]); })
         .then(function(){ uploading = false; renderSection(); })
         .catch(function(e){
@@ -3780,7 +3836,9 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     var tabId = tab ? tab.id : 'quotes';
     var key = String(r.key);
     var prevTa = byId('tcInput');
-    var draftVal = prevTa ? prevTa.value : '';
+    if (prevTa && lastRenderKey) drafts[lastRenderKey] = prevTa.value;
+    lastRenderKey = key;
+    var draftVal = drafts[key] || '';
 
     var sec = byId('teamChatSec');
     if (!sec){
@@ -3822,13 +3880,14 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         .filter(function(m){ return m.email !== TC.me.email; })
         .map(function(m){ return '<button type="button" class="tc-chip" data-n="' + escTC(m.display_name) + '">@' + escTC(m.display_name) + '</button>'; })
         .join('') + '</div>';
-      if (pendAttach){
-        html += '<div class="tc-pend">\uD83D\uDCCE <span class="tc-pend-n">' + escTC(pendAttach.name) + '</span><span class="tc-pend-s">' + fmtSize(pendAttach.size) + '</span>' + (uploading ? '' : '<button type="button" id="tcPendX" title="Remove attachment">\u2715</button>') + '</div>';
+      var upHere = uploading && pendKey === key;
+      if (pendAttach && pendKey === key){
+        html += '<div class="tc-pend">' + CLIP + ' <span class="tc-pend-n">' + escTC(pendAttach.name) + '</span><span class="tc-pend-s">' + fmtSize(pendAttach.size) + '</span>' + (upHere ? '' : '<button type="button" id="tcPendX" title="Remove attachment">\u2715</button>') + '</div>';
       }
       html += '<div class="tc-send">' +
-        (UPLOAD_URL ? '<button type="button" class="tc-attach" id="tcAttach" title="Attach a photo or file"' + (uploading ? ' disabled' : '') + '>\uD83D\uDCCE</button><input type="file" id="tcFile" style="display:none">' : '') +
-        '<textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"' + (uploading ? ' disabled' : '') + '></textarea>' +
-        '<button type="button" id="tcSend"' + (uploading ? ' disabled' : '') + '>' + (uploading ? 'Uploading\u2026' : 'Send') + '</button></div>';
+        (UPLOAD_URL ? '<button type="button" class="tc-attach" id="tcAttach" title="Attach a photo or file" aria-label="Attach a photo or file"' + (upHere ? ' disabled' : '') + '>' + CLIP + '</button><input type="file" id="tcFile" style="display:none">' : '') +
+        '<textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"' + (upHere ? ' disabled' : '') + '></textarea>' +
+        '<button type="button" id="tcSend"' + (upHere ? ' disabled' : '') + '>' + (upHere ? 'Uploading\u2026' : 'Send') + '</button></div>';
       html += '<div class="tc-note" style="display:flex;justify-content:space-between"><span>Pings the ACE Dashboard space in Google Chat.</span><a href="#" id="tcOut">Sign out</a></div>';
     }
     sec.innerHTML = html;
@@ -3853,6 +3912,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (ta2) ta2.addEventListener('keydown', function(ev){
       if (ev.key === 'Enter' && !ev.shiftKey && !('ontouchstart' in window)){ ev.preventDefault(); sendMsg(r, tabId); }
     });
+    if (ta2) ta2.addEventListener('input', function(){ drafts[key] = ta2.value; });   /* draft saved on every keystroke — survives any re-render */
     var ab = byId('tcAttach'), fi = byId('tcFile');
     if (ab && fi){
       ab.addEventListener('click', function(){ fi.click(); });
@@ -3861,6 +3921,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         if (!f) return;
         if (f.size > MAX_ATTACH_BYTES){ notify('File too large \u2014 15 MB max', 'err'); fi.value = ''; return; }
         pendAttach = { file:f, name:f.name || 'attachment', size:f.size, type:f.type || '' };
+        pendKey = key;
         renderSection();
       });
     }
