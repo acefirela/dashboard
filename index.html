@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.8 — identity on the logo line + admin view switcher (tap your name) -->
+<!-- ACE Fire LA — Job Dashboard · v0.11 — defense-in-depth role guards inside actions -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -783,7 +783,7 @@ const CONFIG = {
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
-  VERSION: '0.8'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.11'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -840,7 +840,7 @@ const effRole = () => (state.role === 'admin' && state.viewAs) ? state.viewAs : 
 const isAdmin = () => effRole() === 'admin';
 const isField = () => effRole() === 'field';
 const canContact = () => !isField();
-const visibleTabs = () => isField() ? UI_TABS.filter(t => t.id === 'tracker') : UI_TABS;
+const visibleTabs = () => isField() ? UI_TABS.filter(t => t.id === 'quotes' || t.id === 'tracker') : UI_TABS;
 function applyRoleUI(){
   if (!visibleTabs().some(t => t.id === state.activeTab)) state.activeTab = 'tracker';
   const em = $('#userEmail');
@@ -917,7 +917,7 @@ function hydrateCache(){
     const p = JSON.parse(localStorage.getItem('acefire_cache_v1') || 'null');
     if (!p || !p.data) return false;
     /* customer data shouldn't linger on shared computers — stale caches are discarded */
-    if (!p.ts || Date.now() - p.ts > 12 * 3600 * 1000){ localStorage.removeItem('acefire_cache_v1'); return false; }
+    if (!p.ts || Date.now() - p.ts > 4 * 3600 * 1000){ localStorage.removeItem('acefire_cache_v1'); return false; }
     TABS.forEach(t => {
       state.data[t.id] = (p.data[t.id] || []).map((cells, j) =>
         ({ uid: t.id + ':' + j, key: String(cells[0]||'').trim(), sheetRow: j + 2, cells, edits:{}, saving:false }));
@@ -1925,7 +1925,6 @@ function renderDrawer(){
   info.appendChild(grid);
   body.appendChild(info);
 
-  if (!(isField() && tab.id === 'quotes')){
   const ed = document.createElement('div');
   ed.className = 'd-sec';
   ed.innerHTML = '<h3>Team updates</h3>';
@@ -1962,7 +1961,8 @@ function renderDrawer(){
     ed.appendChild(f);
   }
   const hdr = state.headers[tab.id] || [];
-  tab.editable.forEach(colIdx => {
+  const editCols = (isField() && tab.id === 'quotes') ? tab.editable.filter(c => c === 13) : tab.editable;   // field techs: job-walk notes only on quotes
+  editCols.forEach(colIdx => {
     const f = document.createElement('div');
     f.className = 'd-field';
     const lb = document.createElement('label');
@@ -1973,7 +1973,6 @@ function renderDrawer(){
     ed.appendChild(f);
   });
   body.appendChild(ed);
-  }
 
   const related = [];
   const nm = normName(r.cells[1]);
@@ -2066,10 +2065,13 @@ function buildControl(tab, r, colIdx){
       ta.placeholder = 'Notes…';
       ta.addEventListener('input', () => setEdit(tab, r, colIdx, ta.value));
       box.appendChild(ta);
-      box.appendChild(chipRow([
+      box.appendChild(chipRow(canContact() ? [
         { l:'+ ' + todayMD() + ' Sent email', v:() => appendLine(ta, todayMD() + ' Sent email,') },
         { l:'+ ' + todayMD() + ' Sent text',  v:() => appendLine(ta, todayMD() + ' Sent text:') },
         { l:'+ ' + todayMD() + ' Called',     v:() => appendLine(ta, todayMD() + ' Called,') }
+      ] : [
+        { l:'+ ' + todayMD() + ' Job walk',   v:() => appendLine(ta, todayMD() + ' Job walk:') },
+        { l:'+ ' + todayMD() + ' Site note',  v:() => appendLine(ta, todayMD() + ' Site note:') }
       ], () => setEdit(tab, r, colIdx, ta.value)));
       return box;
     }
@@ -2165,6 +2167,9 @@ function appendLine(ta, text){
    Save pipeline (drawer + quick-contact chips)
    ===================================================================== */
 async function commitEdits(tab, r, changesObj, action = 'Edit (Dashboard)'){
+  if (isField() && tab.id === 'quotes' && Object.keys(changesObj).some(c => +c !== 13)){
+    throw new Error('Field accounts can only update notes on quotes');
+  }
   let target = r.sheetRow;
   const chk = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A${target}`)}`);
   if (String(chk.values?.[0]?.[0] ?? '').trim() !== r.key){
@@ -2567,6 +2572,7 @@ function initMailSelects(){
     rep.appendChild(new Option(g.label ? g.label + ' — ' + g.addr : g.addr, g.addr)));
 }
 function openMailer(x, draft, source, type){
+  if (!canContact()){ toast('Sending email is turned off for field accounts', 'err'); return; }
   mailCtx = x;
   mailType = type || 'renewal';
   initMailSelects();
@@ -2765,6 +2771,7 @@ $('#sSend').addEventListener('click', async () => {
   }
 });
 async function queueSmsRow(person, to, body){
+  if (!canContact()) throw new Error('Sending texts is turned off for field accounts');
   const name = smsCtx ? (smsCtx.name || '') : '';
   const key = smsCtx ? (smsCtx.srcKey || '') : '';
   const res = await api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!A:L`)}:append?valueInputOption=USER_ENTERED`, {
@@ -3521,7 +3528,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 </script>
 
   <!-- Team Chat module (dashboard-native team messaging: Supabase auth+data+realtime, Google Chat pings via DB trigger; additive) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.6"></script>
 <script>
 /*TEAMCHAT_START*/
 (function(){
