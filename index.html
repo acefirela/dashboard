@@ -783,7 +783,7 @@ const CONFIG = {
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app (ChatFiles.gs v2) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.13'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.14'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -3752,15 +3752,19 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     }).catch(function(e){ console.warn('TeamChat pipeline', e); });
   }
   function loadThread(key){
-    if (TC.threadLoading[key]) return Promise.resolve();
-    TC.threadLoading[key] = true;
-    return Promise.all([
+    /* concurrent callers share ONE in-flight promise — returning a fresh resolved
+       promise here caused an instant re-render loop that froze the page when
+       jumping between records with the drawer open */
+    if (TC.threadLoading[key]) return TC.threadLoading[key];
+    var p = Promise.all([
       sb.from('team_chat_messages').select('*').eq('record_id', key).order('created_at').limit(300)
         .then(function(res){ if (res.error) throw res.error; TC.msgs[key] = res.data || []; delete TC.threadErr[key]; }),
       loadParts(key),
       loadPipeline(key)
     ]).catch(function(e){ console.warn('TeamChat thread', e); TC.threadErr[key] = true; })
-      .then(function(){ TC.threadLoading[key] = false; });
+      .then(function(){ TC.threadLoading[key] = null; });
+    TC.threadLoading[key] = p;
+    return p;
   }
   function markRead(key, force){
     if (!TC.me) return;
@@ -4251,7 +4255,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (TC.threadErr[key]) return '<div class="tc-note">Couldn\u2019t load messages \u2014 <a href="#" id="tcRetryThread">retry</a></div>';
     var list = TC.msgs[key];
     if (!list){
-      loadThread(key).then(function(){ renderSection(); markRead(key); schedulePipePoll(key); });
+      if (!TC.threadLoading[key]) loadThread(key).then(function(){ renderSection(); markRead(key); schedulePipePoll(key); });
       return '<div class="tc-note">Loading\u2026</div>';
     }
     if (!list.length && isNewConv(key)) return '';
