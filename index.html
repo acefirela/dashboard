@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.6 — review fixes: keystroke-level drafts, per-record upload state -->
+<!-- ACE Fire LA — Job Dashboard · v0.7 — signed-in user + role now visible on mobile -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -351,7 +351,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 @media (max-width:640px){
   :root{--drawer-w:100vw}
   .brand .sub{display:none}
-  .hd-user .email{display:none}
+  .hd-user .email{max-width:120px; font-size:11.5px}
   main{padding:10px 10px 90px}
   .toolbar{padding:10px 10px 0}
   .filters{padding:10px 10px 2px}
@@ -782,7 +782,7 @@ const CONFIG = {
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
-  VERSION: '0.6'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.7'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
