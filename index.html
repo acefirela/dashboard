@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.7 — signed-in user + role now visible on mobile -->
+<!-- ACE Fire LA — Job Dashboard · v0.8 — identity on the logo line + admin view switcher (tap your name) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -46,7 +46,8 @@ h1.ace{font-family:'Barlow Condensed'; font-weight:700; font-size:24px; letter-s
 h1.ace b{color:#E8534E; font-weight:700}
 .brand .sub{font-family:'Barlow Condensed'; font-weight:500; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:#9BA0AB}
 .hd-user{display:flex; align-items:center; gap:10px; font-size:12.5px; color:#C6CAD2}
-.hd-user .email{max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hd-inner .email{max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#C6CAD2; font-size:12.5px; align-self:center}
+.hd-inner .email.switchable{cursor:pointer; text-decoration:underline dotted 1px; text-underline-offset:3px}
 .hd-btn{
   background:transparent; border:1px solid #464B55; color:#E8EAEE;
   border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
@@ -351,7 +352,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 @media (max-width:640px){
   :root{--drawer-w:100vw}
   .brand .sub{display:none}
-  .hd-user .email{max-width:120px; font-size:11.5px}
+  .hd-inner .email{max-width:128px; font-size:11px}
   main{padding:10px 10px 90px}
   .toolbar{padding:10px 10px 0}
   .filters{padding:10px 10px 2px}
@@ -604,8 +605,8 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
       <span class="sub">Job Dashboard</span>
       <span class="ver"></span>
     </div>
+    <span class="email" id="userEmail" style="display:none"></span>
     <div class="hd-user" id="hdUser" style="display:none">
-      <span class="email" id="userEmail"></span>
       <button class="hd-btn" id="btnSmsMode" style="display:none" title="Automated SMS reminders — click to change mode" aria-label="Automated SMS reminder mode"></button>
       <button class="hd-btn" id="btnHistory" aria-label="Change history">🕘 History</button>
       <button class="hd-btn" id="btnRefresh" aria-label="Refresh data">
@@ -782,7 +783,7 @@ const CONFIG = {
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
-  VERSION: '0.7'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.8'                        // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -812,7 +813,7 @@ const state = {
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
   smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
-  prefs:{}, threadDone:{}, replyGroups:[], roles:{}, role:'back',
+  prefs:{}, threadDone:{}, replyGroups:[], roles:{}, role:'back', viewAs:null,
   renBucket:'d30',
   drawerUid:null, drawerList:[], lastLoad:0
 };
@@ -835,14 +836,35 @@ const low = v => String(v||'').trim().toLowerCase();
 /* ---- roles: Admin (everything + financials), Back office (default, today's behavior), Field (Tracker only, no client contact) ---- */
 const ROLE_OF = v => { const r = String(v||'').toLowerCase(); return /admin/.test(r) ? 'admin' : /field|tech/.test(r) ? 'field' : 'back'; };
 function computeRole(){ state.role = ROLE_OF(state.roles[low(state.email)]); }
-const isAdmin = () => state.role === 'admin';
-const isField = () => state.role === 'field';
+const effRole = () => (state.role === 'admin' && state.viewAs) ? state.viewAs : state.role;
+const isAdmin = () => effRole() === 'admin';
+const isField = () => effRole() === 'field';
 const canContact = () => !isField();
 const visibleTabs = () => isField() ? UI_TABS.filter(t => t.id === 'tracker') : UI_TABS;
 function applyRoleUI(){
   if (!visibleTabs().some(t => t.id === state.activeTab)) state.activeTab = 'tracker';
   const em = $('#userEmail');
-  if (em && state.email) em.textContent = state.email.split('@')[0] + (isAdmin() ? ' · Admin' : isField() ? ' · Field' : '');
+  if (em && state.email){
+    const name = state.email.split('@')[0];
+    const label = state.role === 'admin'
+      ? (state.viewAs === 'field' ? ' · Field view' : state.viewAs === 'back' ? ' · Office view' : ' · Admin')
+      : (isField() ? ' · Field' : '');
+    em.textContent = name + label;
+    em.classList.toggle('switchable', state.role === 'admin');
+    em.title = state.role === 'admin' ? state.email + ' — tap to preview the Office and Field views' : state.email;
+    if (state.role === 'admin' && !em.__roleHook){
+      em.__roleHook = true;
+      em.addEventListener('click', () => {
+        state.viewAs = state.viewAs === null ? 'back' : state.viewAs === 'back' ? 'field' : null;
+        applyRoleUI();
+        renderAll();
+        if ($('#drawer').classList.contains('on') && !$('#dSearch').value) renderDrawer();
+        toast(state.viewAs === 'back' ? 'Previewing the Back office view — tap your name to keep switching'
+          : state.viewAs === 'field' ? 'Previewing the Field view — tap your name to return to Admin'
+          : 'Back to Admin view', 'ok');
+      });
+    }
+  }
   buildTabBar();
   renderSmsMode();
 }
@@ -974,6 +996,7 @@ async function onSignedIn(){
   $('#app').style.display = 'block';
   $('#hdUser').style.display = 'flex';
   const em = $('#userEmail');
+  em.style.display = 'inline-block';
   em.textContent = state.email.split('@')[0];
   em.title = state.email;
   buildTabBar();
