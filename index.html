@@ -782,8 +782,8 @@ const CONFIG = {
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
-  CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app — powers 📎 file attachments in Team Chat
-  VERSION: '0.11'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app (ChatFiles.gs v2) — chat uploads, Drive folders, voice notes, AI reports
+  VERSION: '0.13'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -833,7 +833,7 @@ const filledVal = v => { const t = String(v||'').trim(); return !!t && !/^not se
 const isX = v => String(v||'').trim().toUpperCase() === 'X';
 const normName = v => String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
 const low = v => String(v||'').trim().toLowerCase();
-/* ---- roles: Admin (everything + financials), Back office (default, today's behavior), Field (Tracker only, no client contact) ---- */
+/* ---- roles: Admin (everything + financials), Back office (default, today's behavior), Field (Quotes + Tracker, no financials — chat access is governed separately by team_members.role in Supabase) ---- */
 const ROLE_OF = v => { const r = String(v||'').toLowerCase(); return /admin/.test(r) ? 'admin' : /field|tech/.test(r) ? 'field' : 'back'; };
 function computeRole(){ state.role = ROLE_OF(state.roles[low(state.email)]); }
 const effRole = () => (state.role === 'admin' && state.viewAs) ? state.viewAs : state.role;
@@ -3538,14 +3538,23 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   if (!(window.supabase && window.supabase.createClient)){ console.warn('TeamChat: supabase-js not loaded'); return; }
   var sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-  var TC = { session:null, me:null, roster:[], msgs:{}, recent:[], reads:{}, unread:{}, mentionUnread:0, channel:null, deepLinked:false, threadLoading:{}, threadErr:{}, rosterErr:false };
+  var TC = { session:null, me:null, roster:[], msgs:{}, recent:[], reads:{}, unread:{}, mentionUnread:0, channel:null,
+             deepLinked:false, threadLoading:{}, threadErr:{}, rosterErr:false,
+             parts:{}, newSel:{}, procByAtt:{}, repByAtt:{}, pipeKeys:{} };
   var UPLOAD_URL = String((window.CONFIG && window.CONFIG.CHAT_UPLOAD_URL) || '').trim();
-  var MAX_ATTACH_BYTES = 15 * 1024 * 1024;   /* raw file cap; Apps Script enforces the same limit server-side */
-  var pendAttach = null;                      /* {file,name,size,type} — one attachment per message (v1) */
-  var pendKey = null;                         /* which record the pending file belongs to */
-  var uploading = false;
+  var SMALL_BYTES = 4 * 1024 * 1024;          /* ≤ this goes through the single-shot path; bigger files stream chunk-by-chunk */
+  var CHUNK = 8 * 1024 * 1024;                /* Drive resumable chunk (must stay a 256 KB multiple) */
+  var MAX_FILE_BYTES = 1024 * 1024 * 1024;    /* 1 GB sanity cap per file */
+  var MAX_AI_BYTES = 200 * 1024 * 1024;       /* auto-transcription ceiling (matches the Apps Script worker) */
+  var MAX_ITEMS = 8;                          /* attachments per message */
+  var pend = {};                              /* per-record pending attachment ARRAYS — multiple files per message */
+  var sending = {};                           /* per-record send-in-flight flag */
   var drafts = {};                            /* per-record unsent input — survives re-renders, never leaks across records */
   var lastRenderKey = null;
+  var mediaCache = {};                        /* drive file id → blob URL (voice notes) */
+  var REC = { state:'idle' };                 /* voice recorder state machine */
+  var pipeTimer = null;
+  var pendUid = 0;
 
   function byId(s){ return document.getElementById(s); }
   function escTC(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -3558,8 +3567,31 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (n < 1048576) return Math.round(n / 1024) + ' KB';
     return (n / 1048576).toFixed(1) + ' MB';
   }
+  function fmtDur(s){ s = Math.max(0, Math.round(Number(s) || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   var CLIP = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;flex:none"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+  var MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+  var CAM = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
   function totalUnread(){ var n = 0; Object.keys(TC.unread).forEach(function(k){ n += TC.unread[k]; }); return n; }
+
+  /* ---------- roles & scoping (mirrors the Supabase RLS; the database is the real gate) ---------- */
+  function myRole(){ return (TC.me && TC.me.role) || 'back_office'; }
+  function canSeeAll(){ return myRole() === 'admin' || myRole() === 'supervisor'; }
+  function isPart(key){
+    if (!TC.me) return false;
+    return (TC.parts[key] || []).some(function(p){ return p.user_email === TC.me.email; });
+  }
+  function canManage(key){ return myRole() === 'admin' || (myRole() === 'back_office' && isPart(key)); }
+  function partMembers(key){
+    var set = {};
+    (TC.parts[key] || []).forEach(function(p){ set[p.user_email] = true; });
+    var out = [];
+    TC.roster.forEach(function(m){ if (set[m.email]){ out.push(m); delete set[m.email]; } });
+    Object.keys(set).forEach(function(em){ out.push({ email: em, display_name: em.split('@')[0] }); });
+    return out;
+  }
+  function isNewConv(key){
+    return !(TC.msgs[key] || []).length && !(TC.parts[key] || []).length && !TC.threadLoading[key] && TC.msgs[key] != null;
+  }
 
   /* ---------- styles ---------- */
   document.head.insertAdjacentHTML('beforeend', '<style>' +
@@ -3583,10 +3615,48 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '#teamChatSec .tc-attach{border:1px solid var(--line2);background:var(--card);border-radius:8px;width:38px;height:38px;cursor:pointer;color:var(--ink2);flex:none;padding:0;display:flex;align-items:center;justify-content:center}' +
     '#teamChatSec .tc-attach:hover{border-color:var(--ink2);background:var(--paper)}' +
     '#teamChatSec .tc-attach:disabled{opacity:.5;cursor:default}' +
-    '#teamChatSec .tc-pend{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;background:var(--paper);border:1px dashed var(--line2);border-radius:8px;padding:6px 9px}' +
-    '#teamChatSec .tc-pend-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#teamChatSec .tc-pend{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;background:var(--paper);border:1px dashed var(--line2);border-radius:8px;padding:6px 9px;flex-wrap:wrap}' +
+    '#teamChatSec .tc-pend-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}' +
     '#teamChatSec .tc-pend-s{color:var(--muted);flex:none}' +
     '#teamChatSec .tc-pend button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:13px;margin-left:auto;padding:2px 4px}' +
+    '#teamChatSec .tc-pbar{flex-basis:100%;height:4px;border-radius:2px;background:var(--line);overflow:hidden;display:none}' +
+    '#teamChatSec .tc-pbar i{display:block;height:100%;width:0;background:var(--blue);transition:width .25s}' +
+    '#teamChatSec .tc-pend-err{flex-basis:100%;color:#B3261E;font-size:12px}' +
+    '#teamChatSec .tc-parts{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 0 6px}' +
+    '#teamChatSec .tc-part{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;background:var(--paper);border:1px solid var(--line2);color:var(--ink2)}' +
+    '#teamChatSec .tc-part button{border:0;background:none;cursor:pointer;color:var(--muted);padding:0 0 0 2px;font-size:12px;line-height:1}' +
+    '#teamChatSec .tc-part button:hover{color:#B3261E}' +
+    '#teamChatSec .tc-addp{border:1px dashed var(--line2);background:none;border-radius:10px;padding:2px 8px;font-size:12px;color:var(--blue-dk);cursor:pointer}' +
+    '#teamChatSec .tc-addlist{display:flex;gap:5px;flex-wrap:wrap;flex-basis:100%;margin-top:4px}' +
+    '#teamChatSec .tc-newsel{background:var(--paper);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:13px}' +
+    '#teamChatSec .tc-newsel label{display:inline-flex;align-items:center;gap:5px;margin:3px 10px 3px 0;cursor:pointer}' +
+    '#teamChatSec .tc-rec{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;background:var(--paper);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;flex-wrap:wrap}' +
+    '#teamChatSec .tc-rec .dot{width:9px;height:9px;border-radius:50%;background:#B3261E;animation:tcBlink 1.1s infinite}' +
+    '@keyframes tcBlink{50%{opacity:.25}}' +
+    '#teamChatSec .tc-rec button{border:1px solid var(--line2);background:var(--card);border-radius:7px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--ink2)}' +
+    '#teamChatSec .tc-rec audio{height:32px;max-width:210px}' +
+    '#teamChatSec .tc-voice{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:12.5px;padding:5px 10px;border-radius:8px;background:var(--card);border:1px solid var(--line2);color:var(--ink2);cursor:pointer}' +
+    '#teamChatSec .tc-voice:hover{border-color:var(--ink2)}' +
+    '#teamChatSec .tc-b audio{display:block;margin-top:5px;height:34px;max-width:240px}' +
+    '#teamChatSec .tc-pipe{display:inline-flex;align-items:center;gap:4px;margin:5px 5px 0 0;font-size:11.5px;padding:2px 8px;border-radius:9px;background:var(--paper);border:1px solid var(--line2);color:var(--muted)}' +
+    '#teamChatSec .tc-pipe.rdy{color:var(--blue-dk);background:var(--blue-bg);border-color:#CBD9EC;cursor:pointer}' +
+    '#teamChatSec .tc-pipe.err{color:#B3261E;cursor:pointer}' +
+    '#teamChatSec .tc-menu{position:relative}' +
+    '#teamChatSec .tc-pop{position:absolute;bottom:44px;left:0;background:var(--card);border:1px solid var(--line2);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:30;min-width:190px;overflow:hidden}' +
+    '#teamChatSec .tc-pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;font-size:13px;cursor:pointer;color:var(--ink2)}' +
+    '#teamChatSec .tc-pop button:hover{background:var(--paper)}' +
+    '#tcRepOv{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}' +
+    '#tcRepOv .card{background:var(--card);border-radius:12px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}' +
+    '#tcRepOv h3{margin:0 0 4px}' +
+    '#tcRepOv .sub{font-size:12.5px;color:var(--muted);margin-bottom:10px}' +
+    '#tcRepOv label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin:10px 0 3px}' +
+    '#tcRepOv textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:8px;padding:8px;font:inherit;font-size:13px;min-height:64px;background:var(--paper)}' +
+    '#tcRepOv details{margin-top:10px;font-size:12.5px}' +
+    '#tcRepOv details pre{white-space:pre-wrap;background:var(--paper);border:1px solid var(--line2);border-radius:8px;padding:8px;max-height:180px;overflow-y:auto;font:inherit}' +
+    '#tcRepOv .btns{display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap}' +
+    '#tcRepOv .btns button{border:0;border-radius:8px;font-weight:600;font-size:13px;padding:9px 14px;cursor:pointer}' +
+    '#tcRepOv .b-pri{background:var(--blue);color:#fff}' +
+    '#tcRepOv .b-sec{background:var(--paper);color:var(--ink2);border:1px solid var(--line2)}' +
     '</style>');
 
   /* ---------- auth (proper nonce flow: SHA-256 hash to Google, raw nonce to Supabase) ---------- */
@@ -3612,7 +3682,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   }
   function mountGoogleButton(el){
     if (!(window.google && google.accounts && google.accounts.id)){
-      el.innerHTML = '<div class="tc-note">Google sign-in is still loading — reopen this record in a moment.</div>';
+      el.innerHTML = '<div class="tc-note">Google sign-in is still loading \u2014 reopen this record in a moment.</div>';
       return;
     }
     var raw = crypto.randomUUID() + '-' + crypto.randomUUID();
@@ -3633,8 +3703,8 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 
   /* ---------- data ---------- */
   function loadRoster(){
-    return sb.from('team_members').select('email,display_name').eq('active', true).order('display_name')
-      .then(function(res){ if (res.error) throw res.error; TC.roster = (res.data || []).map(function(m){ m.email = String(m.email || '').toLowerCase(); return m; }); TC.rosterErr = false; })
+    return sb.from('team_members').select('email,display_name,role').eq('active', true).order('display_name')
+      .then(function(res){ if (res.error) throw res.error; TC.roster = (res.data || []).map(function(m){ m.email = String(m.email || '').toLowerCase(); m.role = m.role || 'back_office'; return m; }); TC.rosterErr = false; })
       .catch(function(e){ console.warn('TeamChat roster', e); TC.roster = []; TC.rosterErr = true; });
   }
   function loadRecent(){
@@ -3666,12 +3736,30 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     });
     TC.unread = un; TC.mentionUnread = mention;
   }
+  function loadParts(key){
+    return sb.from('conversation_participants').select('user_email,added_by,created_at').eq('record_id', key).order('created_at')
+      .then(function(res){ if (res.error) throw res.error; TC.parts[key] = res.data || []; })
+      .catch(function(e){ console.warn('TeamChat participants', e); });
+  }
+  function loadPipeline(key){
+    return Promise.all([
+      sb.from('media_processing').select('id,attachment_id,status,error,transcript').eq('record_id', key),
+      sb.from('ai_reports').select('*').eq('record_id', key)
+    ]).then(function(rs){
+      ((rs[0] && rs[0].data) || []).forEach(function(p){ if (p.attachment_id) TC.procByAtt[p.attachment_id] = p; });
+      ((rs[1] && rs[1].data) || []).forEach(function(r){ if (r.attachment_id) TC.repByAtt[r.attachment_id] = r; });
+      TC.pipeKeys[key] = true;
+    }).catch(function(e){ console.warn('TeamChat pipeline', e); });
+  }
   function loadThread(key){
     if (TC.threadLoading[key]) return Promise.resolve();
     TC.threadLoading[key] = true;
-    return sb.from('team_chat_messages').select('*').eq('record_id', key).order('created_at').limit(300)
-      .then(function(res){ if (res.error) throw res.error; TC.msgs[key] = res.data || []; delete TC.threadErr[key]; })
-      .catch(function(e){ console.warn('TeamChat thread', e); TC.threadErr[key] = true; })
+    return Promise.all([
+      sb.from('team_chat_messages').select('*').eq('record_id', key).order('created_at').limit(300)
+        .then(function(res){ if (res.error) throw res.error; TC.msgs[key] = res.data || []; delete TC.threadErr[key]; }),
+      loadParts(key),
+      loadPipeline(key)
+    ]).catch(function(e){ console.warn('TeamChat thread', e); TC.threadErr[key] = true; })
       .then(function(){ TC.threadLoading[key] = false; });
   }
   function markRead(key, force){
@@ -3682,33 +3770,59 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     sb.from('team_chat_reads').upsert({ user_email: TC.me.email, record_id:String(key), last_read_at: now })
       .then(function(res){ if (res && res.error) console.warn('TeamChat markRead', res.error); }, function(e){ console.warn('TeamChat markRead', e); });
   }
-  function parseMentions(text){
-    var out = [];
-    TC.roster.forEach(function(m){
-      if (new RegExp('@' + reName(m.display_name) + '(\\b|$)', 'i').test(text)) out.push(m.display_name);
+  function parseMentions(text, key){
+    var out = [], allowed = partMembers(key);
+    allowed.forEach(function(m){
+      if (m.display_name && new RegExp('@' + reName(m.display_name) + '(\\b|$)', 'i').test(text)) out.push(m.display_name);
     });
     return out;
   }
-  /* ---------- attachments (Google Drive via the Apps Script relay) ---------- */
-  function attList(m){
-    var a = m && m.attachments;
-    if (!a) return [];
-    if (typeof a === 'string'){ try{ a = JSON.parse(a); }catch(e){ return []; } }
-    return Array.isArray(a) ? a : [];
-  }
-  function attHtml(m){
-    var atts = attList(m);
-    if (!atts.length) return '';
-    return atts.map(function(a){
-      var id = String((a && a.file_id) || '').replace(/[^A-Za-z0-9_-]/g, '');
-      if (!id) return '';
-      var view = 'https://drive.google.com/file/d/' + id + '/view';
-      var nm = String((a && a.name) || 'file');
-      if (/^image\//i.test(String((a && a.mime_type) || ''))){
-        return '<a class="tc-att-img" href="' + view + '" target="_blank" rel="noopener" title="' + escTC(nm) + '"><img src="https://drive.google.com/thumbnail?id=' + id + '&amp;sz=w480" alt="' + escTC(nm) + '" loading="lazy"></a>';
+
+  /* ---------- file service relay (Apps Script; verifies the Supabase session server-side) ---------- */
+  function relay(action, payload){
+    if (!UPLOAD_URL) return Promise.reject(new Error('Uploads not configured'));
+    return sb.auth.getSession().then(function(res){
+      var tok = res && res.data && res.data.session && res.data.session.access_token;
+      if (!tok) throw new Error('Chat session expired \u2014 sign in again');
+      var body = Object.assign({ action: action, token: tok }, payload || {});
+      /* no custom headers = simple CORS request; Apps Script can't answer preflight OPTIONS */
+      return fetch(UPLOAD_URL, { method:'POST', body: JSON.stringify(body) });
+    }).then(function(r){
+      if (!r.ok) throw new Error('File service error (' + r.status + ')');
+      return r.text();
+    }).then(function(txt){
+      var j = null;
+      try { j = JSON.parse(txt); }
+      catch(e){ throw new Error('The upload endpoint returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
+      if (!j || !j.success){
+        var msg = (j && j.error) || 'File service call failed';
+        if (/unknown action/i.test(msg)) msg = 'The file service is running old code \u2014 paste ChatFiles.gs v2 and deploy a New version';
+        throw new Error(msg);
       }
-      return '<a class="tc-att" href="' + view + '" target="_blank" rel="noopener">' + CLIP + ' ' + escTC(nm) + '</a>';
-    }).join('');
+      return j;
+    });
+  }
+
+  /* ---------- attachments: pending list, single-shot + resumable uploads ---------- */
+  function kindOfFile(f){
+    var m = String(f.type || '').toLowerCase();
+    if (/^audio\//.test(m)) return 'voice';
+    if (/^video\//.test(m)) return 'video';
+    if (/^image\//.test(m)) return 'image';
+    if (m === 'application/pdf') return 'plan';
+    return 'file';
+  }
+  function addPend(key, file, kind, duration){
+    pend[key] = pend[key] || [];
+    if (pend[key].length >= MAX_ITEMS){ notify('Up to ' + MAX_ITEMS + ' attachments per message', 'err'); return; }
+    if (file.size > MAX_FILE_BYTES){ notify('File too large \u2014 1 GB max', 'err'); return; }
+    if ((kind === 'video' || kind === 'voice') && file.size > MAX_AI_BYTES){
+      notify('Heads up: over 200 MB, so it will upload but skip the automatic report', 'err');
+    }
+    pend[key].push({ uid: ++pendUid, file: file, name: file.name || 'attachment', size: file.size,
+      type: file.type || '', kind: kind || kindOfFile(file), duration: duration != null ? duration : null,
+      status: 'ready', pct: 0, offset: 0, uploadUrl: null, attachmentId: null, att: null, error: null, canceled: false, xhr: null });
+    renderSection();
   }
   function readB64(file){
     return new Promise(function(resolve, reject){
@@ -3718,80 +3832,375 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       rd.readAsDataURL(file);
     });
   }
-  function uploadAttachment(file){
-    if (!UPLOAD_URL) return Promise.reject(new Error('Uploads not configured'));
-    return readB64(file).then(function(b64){
-      return sb.auth.getSession().then(function(res){
-        var tok = res && res.data && res.data.session && res.data.session.access_token;
-        if (!tok) throw new Error('Chat session expired \u2014 sign in again');
-        /* no custom headers = simple CORS request; Apps Script can't answer preflight OPTIONS */
-        return fetch(UPLOAD_URL, { method:'POST', body: JSON.stringify({
-          chatUpload:true, token:tok, filename:file.name || 'attachment',
-          mimeType:file.type || 'application/octet-stream', data:b64
-        }) });
+  function setPct(item, pct){
+    item.pct = Math.max(item.pct, Math.min(100, Math.round(pct)));
+    var bar = byId('tcPb_' + item.uid);
+    if (bar){ bar.parentNode.style.display = 'block'; bar.style.width = item.pct + '%'; }
+    var st = byId('tcPs_' + item.uid);
+    if (st) st.textContent = item.pct + '%';
+  }
+  function metaFor(item, rec, tabId, key){
+    return { record_type: tabId === 'tracker' ? 'job' : 'quote', record_id: String(key),
+      record_name: String((rec.cells && rec.cells[1]) || ''), kind: item.kind, filename: item.name,
+      mimeType: item.type || 'application/octet-stream', size: item.size, duration: item.duration };
+  }
+  function legacyUpload(meta, item){
+    return readB64(item.file).then(function(b64){
+      return relay('chatUpload', Object.assign({}, meta, { data: b64 }));
+    }).then(function(j){ setPct(item, 100); return j.attachment; });
+  }
+  function putChunk(item, start, end, total, onProg){
+    return new Promise(function(resolve, reject){
+      var x = new XMLHttpRequest();
+      x.open('PUT', item.uploadUrl);
+      x.setRequestHeader('Content-Range', 'bytes ' + start + '-' + (end - 1) + '/' + total);
+      x.upload.onprogress = function(e){ if (onProg && e.loaded) onProg(e.loaded); };
+      x.onload = function(){ item.xhr = null; resolve({ status: x.status, text: x.responseText }); };
+      x.onerror = function(){ item.xhr = null; reject(new Error('network')); };
+      x.onabort = function(){ item.xhr = null; reject(new Error('canceled')); };
+      item.xhr = x;
+      x.send(item.file.slice(start, end));
+    });
+  }
+  function resumableUpload(meta, item){
+    var initP = item.uploadUrl
+      ? Promise.resolve()
+      : relay('initUpload', meta).then(function(j){ item.uploadUrl = j.uploadUrl; item.attachmentId = j.attachmentId; item.offset = 0; });
+    return initP.then(function(){ return pushChunks(meta, item); })
+      .then(function(fileId){ return relay('finalizeUpload', { attachmentId: item.attachmentId, fileId: fileId }); })
+      .then(function(j){ return j.attachment; });
+  }
+  function pushChunks(meta, item){
+    var size = item.size, tries = 0;
+    function step(){
+      if (item.canceled) return Promise.reject(new Error('canceled'));
+      var off = item.offset || 0;
+      var end = Math.min(off + CHUNK, size);
+      return putChunk(item, off, end, size, function(loaded){ setPct(item, (off + loaded) / size * 100); })
+        .then(function(r){
+          if (r.status === 308){ item.offset = end; tries = 0; return step(); }
+          if (r.status === 200 || r.status === 201){
+            var f = {}; try { f = JSON.parse(r.text); } catch(e){}
+            if (!f.id) throw new Error('Drive did not confirm the upload');
+            setPct(item, 100);
+            return f.id;
+          }
+          throw new Error('Upload chunk failed (' + r.status + ')');
+        })
+        .catch(function(e){
+          if (item.canceled || String(e && e.message) === 'canceled') throw new Error('canceled');
+          tries++;
+          if (tries > 3) throw new Error(e.message || 'Upload failed');
+          /* ask Drive (via the relay) where the session really stands, then resume */
+          return relay('checkUpload', { uploadUrl: item.uploadUrl, size: size, attachmentId: item.attachmentId }).then(function(j){
+            if (j.done && j.fileId){ setPct(item, 100); return j.fileId; }
+            if (j.expired){
+              item.uploadUrl = null; item.offset = 0;
+              return relay('initUpload', meta).then(function(ji){ item.uploadUrl = ji.uploadUrl; item.attachmentId = ji.attachmentId; return step(); });
+            }
+            item.offset = j.offset || 0;
+            return step();
+          });
+        });
+    }
+    return step();
+  }
+  function uploadItem(key, rec, tabId, item){
+    if (item.status === 'done' && item.att) return Promise.resolve(item.att);
+    item.status = 'uploading'; item.error = null;
+    var meta = metaFor(item, rec, tabId, key);
+    var p = (item.size <= SMALL_BYTES && !item.uploadUrl) ? legacyUpload(meta, item) : resumableUpload(meta, item);
+    return p.then(function(att){ item.status = 'done'; item.att = att; return att; },
+      function(e){
+        if (String(e && e.message) === 'canceled'){ item.status = 'canceled'; throw e; }
+        item.status = 'error'; item.error = String(e && e.message || e);
+        throw e;
       });
-    }).then(function(r){
-      if (!r.ok) throw new Error('Upload failed (' + r.status + ')');
-      return r.text();
-    }).then(function(txt){
-      var j = null;
-      try { j = JSON.parse(txt); }
-      catch(e){ throw new Error('The upload endpoint returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
-      if (j && j.success && !j.attachment) throw new Error('The upload endpoint is running old code \u2014 deploy a New version in Apps Script');
-      if (!j || !j.success || !j.attachment) throw new Error((j && j.error) || 'Upload failed');
-      return j.attachment;
+  }
+  function cancelItem(key, item){
+    item.canceled = true;
+    if (item.xhr){ try { item.xhr.abort(); } catch(e){} }
+    if (item.uploadUrl || item.attachmentId){
+      relay('cancelUpload', { uploadUrl: item.uploadUrl, attachmentId: item.attachmentId }).catch(function(){});
+    }
+    pend[key] = (pend[key] || []).filter(function(x){ return x.uid !== item.uid; });
+    renderSection();
+  }
+
+  /* ---------- voice recorder (record → preview → attach) ---------- */
+  function pickMime(list){
+    if (!(window.MediaRecorder && MediaRecorder.isTypeSupported)) return '';
+    for (var i = 0; i < list.length; i++) if (MediaRecorder.isTypeSupported(list[i])) return list[i];
+    return '';
+  }
+  function startRec(key){
+    if (REC.state !== 'idle'){ notify('Finish the current recording first', 'err'); return; }
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){
+      notify('Voice recording is not supported in this browser', 'err'); return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      var mime = pickMime(['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']);
+      REC = { state:'rec', key:key, stream:stream, chunks:[], t0:Date.now(), mime:mime, timer:null, blob:null, url:null, dur:0 };
+      var mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      REC.mr = mr;
+      mr.ondataavailable = function(e){ if (e.data && e.data.size) REC.chunks.push(e.data); };
+      mr.onstop = function(){
+        stream.getTracks().forEach(function(t){ t.stop(); });
+        if (REC.timer) clearInterval(REC.timer);
+        if (REC.state === 'canceling'){ REC = { state:'idle' }; renderSection(); return; }
+        var blob = new Blob(REC.chunks, { type: mime || 'audio/webm' });
+        REC.blob = blob; REC.dur = Math.round((Date.now() - REC.t0) / 1000);
+        REC.url = URL.createObjectURL(blob); REC.state = 'preview';
+        renderSection();
+      };
+      mr.start(250);
+      REC.timer = setInterval(function(){
+        var el = byId('tcRecT'); if (el) el.textContent = fmtDur((Date.now() - REC.t0) / 1000);
+        if (Date.now() - REC.t0 > 10 * 60 * 1000) stopRec();   /* 10-minute cap */
+      }, 500);
+      renderSection();
+    }).catch(function(e){ notify('Microphone blocked: ' + (e.message || e), 'err'); });
+  }
+  function stopRec(){ if (REC.mr && REC.state === 'rec'){ try { REC.mr.stop(); } catch(e){} } }
+  function cancelRec(){
+    if (REC.state === 'rec'){ REC.state = 'canceling'; try { REC.mr.stop(); } catch(e){} return; }
+    if (REC.url) URL.revokeObjectURL(REC.url);
+    REC = { state:'idle' }; renderSection();
+  }
+  function attachRec(key){
+    if (!(REC.state === 'preview' && REC.blob)) return;
+    var ext = /mp4/.test(REC.mime) ? 'm4a' : /ogg/.test(REC.mime) ? 'ogg' : 'webm';
+    var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    var f;
+    try { f = new File([REC.blob], 'voice-' + stamp + '.' + ext, { type: REC.blob.type }); }
+    catch(e){ f = REC.blob; f.name = 'voice-' + stamp + '.' + ext; }
+    addPend(key, f, 'voice', REC.dur);
+    if (REC.url) URL.revokeObjectURL(REC.url);
+    REC = { state:'idle' };
+    renderSection();
+  }
+
+  /* ---------- attachment + pipeline rendering ---------- */
+  function attList(m){
+    var a = m && m.attachments;
+    if (!a) return [];
+    if (typeof a === 'string'){ try{ a = JSON.parse(a); }catch(e){ return []; } }
+    return Array.isArray(a) ? a : [];
+  }
+  function pipeHtml(a){
+    var aid = a && a.attachment_id;
+    if (!aid) return '';
+    var rep = TC.repByAtt[aid];
+    if (rep){
+      return '<button type="button" class="tc-pipe rdy" data-rep="' + escTC(aid) + '">\uD83D\uDCCB Report \u00b7 ' + (rep.status === 'approved' ? 'approved \u2713' : 'draft') + '</button>';
+    }
+    var pr = TC.procByAtt[aid];
+    if (pr){
+      if (pr.status === 'failed') return '<button type="button" class="tc-pipe err" data-retry="' + escTC(aid) + '" title="' + escTC(pr.error || '') + '">\u26A0\uFE0F Transcript failed \u2014 retry</button>';
+      if (pr.status !== 'completed') return '<span class="tc-pipe">\u23F3 Transcribing\u2026</span>';
+    }
+    return '';
+  }
+  function attHtml(m){
+    var atts = attList(m);
+    if (!atts.length) return '';
+    return atts.map(function(a){
+      var id = String((a && a.file_id) || '').replace(/[^A-Za-z0-9_-]/g, '');
+      if (!id) return '';
+      var view = 'https://drive.google.com/file/d/' + id + '/view';
+      var nm = String((a && a.name) || 'file');
+      var kind = a.kind || (/^image\//i.test(String(a.mime_type || '')) ? 'image' : /^video\//i.test(String(a.mime_type || '')) ? 'video' : /^audio\//i.test(String(a.mime_type || '')) ? 'voice' : 'file');
+      var extra = pipeHtml(a);
+      if (kind === 'image'){
+        return '<a class="tc-att-img" href="' + view + '" target="_blank" rel="noopener" title="' + escTC(nm) + '"><img src="https://drive.google.com/thumbnail?id=' + id + '&amp;sz=w480" alt="' + escTC(nm) + '" loading="lazy"></a>' + extra;
+      }
+      if (kind === 'voice'){
+        return '<div id="tcVc_' + id + '"><button type="button" class="tc-voice" data-fid="' + id + '">\u25B6 Voice note' + (a.duration ? ' \u00b7 ' + fmtDur(a.duration) : '') + '</button></div>' + extra;
+      }
+      if (kind === 'video'){
+        return '<a class="tc-att" href="https://drive.google.com/file/d/' + id + '/preview" target="_blank" rel="noopener" title="Opens the Drive player">\uD83C\uDFA5 ' + escTC(nm) + '</a>' + extra;
+      }
+      return '<a class="tc-att" href="' + view + '" target="_blank" rel="noopener">' + CLIP + ' ' + escTC(nm) + '</a>' + extra;
+    }).join('');
+  }
+  function playVoice(btn, fid){
+    var host = byId('tcVc_' + fid);
+    function mount(url){ if (host) host.innerHTML = '<audio controls autoplay src="' + url + '"></audio>'; }
+    if (mediaCache[fid]){ mount(mediaCache[fid]); return; }
+    btn.disabled = true; btn.textContent = 'Loading\u2026';
+    relay('fetchMedia', { fileId: fid }).then(function(j){
+      var bin = atob(j.base64), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var url = URL.createObjectURL(new Blob([arr], { type: j.mime || 'audio/webm' }));
+      mediaCache[fid] = url;
+      mount(url);
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = '\u25B6 Voice note';
+      notify('Could not load the voice note: ' + (e.message || e), 'err');
+    });
+  }
+
+  /* ---------- report modal ---------- */
+  var REP_FIELDS = [['observations','Observations'],['deficiencies','Deficiencies'],['corrections','Corrections'],['materials_actions','Materials / Actions'],['follow_ups','Follow-up items']];
+  function closeReport(){ var ov = byId('tcRepOv'); if (ov) ov.remove(); }
+  function openReport(aid, key){
+    var rep = TC.repByAtt[aid]; if (!rep) return;
+    var pr = TC.procByAtt[aid] || null;
+    closeReport();
+    var canApprove = myRole() === 'admin' || myRole() === 'back_office';
+    var html = '<div class="card">' +
+      '<h3>\uD83D\uDCCB Field report \u00b7 #' + escTC(rep.record_id) + '</h3>' +
+      '<div class="sub">' + (rep.record_name ? escTC(rep.record_name) + ' \u00b7 ' : '') +
+        (rep.status === 'approved' ? 'Approved' + (rep.reviewed_by ? ' by ' + escTC(rep.reviewed_by) : '') : 'Draft \u2014 review and edit before approving') +
+        (rep.edited_by ? ' \u00b7 last edit ' + escTC(rep.edited_by) : '') + '</div>';
+    REP_FIELDS.forEach(function(f){
+      html += '<label>' + f[1] + '</label><textarea id="tcRf_' + f[0] + '">' + escTC(rep[f[0]] || '') + '</textarea>';
+    });
+    if (pr && pr.transcript) html += '<details><summary>Transcript</summary><pre>' + escTC(pr.transcript) + '</pre></details>';
+    html += '<div class="btns">' +
+      '<button type="button" class="b-sec" id="tcRepClose">Close</button>' +
+      '<button type="button" class="b-sec" id="tcRepSave">Save draft</button>' +
+      (canApprove ? '<button type="button" class="b-pri" id="tcRepAppr">' + (rep.status === 'approved' ? 'Back to draft' : 'Approve') + '</button>' : '') +
+      '</div></div>';
+    var ov = document.createElement('div');
+    ov.id = 'tcRepOv'; ov.innerHTML = html;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(ev){ if (ev.target === ov) closeReport(); });
+    byId('tcRepClose').addEventListener('click', closeReport);
+    function collect(){
+      var patch = {};
+      REP_FIELDS.forEach(function(f){ patch[f[0]] = byId('tcRf_' + f[0]).value; });
+      return patch;
+    }
+    function save(extra, label){
+      var patch = Object.assign(collect(), extra || {});
+      return sb.from('ai_reports').update(patch).eq('id', rep.id).select().single().then(function(res){
+        if (res.error) throw res.error;
+        TC.repByAtt[aid] = res.data;
+        notify(label || 'Report saved');
+        closeReport(); renderSection();
+      }).catch(function(e){ notify('Could not save: ' + (e.message || e), 'err'); });
+    }
+    byId('tcRepSave').addEventListener('click', function(){ save(null, 'Draft saved'); });
+    var ap = byId('tcRepAppr');
+    if (ap) ap.addEventListener('click', function(){
+      var toApproved = rep.status !== 'approved';
+      save({ status: toApproved ? 'approved' : 'draft' }, toApproved ? 'Report approved \u2713' : 'Moved back to draft');
+    });
+  }
+
+  /* ---------- pipeline polling (only while the thread is open and something is cooking) ---------- */
+  function schedulePipePoll(key){
+    if (pipeTimer) clearTimeout(pipeTimer);
+    var active = false;
+    (TC.msgs[key] || []).forEach(function(m){
+      attList(m).forEach(function(a){
+        var p = a.attachment_id && TC.procByAtt[a.attachment_id];
+        if (p && ['queued','uploading_to_ai','transcribing'].indexOf(p.status) >= 0) active = true;
+      });
+    });
+    if (!active) return;
+    pipeTimer = setTimeout(function(){
+      if (currentDrawerKey() !== key) return;
+      loadPipeline(key).then(function(){ renderSection(); schedulePipePoll(key); });
+    }, 10000);
+  }
+
+  /* ---------- send ---------- */
+  function doInsert(rec, tabId, key0, body, atts){
+    var row = {
+      record_type: tabId === 'tracker' ? 'job' : 'quote',
+      record_id: key0,
+      record_name: String((rec.cells && rec.cells[1]) || ''),
+      sender_name: TC.me.display_name,
+      sender_email: TC.me.email,
+      body: body,
+      mentions: parseMentions(body, key0)
+    };
+    if (atts && atts.length) row.attachments = atts;
+    return sb.from('team_chat_messages').insert(row).select().single().then(function(res){
+      if (res.error) throw res.error;
+      var m = res.data, k = row.record_id;
+      TC.msgs[k] = TC.msgs[k] || [];
+      if (!TC.msgs[k].some(function(x){ return x.id === m.id; })) TC.msgs[k].push(m);
+      TC.recent.unshift(m);
+      return m;
     });
   }
   function sendMsg(rec, tabId){
-    var ta = byId('tcInput'), btn = byId('tcSend');
+    var ta = byId('tcInput');
     if (!ta || !TC.me) return;
     var key0 = String(rec.key);
-    var myAttach = (pendAttach && pendKey === key0) ? pendAttach : null;
-    if (myAttach && uploading){ notify('Still uploading the previous file \u2014 one at a time', 'err'); return; }
+    if (sending[key0]){ notify('Still sending \u2014 one moment', 'err'); return; }
+    var items = (pend[key0] || []).filter(function(i){ return i.status !== 'canceled'; });
     var body = ta.value.trim();
-    if (!body && !myAttach) return;
-    function doInsert(atts){
-      var row = {
-        record_type: tabId === 'tracker' ? 'job' : 'quote',
-        record_id: key0,
-        record_name: String((rec.cells && rec.cells[1]) || ''),
-        sender_name: TC.me.display_name,
-        sender_email: TC.me.email,
-        body: body,
-        mentions: parseMentions(body)
-      };
-      if (atts && atts.length) row.attachments = atts;
-      return sb.from('team_chat_messages').insert(row).select().single().then(function(res){
-        if (res.error) throw res.error;
-        var m = res.data, k = row.record_id;
-        TC.msgs[k] = TC.msgs[k] || [];
-        if (!TC.msgs[k].some(function(x){ return x.id === m.id; })) TC.msgs[k].push(m);
-        TC.recent.unshift(m);
-        if (atts && pendKey === k){ pendAttach = null; pendKey = null; }   /* consume the file — unless a new one was picked elsewhere */
-        drafts[k] = '';
-        var taNow = byId('tcInput');
-        if (taNow && lastRenderKey === k) taNow.value = '';   /* never wipe another record's textarea */
-        renderSection(); markRead(k);
-      });
+    if (!body && !items.length) return;
+    var isNew = isNewConv(key0);
+    var selected = null;
+    if (isNew){
+      var sel = TC.newSel[key0] || new Set([TC.me.email]);
+      sel.add(TC.me.email);
+      selected = Array.from(sel);
     }
-    if (myAttach){
-      uploading = true;
-      renderSection();   /* disabled "Uploading…" state on THIS record; other records stay fully usable */
-      uploadAttachment(myAttach.file)
-        .then(function(att){ return doInsert([att]); })
-        .then(function(){ uploading = false; renderSection(); })
-        .catch(function(e){
-          uploading = false;
-          notify('Message failed: ' + (e.message || e), 'err');
-          renderSection();   /* draft text and pending file are kept for retry */
+    sending[key0] = true;
+    renderSection();
+    var chain = Promise.resolve();
+    if (isNew && selected){
+      var rows = selected.map(function(em){
+        return { record_type: tabId === 'tracker' ? 'job' : 'quote', record_id: key0, user_email: em, added_by: TC.me.email };
+      });
+      chain = chain.then(function(){
+        return sb.from('conversation_participants').insert(rows).then(function(res){
+          if (res.error && String(res.error.code) !== '23505') throw res.error;
+          return loadParts(key0);
         });
-    } else {
-      if (btn) btn.disabled = true;
-      doInsert(null).catch(function(e){
-        notify('Message failed: ' + (e.message || e), 'err');
-        var b2 = byId('tcSend'); if (b2) b2.disabled = false;
       });
     }
+    items.forEach(function(i){ if (i.status === 'error') i.status = 'ready'; });
+    chain.then(function(){
+      var atts = [];
+      return items.reduce(function(p, item){
+        return p.then(function(){ return uploadItem(key0, rec, tabId, item).then(function(a){ atts.push(a); }); });
+      }, Promise.resolve()).then(function(){ return atts; });
+    }).then(function(atts){
+      return doInsert(rec, tabId, key0, body, atts);
+    }).then(function(){
+      pend[key0] = [];
+      drafts[key0] = '';
+      sending[key0] = false;
+      var taNow = byId('tcInput');
+      if (taNow && lastRenderKey === key0) taNow.value = '';   /* never wipe another record's textarea */
+      delete TC.newSel[key0];
+      loadParts(key0).then(function(){ renderSection(); });
+      renderSection(); markRead(key0);
+    }).catch(function(e){
+      sending[key0] = false;
+      if (String(e && e.message) !== 'canceled') notify('Message failed: ' + (e.message || e), 'err');
+      renderSection();   /* draft text, finished uploads, and failed items are all kept for retry — just press Send again */
+    });
+  }
+
+  /* ---------- participants UI actions ---------- */
+  function addParticipant(key, tabId, email){
+    var row = { record_type: tabId === 'tracker' ? 'job' : 'quote', record_id: key, user_email: email, added_by: TC.me.email };
+    sb.from('conversation_participants').insert(row).then(function(res){
+      if (res.error) throw res.error;
+      return loadParts(key);
+    }).then(function(){ notify('Added to the conversation'); renderSection(); })
+      .catch(function(e){ notify('Could not add: ' + (e.message || e), 'err'); });
+  }
+  function removeParticipant(key, email){
+    var leaving = TC.me && email === TC.me.email;
+    var name = email;
+    TC.roster.forEach(function(m){ if (m.email === email) name = m.display_name; });
+    if (!window.confirm(leaving ? 'Leave this conversation? You will lose access to it.' : 'Remove ' + name + ' from this conversation?')) return;
+    sb.from('conversation_participants')['delete']().eq('record_id', key).eq('user_email', email).then(function(res){
+      if (res.error) throw res.error;
+      return loadParts(key);
+    }).then(function(){
+      if (leaving && !canSeeAll()){ delete TC.msgs[key]; delete TC.parts[key]; }
+      renderSection();
+    }).catch(function(e){ notify('Could not remove: ' + (e.message || e), 'err'); });
   }
 
   /* ---------- realtime ---------- */
@@ -3842,10 +4251,11 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (TC.threadErr[key]) return '<div class="tc-note">Couldn\u2019t load messages \u2014 <a href="#" id="tcRetryThread">retry</a></div>';
     var list = TC.msgs[key];
     if (!list){
-      loadThread(key).then(function(){ renderSection(); markRead(key); });
+      loadThread(key).then(function(){ renderSection(); markRead(key); schedulePipePoll(key); });
       return '<div class="tc-note">Loading\u2026</div>';
     }
-    if (!list.length) return '<div class="tc-note">No messages yet \u2014 start the thread. Everyone on the team can see it, and it posts a ping to the ACE Dashboard space in Google Chat.</div>';
+    if (!list.length && isNewConv(key)) return '';
+    if (!list.length) return '<div class="tc-note">No messages yet \u2014 start the thread.</div>';
     return '<div class="tc-thread" id="tcThread">' + list.map(function(m){
       var mine = TC.me && m.sender_email === TC.me.email;
       return '<div class="tc-b ' + (mine ? 'tc-mine' : 'tc-them') + '">' +
@@ -3855,6 +4265,67 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         '</div>';
     }).join('') + '</div>';
   }
+  function partsHtml(key){
+    if (isNewConv(key)) return '';
+    var mem = partMembers(key);
+    if (!mem.length && TC.parts[key] == null) return '';
+    var manage = canManage(key);
+    var html = '<div class="tc-parts">\uD83D\uDC65 ';
+    html += mem.map(function(m){
+      var removable = manage || (TC.me && m.email === TC.me.email);
+      return '<span class="tc-part">' + escTC(m.display_name) +
+        (removable ? '<button type="button" data-rm="' + escTC(m.email) + '" title="' + (TC.me && m.email === TC.me.email ? 'Leave the conversation' : 'Remove') + '">\u2715</button>' : '') + '</span>';
+    }).join('');
+    if (manage){
+      var outsiders = TC.roster.filter(function(m){ return !mem.some(function(x){ return x.email === m.email; }); });
+      if (outsiders.length) html += '<button type="button" class="tc-addp" id="tcAddP">+ Add</button>';
+      if (addOpen === key && outsiders.length){
+        html += '<span class="tc-addlist">' + outsiders.map(function(m){
+          return '<button type="button" class="tc-chip" data-add="' + escTC(m.email) + '">+ ' + escTC(m.display_name) + '</button>';
+        }).join('') + '</span>';
+      }
+    }
+    if (TC.me && !isPart(key) && canSeeAll()) html += '<span style="flex-basis:100%">Viewing as ' + escTC(myRole()) + ' \u2014 you\u2019re not a participant.</span>';
+    html += '</div>';
+    return html;
+  }
+  var addOpen = null;
+  function newConvHtml(key){
+    if (!isNewConv(key)) return '';
+    if (!TC.newSel[key]){ TC.newSel[key] = new Set([TC.me.email]); }
+    var sel = TC.newSel[key];
+    return '<div class="tc-newsel"><b>Start this conversation</b> \u2014 pick who\u2019s in it. Only participants (plus admins) can see it or get alerts.<div style="margin-top:4px">' +
+      TC.roster.map(function(m){
+        var me = m.email === TC.me.email;
+        return '<label><input type="checkbox" class="tc-nsel" data-em="' + escTC(m.email) + '"' +
+          (sel.has(m.email) ? ' checked' : '') + (me ? ' disabled' : '') + '> ' + escTC(m.display_name) + (me ? ' (you)' : '') + '</label>';
+      }).join('') + '</div></div>';
+  }
+  function pendHtml(key){
+    var items = pend[key] || [];
+    if (!items.length) return '';
+    return items.map(function(i){
+      var right = i.status === 'uploading'
+        ? '<span class="tc-pend-s" id="tcPs_' + i.uid + '">' + i.pct + '%</span><button type="button" data-cx="' + i.uid + '" title="Cancel upload">\u2715</button>'
+        : '<button type="button" data-cx="' + i.uid + '" title="Remove">\u2715</button>';
+      var icon = i.kind === 'voice' ? '\uD83C\uDFA4' : i.kind === 'video' ? '\uD83C\uDFA5' : i.kind === 'image' ? '\uD83D\uDDBC\uFE0F' : CLIP;
+      return '<div class="tc-pend">' + icon + ' <span class="tc-pend-n">' + escTC(i.name) + '</span>' +
+        '<span class="tc-pend-s">' + fmtSize(i.size) + (i.duration ? ' \u00b7 ' + fmtDur(i.duration) : '') + '</span>' + right +
+        '<div class="tc-pbar"' + (i.status === 'uploading' ? ' style="display:block"' : '') + '><i id="tcPb_' + i.uid + '" style="width:' + i.pct + '%"></i></div>' +
+        (i.error ? '<div class="tc-pend-err">' + escTC(i.error) + ' \u2014 press Send to retry</div>' : '') +
+        '</div>';
+    }).join('');
+  }
+  function recHtml(key){
+    if (REC.state === 'rec' && REC.key === key){
+      return '<div class="tc-rec"><span class="dot"></span><b id="tcRecT">0:00</b> Recording\u2026 <button type="button" id="tcRecStop">Stop</button><button type="button" id="tcRecX">Cancel</button><span class="tc-note" style="flex-basis:100%;margin:0">Transcribed by AI (Google Gemini) \u2014 skip access codes, payment info, and private conversations.</span></div>';
+    }
+    if (REC.state === 'preview' && REC.key === key){
+      return '<div class="tc-rec">\uD83C\uDFA4 <audio controls src="' + REC.url + '"></audio><span>' + fmtDur(REC.dur) + '</span><button type="button" id="tcRecAdd">Attach</button><button type="button" id="tcRecX">Discard</button></div>';
+    }
+    return '';
+  }
+  var vidMenuOpen = false;
   function renderSection(){
     var dr = byId('drawer'); if (!dr || !dr.classList.contains('on')) return;
     var body = byId('dBody'); if (!body) return;
@@ -3901,24 +4372,36 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       return;
     }
 
+    html += partsHtml(key);
     html += threadHtml(key);
+    html += newConvHtml(key);
     var dashEmail = (window.state && window.state.email) ? String(window.state.email).toLowerCase() : '';
     if (dashEmail && dashEmail !== TC.me.email){
       html += '<div class="tc-note" style="color:var(--amber)">Sending is paused: the dashboard is signed in as ' + escTC(dashEmail) + ' but chat is signed in as ' + escTC(TC.me.display_name) + ' (' + escTC(TC.me.email) + '). <a href="#" id="tcOut">Sign out of chat</a>, then sign back in with the matching account.</div>';
     } else {
-      html += '<div class="tc-chips">' + TC.roster
-        .filter(function(m){ return m.email !== TC.me.email; })
-        .map(function(m){ return '<button type="button" class="tc-chip" data-n="' + escTC(m.display_name) + '">@' + escTC(m.display_name) + '</button>'; })
-        .join('') + '</div>';
-      var upHere = uploading && pendKey === key;
-      if (pendAttach && pendKey === key){
-        html += '<div class="tc-pend">' + CLIP + ' <span class="tc-pend-n">' + escTC(pendAttach.name) + '</span><span class="tc-pend-s">' + fmtSize(pendAttach.size) + '</span>' + (upHere ? '' : '<button type="button" id="tcPendX" title="Remove attachment">\u2715</button>') + '</div>';
+      var mentionables = partMembers(key).filter(function(m){ return m.email !== TC.me.email; });
+      if (isNewConv(key)) mentionables = [];
+      if (mentionables.length){
+        html += '<div class="tc-chips">' + mentionables
+          .map(function(m){ return '<button type="button" class="tc-chip" data-n="' + escTC(m.display_name) + '">@' + escTC(m.display_name) + '</button>'; })
+          .join('') + '</div>';
       }
+      html += pendHtml(key);
+      html += recHtml(key);
+      var busy = !!sending[key];
       html += '<div class="tc-send">' +
-        (UPLOAD_URL ? '<button type="button" class="tc-attach" id="tcAttach" title="Attach a photo or file" aria-label="Attach a photo or file"' + (upHere ? ' disabled' : '') + '>' + CLIP + '</button><input type="file" id="tcFile" style="display:none">' : '') +
-        '<textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"' + (upHere ? ' disabled' : '') + '></textarea>' +
-        '<button type="button" id="tcSend"' + (upHere ? ' disabled' : '') + '>' + (upHere ? 'Uploading\u2026' : 'Send') + '</button></div>';
-      html += '<div class="tc-note" style="display:flex;justify-content:space-between"><span>Pings the ACE Dashboard space in Google Chat.</span><a href="#" id="tcOut">Sign out</a></div>';
+        (UPLOAD_URL ?
+          '<button type="button" class="tc-attach" id="tcAttach" title="Attach photos or files" aria-label="Attach photos or files"' + (busy ? ' disabled' : '') + '>' + CLIP + '</button>' +
+          '<button type="button" class="tc-attach" id="tcMic" title="Record a voice note" aria-label="Record a voice note"' + (busy || REC.state !== 'idle' ? ' disabled' : '') + '>' + MIC + '</button>' +
+          '<span class="tc-menu"><button type="button" class="tc-attach" id="tcVid" title="Add a video walkthrough" aria-label="Add a video walkthrough"' + (busy ? ' disabled' : '') + '>' + CAM + '</button>' +
+          (vidMenuOpen ? '<span class="tc-pop" id="tcVidPop"><button type="button" id="tcVidRec">\uD83C\uDFA5 Record walkthrough</button><button type="button" id="tcVidUp">\uD83D\uDCC1 Upload existing video</button><span class="tc-note" style="display:block;padding:2px 12px 8px;margin:0">Walkthroughs are transcribed by AI (Google Gemini) \u2014 skip access codes and private info.</span></span>' : '') + '</span>' +
+          '<input type="file" id="tcFile" multiple style="display:none">' +
+          '<input type="file" id="tcVidCap" accept="video/*" capture="environment" style="display:none">' +
+          '<input type="file" id="tcVidPick" accept="video/*" style="display:none">'
+          : '') +
+        '<textarea id="tcInput" rows="1" placeholder="Message the team about #' + escTC(key) + '\u2026"' + (busy ? ' disabled' : '') + '></textarea>' +
+        '<button type="button" id="tcSend"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Sending\u2026' : 'Send') + '</button></div>';
+      html += '<div class="tc-note" style="display:flex;justify-content:space-between;gap:8px"><span>Only participants see this thread. They get an email alert; @mentions also ping Google Chat.</span><a href="#" id="tcOut">Sign out</a></div>';
     }
     sec.innerHTML = html;
     var taKeep = byId('tcInput');
@@ -3929,11 +4412,40 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     var rt = byId('tcRetryThread');
     if (rt) rt.addEventListener('click', function(ev){ ev.preventDefault(); delete TC.threadErr[key]; delete TC.msgs[key]; renderSection(); });
     var th = byId('tcThread'); if (th) th.scrollTop = th.scrollHeight;
-    sec.querySelectorAll('.tc-chip').forEach(function(c){
+    sec.querySelectorAll('.tc-chip[data-n]').forEach(function(c){
       c.addEventListener('click', function(){
         var ta = byId('tcInput'); if (!ta) return;
         ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + '@' + c.dataset.n + ' ';
         ta.focus();
+      });
+    });
+    sec.querySelectorAll('.tc-part button[data-rm]').forEach(function(b){
+      b.addEventListener('click', function(){ removeParticipant(key, b.dataset.rm); });
+    });
+    var apBtn = byId('tcAddP');
+    if (apBtn) apBtn.addEventListener('click', function(){ addOpen = addOpen === key ? null : key; renderSection(); });
+    sec.querySelectorAll('.tc-chip[data-add]').forEach(function(b){
+      b.addEventListener('click', function(){ addOpen = null; addParticipant(key, tabId, b.dataset.add); });
+    });
+    sec.querySelectorAll('.tc-nsel').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var s = TC.newSel[key];
+        if (cb.checked) s.add(cb.dataset.em); else s['delete'](cb.dataset.em);
+      });
+    });
+    sec.querySelectorAll('.tc-voice[data-fid]').forEach(function(b){
+      b.addEventListener('click', function(){ playVoice(b, b.dataset.fid); });
+    });
+    sec.querySelectorAll('.tc-pipe[data-rep]').forEach(function(b){
+      b.addEventListener('click', function(){ openReport(b.dataset.rep, key); });
+    });
+    sec.querySelectorAll('.tc-pipe[data-retry]').forEach(function(b){
+      b.addEventListener('click', function(){
+        b.disabled = true;
+        relay('requestTranscription', { attachmentId: b.dataset.retry })
+          .then(function(){ notify('Transcription requeued'); return loadPipeline(key); })
+          .then(function(){ renderSection(); schedulePipePoll(key); })
+          .catch(function(e){ b.disabled = false; notify('Retry failed: ' + (e.message || e), 'err'); });
       });
     });
     var sendBtn = byId('tcSend');
@@ -3947,17 +4459,36 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (ab && fi){
       ab.addEventListener('click', function(){ fi.click(); });
       fi.addEventListener('change', function(){
-        var f = fi.files && fi.files[0];
-        if (!f) return;
-        if (f.size > MAX_ATTACH_BYTES){ notify('File too large \u2014 15 MB max', 'err'); fi.value = ''; return; }
-        pendAttach = { file:f, name:f.name || 'attachment', size:f.size, type:f.type || '' };
-        pendKey = key;
-        renderSection();
+        Array.prototype.forEach.call(fi.files || [], function(f){ addPend(key, f, null, null); });
+        fi.value = '';
       });
     }
-    var px = byId('tcPendX');
-    if (px) px.addEventListener('click', function(){ if (uploading) return; pendAttach = null; renderSection(); });
-    if (TC.msgs[key]) markRead(key);
+    var mic = byId('tcMic');
+    if (mic) mic.addEventListener('click', function(){ startRec(key); });
+    var recStop = byId('tcRecStop'); if (recStop) recStop.addEventListener('click', stopRec);
+    var recX = byId('tcRecX'); if (recX) recX.addEventListener('click', cancelRec);
+    var recAdd = byId('tcRecAdd'); if (recAdd) recAdd.addEventListener('click', function(){ attachRec(key); });
+    var vb = byId('tcVid');
+    if (vb) vb.addEventListener('click', function(){ vidMenuOpen = !vidMenuOpen; renderSection(); });
+    var vr = byId('tcVidRec'), vu = byId('tcVidUp'), vc = byId('tcVidCap'), vp = byId('tcVidPick');
+    if (vr && vc) vr.addEventListener('click', function(){ vidMenuOpen = false; vc.click(); });
+    if (vu && vp) vu.addEventListener('click', function(){ vidMenuOpen = false; vp.click(); });
+    [vc, vp].forEach(function(inp){
+      if (!inp) return;
+      inp.addEventListener('change', function(){
+        var f = inp.files && inp.files[0];
+        if (f) addPend(key, f, 'video', null);
+        inp.value = '';
+        vidMenuOpen = false;
+      });
+    });
+    sec.querySelectorAll('.tc-pend button[data-cx]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var it = (pend[key] || []).find(function(x){ return String(x.uid) === b.dataset.cx; });
+        if (it) cancelItem(key, it);
+      });
+    });
+    if (TC.msgs[key]){ markRead(key); schedulePipePoll(key); }
   }
 
   /* ---------- badges (attention bar chip + list-row badge) ---------- */
@@ -4037,7 +4568,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     }, true);
   }
 
-  /* ---------- deep link (?chat=KEY from Google Chat notifications) ---------- */
+  /* ---------- deep link (?chat=KEY from Google Chat / email notifications) ---------- */
   function tryDeepLink(){
     if (TC.deepLinked) return;
     var params = new URLSearchParams(location.search);
