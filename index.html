@@ -80,9 +80,10 @@ h1.ace b{color:#E8534E; font-weight:700}
 .attn button.stat:hover{color:#fff; text-decoration:underline}
 .attn .s-red b{color:#F0716C}
 .attn .s-amber b{color:#EFB35A}
-.kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:10px}
+.kpis{display:none; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:10px}
+.kpis.open{display:grid}
 .statsbtn{
-  display:none; appearance:none; border:1px solid #464B55; background:transparent; color:#C9CDD5;
+  display:inline-flex; appearance:none; border:1px solid #464B55; background:transparent; color:#C9CDD5;
   border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
   margin-left:auto; white-space:nowrap; flex:none;
 }
@@ -100,6 +101,45 @@ h1.ace b{color:#E8534E; font-weight:700}
 .kpi.zero{opacity:.6}
 .kpi.zero b{color:var(--muted)}
 .kpi.active{outline:2px solid var(--ink); outline-offset:-1px}
+
+/* ============ Today's Priorities (AI) ============ */
+.prio-when{font-size:11.5px; color:#9BA0AB; white-space:nowrap; margin-left:2px}
+.prio-refresh{
+  appearance:none; border:1px solid #464B55; background:transparent; color:#C9CDD5;
+  border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex:none;
+}
+.prio-refresh:hover{background:#262A31; color:#fff}
+.prio-refresh:disabled{opacity:.6; cursor:default}
+.prio-refresh.spin svg{animation:rot 1s linear infinite}
+.prios{display:flex; flex-direction:column; gap:8px; margin-top:10px}
+.prio{
+  appearance:none; font:inherit; cursor:pointer; text-align:left; width:100%;
+  background:var(--card); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
+  padding:11px 13px; box-shadow:var(--shadow); display:flex; align-items:flex-start; gap:11px;
+}
+.prio:hover{border-color:#C7CBD3}
+.prio .pbadge{
+  flex:none; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-family:'Barlow Condensed'; font-weight:700; font-size:16px; color:#fff; margin-top:1px;
+}
+.prio.p1{border-left-color:var(--red)}  .prio.p1 .pbadge{background:var(--red)}
+.prio.p2{border-left-color:#E0A93E}     .prio.p2 .pbadge{background:#E0A93E}
+.prio.p3{border-left-color:var(--blue)} .prio.p3 .pbadge{background:var(--blue)}
+.prio .pbody{display:flex; flex-direction:column; gap:2px; min-width:0}
+.prio .pt{font-weight:600; font-size:14px; line-height:1.3}
+.prio .why{font-size:12px; color:var(--muted); line-height:1.4}
+.prio .act{font-size:12px; color:var(--blue); font-weight:600; margin-top:1px}
+.prio .go{margin-left:auto; align-self:center; color:var(--muted); font-size:20px; flex:none; padding-left:4px}
+.prio-empty{
+  background:var(--card); border:1px dashed var(--line); border-radius:12px;
+  padding:14px; font-size:12.5px; color:var(--muted); text-align:center;
+}
+@media (max-width:640px){
+  .prios{gap:7px}
+  .prio{padding:10px 11px}
+  .prio .why{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+}
 
 /* ============ Tabs (sticky) ============ */
 nav.tabs{background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:45}
@@ -781,9 +821,11 @@ const CONFIG = {
   AI_WEBHOOK_URL: '',   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
+  PRIORITIES_SHEET: 'Priorities',       // AI Today's Priorities — written by the standalone Priorities Service each morning
+  PRIORITIES_URL: '',                   // Priorities Service web app /exec URL — paste after deploying Priorities.gs (blank hides the Refresh button)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.15'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.16'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -815,6 +857,7 @@ const state = {
   smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
   prefs:{}, threadDone:{}, replyGroups:[], roles:{}, role:'back', viewAs:null,
   renBucket:'d30',
+  prios:{ items:[], generated:'', source:'', loading:false },
   drawerUid:null, drawerList:[], lastLoad:0
 };
   window.state = state; // expose app state to read-only add-ons (AI Call Log)
@@ -1138,6 +1181,9 @@ async function loadAll(showToast){
       });
     } catch(e){ state.threadDone = {}; }
 
+    // AI Today's Priorities — optional tab written by the Priorities Service
+    await loadPriorities();
+
     // reply-to groups for the email composer — Settings!D2:E20 (address | label)
     try {
       const rg = await api(`/values/${encodeURIComponent(`'Settings'!D2:E20`)}`);
@@ -1355,13 +1401,10 @@ function buildTabBar(){
   });
 }
 
-/* Attention bar (4 most urgent) + KPI cards — all tappable */
-const ATTN_STATS = [
-  { tab:'quotes',  filter:'expired',    label:'expired quotes',   tone:'s-red' },
-  { tab:'tracker', filter:'overdueinv', label:'overdue invoices', tone:'s-red' },
-  { tab:'tracker', filter:'noreport',   label:'reports not sent', tone:'s-amber' },
-  { tab:'tracker', filter:'notsched',   label:'to schedule',      tone:'s-amber' }
-];
+/* AI "Today's Priorities" bar — replaces the attention-stat strip.
+   Written each morning (and on manual refresh) by the standalone Priorities
+   Service (Priorities.gs); the dashboard just reads the Priorities tab.
+   KPI cards stay available behind the All-stats toggle. */
 const KPI_TILES = [
   { tab:'quotes',  filter:'exp7',       label:'Expiring soon',    sub:'Quotes expiring ≤7 days',  tone:'amber' },
   { tab:'quotes',  filter:'nofu',       label:'No follow-up',     sub:'Quotes missing follow-up', tone:'amber' },
@@ -1386,24 +1429,90 @@ function jumpTo(tabId, filterId){
   });
   renderAll();
 }
+const PRIO_LEVEL = s => s >= 80 ? 'p1' : s >= 60 ? 'p2' : 'p3';
+function fmtPrioAge(iso){
+  const t = Date.parse(iso);
+  if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 2) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = new Date(t);
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+    d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+}
+async function loadPriorities(){
+  try {
+    const pr = await api(`/values/${encodeURIComponent(`'${CONFIG.PRIORITIES_SHEET}'!A2:K12`)}`);
+    const rows = pr.values || [];
+    state.prios.items = rows.filter(r => String(r[4] || '').trim()).map(r => ({
+      type:String(r[1] || ''), tab:String(r[2] || ''), key:String(r[3] || '').trim(),
+      title:String(r[4] || ''), score:parseInt(r[5], 10) || 0,
+      level:String(r[6] || '').trim().toLowerCase(),
+      reason:String(r[7] || ''), action:String(r[8] || '')
+    }));
+    state.prios.generated = String(((rows[0] || [])[9]) || '');
+    state.prios.source = String(((rows[0] || [])[10]) || '');
+  } catch(e){ state.prios.items = []; state.prios.generated = ''; state.prios.source = ''; }
+}
+function prioJump(p){
+  if (p.tab === 'texts'){ state.textsFilter = 'open'; jumpTo('texts', 'all'); return; }
+  if (p.tab === 'renewals'){ jumpTo('renewals', 'all'); return; }
+  const tab = TABS.find(t => t.id === p.tab);
+  if (!tab){ toast('This priority has no linked record', 'err'); return; }
+  const hit = rowByKey(tab.id, p.key);
+  jumpTo(tab.id, 'all');
+  if (hit) openDrawer(hit.uid);
+  else toast('#' + p.key + ' isn\u2019t in the live sheet anymore \u2014 it may have been archived. Refresh priorities for a fresh list.', 'err');
+}
+async function refreshPriorities(){
+  const url = String(CONFIG.PRIORITIES_URL || '').trim();
+  if (!url){ toast('Deploy Priorities.gs, then paste its /exec URL into CONFIG.PRIORITIES_URL', 'err'); return; }
+  if (state.prios.loading) return;
+  state.prios.loading = true;
+  renderSummary();
+  try {
+    const r = await fetch(url, { method:'POST', body: JSON.stringify({ action:'refresh' }) });
+    const txt = await r.text();
+    let j = null;
+    try { j = JSON.parse(txt); }
+    catch(e){ throw new Error('The Priorities service returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
+    if (!j || !j.success) throw new Error((j && j.error) || 'Priorities service call failed');
+    await loadPriorities();
+    toast(state.prios.source === 'fallback'
+      ? 'Refreshed \u2014 AI was unreachable, showing the rule-based ranking'
+      : 'Priorities refreshed', 'ok');
+  } catch(e){ if (e.message !== 'auth') toast(String(e.message || e), 'err'); }
+  state.prios.loading = false;
+  renderSummary();
+}
 function renderSummary(){
   const box = $('#summary');
   box.innerHTML = '';
   if (isField()) return;   // field view keeps the header lean — no office KPIs
 
+  const P = state.prios || { items:[] };
   const bar = document.createElement('div');
   bar.className = 'attn';
-  bar.innerHTML = '<span class="tag"><span class="dot" aria-hidden="true"></span>Needs attention</span>';
-  ATTN_STATS.forEach(st => {
-    const n = countFor(st.tab, st.filter);
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'stat ' + st.tone;
-    b.setAttribute('aria-label', `${n} ${st.label} — show these`);
-    b.innerHTML = `<b>${n}</b> ${esc(st.label)}`;
-    b.addEventListener('click', () => jumpTo(st.tab, st.filter));
-    bar.appendChild(b);
-  });
+  bar.innerHTML = '<span class="tag"><span class="dot" aria-hidden="true"></span>Today\u2019s Priorities</span>';
+  const when = document.createElement('span');
+  when.className = 'prio-when';
+  when.textContent = P.loading ? 'Refreshing\u2026'
+    : P.generated ? ('Updated ' + fmtPrioAge(P.generated) + (P.source === 'fallback' ? ' \u00b7 rule-based' : ''))
+    : 'Not generated yet';
+  bar.appendChild(when);
+  if (String(CONFIG.PRIORITIES_URL || '').trim()){
+    const rb = document.createElement('button');
+    rb.type = 'button';
+    rb.className = 'prio-refresh' + (P.loading ? ' spin' : '');
+    rb.disabled = !!P.loading;
+    rb.setAttribute('aria-label', 'Refresh today\u2019s priorities');
+    rb.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>' +
+      (P.loading ? ' Refreshing' : ' Refresh');
+    rb.addEventListener('click', refreshPriorities);
+    bar.appendChild(rb);
+  }
   const tog = document.createElement('button');
   tog.type = 'button';
   tog.className = 'statsbtn';
@@ -1412,6 +1521,35 @@ function renderSummary(){
   tog.addEventListener('click', () => { state.statsOpen = !state.statsOpen; renderSummary(); });
   bar.appendChild(tog);
   box.appendChild(bar);
+
+  const list = document.createElement('div');
+  list.className = 'prios';
+  if (!P.items.length){
+    const empty = document.createElement('div');
+    empty.className = 'prio-empty';
+    empty.textContent = P.loading ? 'Thinking\u2026'
+      : P.generated ? 'Nothing urgent right now \u2014 all clear.'
+      : 'No priorities yet \u2014 they generate automatically each morning, or tap Refresh.';
+    list.appendChild(empty);
+  }
+  P.items.slice(0, 5).forEach((p, i) => {
+    const lv = ['p1','p2','p3'].includes(p.level) ? p.level : PRIO_LEVEL(p.score);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'prio ' + lv;
+    card.setAttribute('aria-label', 'Priority ' + (i + 1) + ': ' + p.title + ' — open');
+    card.innerHTML =
+      '<span class="pbadge">' + (i + 1) + '</span>' +
+      '<span class="pbody">' +
+        '<span class="pt">' + esc(p.title) + '</span>' +
+        (p.reason ? '<span class="why">' + esc(p.reason) + '</span>' : '') +
+        (p.action ? '<span class="act">\u2192 ' + esc(p.action) + '</span>' : '') +
+      '</span>' +
+      '<span class="go" aria-hidden="true">\u203a</span>';
+    card.addEventListener('click', () => prioJump(p));
+    list.appendChild(card);
+  });
+  box.appendChild(list);
 
   const grid = document.createElement('div');
   grid.className = 'kpis' + (state.statsOpen ? ' open' : '');
