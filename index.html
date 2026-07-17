@@ -782,8 +782,8 @@ const CONFIG = {
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
-  CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycby38bIPTOZGg6EvOSsqxuELnGyiNWSNdAipjDiI3aC3-i6K_Hhj9_WopbVstgLooGu0vg/exec', // Apps Script web app (ChatFiles.gs v2) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.14'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
+  VERSION: '0.15'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
