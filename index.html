@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.16 — AI Today's Priorities bar (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.17 — AI Today's Priorities bar + authenticated refresh (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -825,7 +825,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbxcl_jcg29hAVWgKR4D_Bl6q0X5h3MBUUp-dvjg3KK9XsxiS1X5DGpcZOpo5ttNYjx0/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.16'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.17'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1473,7 +1473,7 @@ async function refreshPriorities(){
   state.prios.loading = true;
   renderSummary();
   try {
-    const r = await fetch(url, { method:'POST', body: JSON.stringify({ action:'refresh' }) });
+    const r = await fetch(url, { method:'POST', body: JSON.stringify({ action:'refresh', token: state.token }) });
     const txt = await r.text();
     let j = null;
     try { j = JSON.parse(txt); }
@@ -1538,14 +1538,26 @@ function renderSummary(){
     card.type = 'button';
     card.className = 'prio ' + lv;
     card.setAttribute('aria-label', 'Priority ' + (i + 1) + ': ' + p.title + ' — open');
-    card.innerHTML =
-      '<span class="pbadge">' + (i + 1) + '</span>' +
-      '<span class="pbody">' +
-        '<span class="pt">' + esc(p.title) + '</span>' +
-        (p.reason ? '<span class="why">' + esc(p.reason) + '</span>' : '') +
-        (p.action ? '<span class="act">\u2192 ' + esc(p.action) + '</span>' : '') +
-      '</span>' +
-      '<span class="go" aria-hidden="true">\u203a</span>';
+    const badge = document.createElement('span');
+    badge.className = 'pbadge'; badge.textContent = String(i + 1);
+    const body = document.createElement('span');
+    body.className = 'pbody';
+    const pt = document.createElement('span');
+    pt.className = 'pt'; pt.textContent = p.title;
+    body.appendChild(pt);
+    if (p.reason){
+      const why = document.createElement('span');
+      why.className = 'why'; why.textContent = p.reason;
+      body.appendChild(why);
+    }
+    if (p.action){
+      const act = document.createElement('span');
+      act.className = 'act'; act.textContent = '\u2192 ' + p.action;
+      body.appendChild(act);
+    }
+    const go = document.createElement('span');
+    go.className = 'go'; go.setAttribute('aria-hidden', 'true'); go.textContent = '\u203a';
+    card.appendChild(badge); card.appendChild(body); card.appendChild(go);
     card.addEventListener('click', () => prioJump(p));
     list.appendChild(card);
   });
