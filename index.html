@@ -243,6 +243,8 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-exp .r-q{color:var(--red-dk)}
 .row.u-soon .r-q{color:var(--amber)}
 .row.u-closed .r-q{color:var(--muted)}
+.row.u-closed .r-nm{color:var(--muted); font-weight:600}
+.ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
 .r-nm{font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; align-self:center}
 .r-ttl{color:var(--muted); font-size:12.5px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -837,6 +839,7 @@ const CONFIG = {
   AI_WEBHOOK_URL: '',   // optional: n8n webhook that returns {subject, body} for AI-written outreach; blank = built-in template
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
+  RENEWAL_STATUS_SHEET: 'Renewal Status', // per-renewal outcome (Declined this cycle / Lost customer) — auto-created on first dismissal
   PRIORITIES_SHEET: 'Priorities',       // AI Today's Priorities — written by the standalone Priorities Service each morning
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbxcl_jcg29hAVWgKR4D_Bl6q0X5h3MBUUp-dvjg3KK9XsxiS1X5DGpcZOpo5ttNYjx0/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
@@ -871,7 +874,7 @@ const state = {
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
   smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
-  prefs:{}, threadDone:{}, replyGroups:[], roles:{}, role:'back', viewAs:null,
+  prefs:{}, threadDone:{}, renStatus:{}, replyGroups:[], roles:{}, role:'back', viewAs:null,
   renBucket:'d30',
   prios:{ items:[], generated:'', source:'', loading:false },
   drawerUid:null, drawerList:[], lastLoad:0
@@ -966,7 +969,7 @@ function saveCache(){
       archive: state.archive.map(r => r.cells),
       qarchive: state.qarchive.map(r => r.cells),
       customers: state.customers,
-      prefs: state.prefs, threadDone: state.threadDone, replyGroups: state.replyGroups, roles: state.roles,
+      prefs: state.prefs, threadDone: state.threadDone, renStatus: state.renStatus, replyGroups: state.replyGroups, roles: state.roles,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
@@ -990,6 +993,11 @@ function hydrateCache(){
     state.customers = p.customers || {};
     state.prefs = p.prefs || {};
     state.threadDone = p.threadDone || {};
+    state.renStatus = {};
+    Object.entries(p.renStatus || {}).forEach(([k, v]) => {
+      state.renStatus[k] = { status: v.status || '', dueAtMark: v.dueAtMark ? new Date(v.dueAtMark) : null,
+        lastAtMark: v.lastAtMark ? new Date(v.lastAtMark) : null, row: v.row || 0 };
+    });
     state.replyGroups = p.replyGroups || [];
     state.roles = p.roles || {};
     state.lastLoad = p.ts || 0;
@@ -1196,6 +1204,17 @@ async function loadAll(showToast){
         if (k.length === 10) state.threadDone[k] = { done: low(row[1]) === 'done', ts: Date.parse(row[2]) || 0, row: i + 2 };
       });
     } catch(e){ state.threadDone = {}; }
+
+    // per-renewal outcome — Renewal Status tab (auto-created the first time a renewal is dismissed)
+    try {
+      const rs = await api(`/values/${encodeURIComponent(`'${CONFIG.RENEWAL_STATUS_SHEET}'!A2:H`)}`);
+      state.renStatus = {};
+      (rs.values || []).forEach((row, i) => {
+        const k = String(row[0] || '').trim();
+        if (k) state.renStatus[k] = { status: String(row[3] || '').trim(),
+          dueAtMark: parseDate(row[4]), lastAtMark: parseDate(row[5]), row: i + 2 };
+      });
+    } catch(e){ state.renStatus = {}; }
 
     // AI Today's Priorities — optional tab written by the Priorities Service
     await loadPriorities();
@@ -1662,7 +1681,7 @@ function renderAll(){
   const rc = document.querySelector('[data-cnt="renewals"]');
   if (rc){
     const R = computeRenewals();
-    rc.textContent = R.filter(x => x.days <= 30 && !x.upcoming).length;
+    rc.textContent = R.filter(x => x.days <= 30 && !x.upcoming && !x.dismissed).length;
   }
   const xc = document.querySelector('[data-cnt="texts"]');
   if (xc) xc.textContent = computeThreads().reduce((s, t) => s + t.unread, 0);
@@ -1678,11 +1697,12 @@ function renderAll(){
     fb.innerHTML = '';
     const R = computeRenewals();
     const buckets = [
-      { id:'overdue', label:'Overdue',  fn:x => x.days < 0 },
-      { id:'d30',     label:'Due ≤30d', fn:x => x.days >= 0 && x.days <= 30 },
-      { id:'d90',     label:'31–90d',   fn:x => x.days > 30 && x.days <= 90 },
-      { id:'later',   label:'Later',    fn:x => x.days > 90 },
-      { id:'all',     label:'All',      fn:() => true }
+      { id:'overdue',   label:'Overdue',   fn:x => x.days < 0 && !x.dismissed },
+      { id:'d30',       label:'Due ≤30d',  fn:x => x.days >= 0 && x.days <= 30 && !x.dismissed },
+      { id:'d90',       label:'31–90d',    fn:x => x.days > 30 && x.days <= 90 && !x.dismissed },
+      { id:'later',     label:'Later',     fn:x => x.days > 90 && !x.dismissed },
+      { id:'dismissed', label:'Dismissed', fn:x => x.dismissed },
+      { id:'all',       label:'All',       fn:() => true }
     ];
     buckets.forEach(bk => {
       const n = R.filter(bk.fn).length;
@@ -2560,6 +2580,20 @@ function computeRenewals(){
       if (!quote || quoteNum(q.key) > quoteNum(quote.key)) quote = q;
     });
 
+    // team-marked outcome? (✕ Dismiss — saved in the Renewal Status tab)
+    const rkey = nm + '|' + cat + '|' + cyc.months;
+    const st = state.renStatus[rkey];
+    let dismissed = false, dstatus = '';
+    if (st && st.status){
+      if (/lost/i.test(st.status)){
+        dismissed = !st.lastAtMark || last <= st.lastAtMark;   // a newer completed job revives the customer
+      } else {
+        const mark = st.dueAtMark || due;
+        dismissed = due <= mark && today < addMonths(mark, cyc.months);   // snoozed until the next cycle comes due
+      }
+      if (dismissed) dstatus = st.status;
+    }
+
     // contact info: Customers directory first, then newest live quote, then archived quotes
     let email = '', phone = '';
     const hit = state.customers[nm];
@@ -2576,7 +2610,7 @@ function computeRenewals(){
     if (!email || !phone) contactScan(quotes);
     if (!email || !phone) contactScan(state.qarchive || []);
 
-    return { name, cat, cyc, last, due, days, src, srcKey, upcoming, quote, email, phone };
+    return { name, cat, cyc, last, due, days, src, srcKey, upcoming, quote, email, phone, rkey, dismissed, dstatus };
   }).sort((a, b) => a.due - b.due);
 
   _ren = { ts: state.lastLoad, list };
@@ -2587,11 +2621,12 @@ function renderRenewals(){
   const main = $('#main');
   main.innerHTML = '';
   const buckets = {
-    overdue: x => x.days < 0,
-    d30:     x => x.days >= 0 && x.days <= 30,
-    d90:     x => x.days > 30 && x.days <= 90,
-    later:   x => x.days > 90,
-    all:     () => true
+    overdue:   x => x.days < 0 && !x.dismissed,
+    d30:       x => x.days >= 0 && x.days <= 30 && !x.dismissed,
+    d90:       x => x.days > 30 && x.days <= 90 && !x.dismissed,
+    later:     x => x.days > 90 && !x.dismissed,
+    dismissed: x => x.dismissed,
+    all:       () => true
   };
   const fn = buckets[state.renBucket] || buckets.d30;
   let items = computeRenewals().filter(fn);
@@ -2602,6 +2637,7 @@ function renderRenewals(){
   list.className = 'list';
   if (!items.length){
     list.innerHTML = `<div class="empty">${q ? 'No renewals match your search.' :
+      state.renBucket === 'dismissed' ? 'No dismissed renewals — use ✕ Dismiss on a renewal when the customer declines or is lost.' :
       'Nothing in this window — renewals appear automatically from completed jobs with a service cycle (annual, 5-year, monthly…).'}</div>`;
     main.appendChild(list);
     return;
@@ -2610,13 +2646,23 @@ function renderRenewals(){
     const row = document.createElement('div');
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
-    row.className = 'row' + (x.days < 0 ? ' u-exp' : x.days <= 30 ? ' u-soon' : '');
-    const dueBadge = x.days < 0
+    row.className = 'row' + (x.dismissed ? ' u-closed' : x.days < 0 ? ' u-exp' : x.days <= 30 ? ' u-soon' : '');
+    const dueBadge = x.dismissed
+      ? `<span class="badge b-gray">was due ${fmtMD(x.due)}</span>`
+      : x.days < 0
       ? `<span class="badge b-red">${Math.abs(x.days)}d overdue</span>`
       : x.days <= 30
         ? `<span class="badge b-amber">due in ${x.days}d</span>`
         : `<span class="badge ${x.days <= 90 ? 'b-blue' : 'b-gray'}">due ${fmtMD(x.due)}</span>`;
     row.setAttribute('aria-label', `${x.name} — ${x.cyc.label} ${x.cat} due ${fmtFull(x.due)}`);
+    const metaActions = x.dismissed
+      ? `<span class="badge b-gray">✕ ${esc(x.dstatus)}</span><button type="button" class="fu" data-act="restore" title="Bring this renewal back into the active lists">↩ Restore</button>`
+      : (prefNoContact(x.name) ? '' : '<button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>') +
+        (x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : '') +
+        (x.phone && !prefNoText(x.name) ? `<button type="button" class="fu draft" data-act="rentext" title="Draft & send a renewal text">💬 Text</button>` : '') +
+        (x.quote ? `<span class="badge b-blue">Quote #${esc(x.quote.key)} out</span>` : '') +
+        (x.upcoming ? `<span class="badge b-green">Already scheduled</span>` : '') +
+        `<span class="ren-dm"><button type="button" class="fu" data-act="dismiss" title="Mark as declined or lost — removes it from the counts">✕ Dismiss</button></span>`;
     row.innerHTML = `
       <div class="r-main">
         <div class="r-top">
@@ -2626,12 +2672,7 @@ function renderRenewals(){
         </div>
         <div class="r-ttl">${esc(x.cat)} — last serviced ${fmtFull(x.last)} · job #${esc(x.srcKey)}${x.src ? '' : ' (archived)'}</div>
         <div class="r-meta">
-          ${prefBadge(x.name)}
-          ${prefNoContact(x.name) ? '' : '<button type="button" class="fu draft" data-act="draft">✉ Draft outreach</button>'}
-          ${x.phone ? `<a class="fu" href="tel:${esc(x.phone)}" data-act="tel">📞 Call</a>` : ''}
-          ${x.phone && !prefNoText(x.name) ? `<button type="button" class="fu draft" data-act="rentext" title="Draft & send a renewal text">💬 Text</button>` : ''}
-          ${x.quote ? `<span class="badge b-blue">Quote #${esc(x.quote.key)} out</span>` : ''}
-          ${x.upcoming ? `<span class="badge b-green">Already scheduled</span>` : ''}
+          ${prefBadge(x.name)}${metaActions}
         </div>
       </div>
       <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
@@ -2650,12 +2691,81 @@ function renderRenewals(){
         e.stopPropagation();
         if (el.dataset.act === 'draft') draftOutreach(x, el);
         if (el.dataset.act === 'rentext') openTexter({ phone:x.phone, name:x.name, srcKey:x.srcKey }, smsRenewalTemplate(x), 'renewal');
+        if (el.dataset.act === 'dismiss') renDismissMenu(row, x);
+        if (el.dataset.act === 'restore') saveRenewalStatus(x, '');
       });
       el.addEventListener('keydown', e => e.stopPropagation());
     });
     list.appendChild(row);
   });
   main.appendChild(list);
+}
+
+/* ---- renewal outcomes (✕ Dismiss — saved in the Renewal Status tab) ----
+   "Declined this cycle" snoozes the item until the next cycle comes due, then it
+   resurfaces on its own; "Lost customer" hides it until a new completed job revives
+   the customer. Both drop it from the counts immediately. Dismissed items live under
+   the Dismissed filter with a Restore button. The tab is created automatically. */
+function renDismissMenu(row, x){
+  const wrap = row.querySelector('.ren-dm');
+  if (!wrap) return;
+  wrap.innerHTML =
+    '<button type="button" class="fu">Declined this cycle</button>' +
+    '<button type="button" class="fu">Lost customer</button>' +
+    '<button type="button" class="fu off">Cancel</button>';
+  const [b1, b2, b3] = wrap.querySelectorAll('button');
+  [b1, b2, b3].forEach(b => b.addEventListener('keydown', e => e.stopPropagation()));
+  b1.addEventListener('click', e => { e.stopPropagation(); saveRenewalStatus(x, 'Declined this cycle'); });
+  b2.addEventListener('click', e => { e.stopPropagation(); saveRenewalStatus(x, 'Lost customer'); });
+  b3.addEventListener('click', e => { e.stopPropagation(); renderAll(); });
+}
+async function ensureRenewalStatusTab(){
+  try {
+    await api(':batchUpdate', { method:'POST',
+      body: JSON.stringify({ requests:[{ addSheet:{ properties:{ title: CONFIG.RENEWAL_STATUS_SHEET } } }] }) });
+  } catch(e){ if (e.message === 'auth' || !/already exists/i.test(e.message)) throw e; }
+  await api(`/values/${encodeURIComponent(`'${CONFIG.RENEWAL_STATUS_SHEET}'!A1:H1`)}?valueInputOption=USER_ENTERED`, {
+    method:'PUT',
+    body: JSON.stringify({ values:[['Key','Customer','Service','Status','Due at mark','Last serviced at mark','By','When']] })
+  });
+}
+async function saveRenewalStatus(x, status){
+  const when = new Date().toLocaleString();
+  const vals = [x.rkey, x.name, x.cyc.label + ' ' + x.cat, status, fmtFull(x.due), fmtFull(x.last), autoSenderName(), when];
+  const hit = state.renStatus[x.rkey];
+  try {
+    if (hit && hit.row){
+      await api('/values:batchUpdate', { method:'POST',
+        body: JSON.stringify({ valueInputOption:'USER_ENTERED',
+          data:[{ range:`'${CONFIG.RENEWAL_STATUS_SHEET}'!A${hit.row}:H${hit.row}`, values:[vals] }] }) });
+      Object.assign(hit, { status, dueAtMark: new Date(x.due), lastAtMark: new Date(x.last) });
+    } else {
+      const doAppend = () => api(`/values/${encodeURIComponent(`'${CONFIG.RENEWAL_STATUS_SHEET}'!A:H`)}:append?valueInputOption=USER_ENTERED`, {
+        method:'POST', body: JSON.stringify({ values:[vals] }) });
+      let res;
+      try { res = await doAppend(); }
+      catch(e){
+        if (e.message === 'auth') throw e;
+        await ensureRenewalStatusTab();   // first ever dismissal — create the tab, then retry
+        res = await doAppend();
+      }
+      const m = String(res.updates ? res.updates.updatedRange : '').match(/![A-Z]+(\d+):/);
+      state.renStatus[x.rkey] = { status, dueAtMark: new Date(x.due), lastAtMark: new Date(x.last), row: m ? +m[1] : 0 };
+    }
+    _ren.ts = -1;   // renewals cache is stale — recompute on next render
+    saveCache();
+    if (CONFIG.ACTIVITY_LOG_SHEET){
+      const entry = [when, state.email, 'Renewal outcome', 'Renewals', x.srcKey || '',
+        x.name + ' — ' + x.cyc.label + ' ' + x.cat + ' → ' + (status || 'restored'), ''];
+      state.activity.push(entry);
+      api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+        { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    }
+    renderAll();
+    toast(status ? `${x.name} — ${status.toLowerCase()}` : `${x.name} — renewal restored`, 'ok');
+  } catch(e){
+    if (e.message !== 'auth') toast('Could not save renewal outcome: ' + e.message, 'err');
+  }
 }
 
 /* ---- outreach drafting: built-in template, upgraded by AI webhook when configured ---- */
