@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.17 — AI Today's Priorities bar + authenticated refresh (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.19 — priorities: record numbers on cards + morning email digest (service v1.2) (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -127,10 +127,20 @@ h1.ace b{color:#E8534E; font-weight:700}
 .prio.p2{border-left-color:#E0A93E}     .prio.p2 .pbadge{background:#E0A93E}
 .prio.p3{border-left-color:var(--blue)} .prio.p3 .pbadge{background:var(--blue)}
 .prio .pbody{display:flex; flex-direction:column; gap:2px; min-width:0}
+.prio .ptrow{display:flex; align-items:baseline; gap:7px; min-width:0}
+.prio .pkey{font-family:'Barlow Condensed'; font-weight:700; font-size:14.5px; color:var(--muted); flex:none; letter-spacing:.03em}
 .prio .pt{font-weight:600; font-size:14px; line-height:1.3}
 .prio .why{font-size:12px; color:var(--muted); line-height:1.4}
 .prio .act{font-size:12px; color:var(--blue); font-weight:600; margin-top:1px}
-.prio .go{margin-left:auto; align-self:center; color:var(--muted); font-size:20px; flex:none; padding-left:4px}
+.prio .pright{margin-left:auto; align-self:center; display:flex; align-items:center; gap:8px; flex:none; padding-left:6px}
+.pchip{font-size:11px; font-weight:700; color:var(--muted); background:var(--paper); border:1px solid var(--line); border-radius:99px; padding:3px 9px; white-space:nowrap}
+.pdone{
+  appearance:none; cursor:pointer; width:26px; height:26px; border-radius:50%; flex:none;
+  border:1.5px solid var(--line); background:none; color:var(--muted); font-size:13px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+}
+.pdone:hover{border-color:var(--blue); color:var(--blue)}
+.prio .go{align-self:center; color:var(--muted); font-size:20px; flex:none}
 .prio-empty{
   background:var(--card); border:1px dashed var(--line); border-radius:12px;
   padding:14px; font-size:12.5px; color:var(--muted); text-align:center;
@@ -139,6 +149,12 @@ h1.ace b{color:#E8534E; font-weight:700}
   .prios{gap:7px}
   .prio{padding:10px 11px}
   .prio .why{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .pchip{display:none}
+}
+@media (min-width:900px){
+  .prios{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .prios .prio:first-child{grid-column:1 / -1}
+  .prio-empty{grid-column:1 / -1}
 }
 
 /* ============ Tabs (sticky) ============ */
@@ -825,7 +841,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbxcl_jcg29hAVWgKR4D_Bl6q0X5h3MBUUp-dvjg3KK9XsxiS1X5DGpcZOpo5ttNYjx0/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.17'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.19'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1444,17 +1460,35 @@ function fmtPrioAge(iso){
 }
 async function loadPriorities(){
   try {
-    const pr = await api(`/values/${encodeURIComponent(`'${CONFIG.PRIORITIES_SHEET}'!A2:K12`)}`);
+    const pr = await api(`/values/${encodeURIComponent(`'${CONFIG.PRIORITIES_SHEET}'!A2:L12`)}`);
     const rows = pr.values || [];
     state.prios.items = rows.filter(r => String(r[4] || '').trim()).map(r => ({
       type:String(r[1] || ''), tab:String(r[2] || ''), key:String(r[3] || '').trim(),
       title:String(r[4] || ''), score:parseInt(r[5], 10) || 0,
       level:String(r[6] || '').trim().toLowerCase(),
-      reason:String(r[7] || ''), action:String(r[8] || '')
+      reason:String(r[7] || ''), action:String(r[8] || ''), chip:String(r[11] || '').trim()
     }));
     state.prios.generated = String(((rows[0] || [])[9]) || '');
     state.prios.source = String(((rows[0] || [])[10]) || '');
   } catch(e){ state.prios.items = []; state.prios.generated = ''; state.prios.source = ''; }
+}
+const PRIO_DONE_LS = 'acefire_prio_done_v1';
+function prioDoneSet(){
+  try {
+    const o = JSON.parse(localStorage.getItem(PRIO_DONE_LS) || 'null');
+    if (o && o.gen === state.prios.generated && Array.isArray(o.keys)) return new Set(o.keys);
+  } catch(e){}
+  return new Set();
+}
+function prioMarkDone(p){
+  const done = prioDoneSet();
+  done.add(p.tab + '|' + p.key);
+  try { localStorage.setItem(PRIO_DONE_LS, JSON.stringify({ gen: state.prios.generated, keys: [...done] })); } catch(e){}
+  renderSummary();
+}
+function prioClearDone(){
+  try { localStorage.removeItem(PRIO_DONE_LS); } catch(e){}
+  renderSummary();
 }
 function prioJump(p){
   if (p.tab === 'texts'){ state.textsFilter = 'open'; jumpTo('texts', 'all'); return; }
@@ -1513,6 +1547,18 @@ function renderSummary(){
     rb.addEventListener('click', refreshPriorities);
     bar.appendChild(rb);
   }
+  const doneSet = prioDoneSet();
+  const ranked = P.items.slice(0, 5).map((p, i) => ({ p, rank: i + 1 }));
+  const shown = ranked.filter(x => !doneSet.has(x.p.tab + '|' + x.p.key));
+  const hiddenN = ranked.length - shown.length;
+  if (hiddenN){
+    const db = document.createElement('button');
+    db.type = 'button';
+    db.className = 'prio-refresh';
+    db.textContent = hiddenN + ' handled \u00b7 undo';
+    db.addEventListener('click', prioClearDone);
+    bar.appendChild(db);
+  }
   const tog = document.createElement('button');
   tog.type = 'button';
   tog.className = 'statsbtn';
@@ -1524,27 +1570,40 @@ function renderSummary(){
 
   const list = document.createElement('div');
   list.className = 'prios';
-  if (!P.items.length){
+  if (!shown.length){
     const empty = document.createElement('div');
     empty.className = 'prio-empty';
     empty.textContent = P.loading ? 'Thinking\u2026'
+      : hiddenN ? ('All ' + hiddenN + ' handled \u2014 nothing left this morning.')
       : P.generated ? 'Nothing urgent right now \u2014 all clear.'
       : 'No priorities yet \u2014 they generate automatically each morning, or tap Refresh.';
     list.appendChild(empty);
   }
-  P.items.slice(0, 5).forEach((p, i) => {
+  shown.forEach(({ p, rank }) => {
     const lv = ['p1','p2','p3'].includes(p.level) ? p.level : PRIO_LEVEL(p.score);
-    const card = document.createElement('button');
-    card.type = 'button';
+    const card = document.createElement('div');
     card.className = 'prio ' + lv;
-    card.setAttribute('aria-label', 'Priority ' + (i + 1) + ': ' + p.title + ' — open');
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', 'Priority ' + rank + ': ' + p.title + ' — open');
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); prioJump(p); }
+    });
     const badge = document.createElement('span');
-    badge.className = 'pbadge'; badge.textContent = String(i + 1);
+    badge.className = 'pbadge'; badge.textContent = String(rank);
     const body = document.createElement('span');
     body.className = 'pbody';
+    const ptrow = document.createElement('span');
+    ptrow.className = 'ptrow';
+    if (p.key && (p.tab === 'quotes' || p.tab === 'tracker')){
+      const pk = document.createElement('span');
+      pk.className = 'pkey'; pk.textContent = '#' + p.key;
+      ptrow.appendChild(pk);
+    }
     const pt = document.createElement('span');
     pt.className = 'pt'; pt.textContent = p.title;
-    body.appendChild(pt);
+    ptrow.appendChild(pt);
+    body.appendChild(ptrow);
     if (p.reason){
       const why = document.createElement('span');
       why.className = 'why'; why.textContent = p.reason;
@@ -1555,9 +1614,25 @@ function renderSummary(){
       act.className = 'act'; act.textContent = '\u2192 ' + p.action;
       body.appendChild(act);
     }
+    const right = document.createElement('span');
+    right.className = 'pright';
+    if (p.chip){
+      const ch = document.createElement('span');
+      ch.className = 'pchip'; ch.textContent = p.chip;
+      right.appendChild(ch);
+    }
+    const dn = document.createElement('button');
+    dn.type = 'button';
+    dn.className = 'pdone';
+    dn.title = 'Mark handled for today';
+    dn.setAttribute('aria-label', 'Mark \u201c' + p.title + '\u201d handled for today');
+    dn.textContent = '\u2713';
+    dn.addEventListener('click', e => { e.stopPropagation(); prioMarkDone(p); });
+    right.appendChild(dn);
     const go = document.createElement('span');
     go.className = 'go'; go.setAttribute('aria-hidden', 'true'); go.textContent = '\u203a';
-    card.appendChild(badge); card.appendChild(body); card.appendChild(go);
+    right.appendChild(go);
+    card.appendChild(badge); card.appendChild(body); card.appendChild(right);
     card.addEventListener('click', () => prioJump(p));
     list.appendChild(card);
   });
