@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.19 — priorities: record numbers on cards + morning email digest (service v1.2) (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.21 — outreach composer: message-angle picker + AI rewrite (DeepSeek via the Priorities service) (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -744,6 +744,15 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     .m-two{display:flex;gap:10px}
     .m-two .m-f{flex:1;min-width:0}
     @media (max-width:640px){.m-two{flex-direction:column;gap:11px}}
+    .ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+    .ai-chip{border:1px solid var(--line2);background:#fff;border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--ink2);cursor:pointer}
+    .ai-chip:hover{border-color:var(--blue);color:var(--blue)}
+    .ai-line{display:flex;gap:8px}
+    .ai-line input{flex:1;min-width:0}
+    .ai-line button{flex:none;white-space:nowrap;border:1px solid #CBD9EC;background:var(--blue-bg);color:var(--blue);border-radius:8px;padding:9px 14px;font-size:13.5px;font-weight:600;cursor:pointer}
+    .ai-line button:disabled{opacity:.5;cursor:default}
+    .ai-undo{margin-top:6px;font-size:12.5px;color:var(--muted)}
+    .ai-undo a{color:var(--blue);cursor:pointer;text-decoration:underline}
   </style>
   <div class="mailer" role="dialog" aria-modal="true" aria-label="Send email">
     <div class="m-head">
@@ -756,8 +765,14 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
         <div class="m-f"><label for="mReply">Replies go to</label><select id="mReply"></select></div>
       </div>
       <div class="m-f"><label for="mTo">To</label><input type="email" id="mTo" autocomplete="off" placeholder="customer@email.com"></div>
+      <div class="m-f" id="mToneRow" style="display:none"><label for="mTone">Message angle</label><select id="mTone"></select></div>
       <div class="m-f"><label for="mSubj">Subject</label><input type="text" id="mSubj" autocomplete="off"></div>
       <div class="m-f"><label for="mBody">Message</label><textarea id="mBody"></textarea></div>
+      <div class="m-f"><label for="mAi">AI rewrite</label>
+        <div class="ai-chips" id="mChips"></div>
+        <div class="ai-line"><input type="text" id="mAi" autocomplete="off" placeholder="Tell the AI how to change it — e.g., shorter, mention we can come Thursday"><button type="button" id="mAiGo">✨ Rewrite</button></div>
+        <div class="ai-undo" id="mUndo" style="display:none">Rewritten — <a id="mUndoLink">undo</a></div>
+      </div>
     </div>
     <div class="m-foot">
       <button class="ghost" id="mCopy">Copy</button>
@@ -775,8 +790,14 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     </div>
     <div class="m-body">
       <div class="m-f"><label for="sTo">To (mobile)</label><input type="tel" id="sTo" autocomplete="off" placeholder="(818) 555-0123"></div>
+      <div class="m-f" id="sToneRow" style="display:none"><label for="sTone">Message angle</label><select id="sTone"></select></div>
       <div class="m-f"><label for="sBody">Message</label><textarea id="sBody" style="min-height:130px"></textarea>
         <div id="sCount" style="margin-top:5px;font-size:12px;color:var(--muted)"></div></div>
+      <div class="m-f"><label for="sAi">AI rewrite</label>
+        <div class="ai-chips" id="sChips"></div>
+        <div class="ai-line"><input type="text" id="sAi" autocomplete="off" placeholder="Tell the AI how to change it"><button type="button" id="sAiGo">✨ Rewrite</button></div>
+        <div class="ai-undo" id="sUndo" style="display:none">Rewritten — <a id="sUndoLink">undo</a></div>
+      </div>
     </div>
     <div class="m-foot">
       <button class="ghost" id="sCopy">Copy</button>
@@ -844,7 +865,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.20'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.21'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -2816,19 +2837,25 @@ async function draftOutreach(x, btn){
 }
 
 /* ---- quote follow-up drafting (Quotes tab) ---- */
-function quoteFollowupTemplate(r){
+function quoteFollowupTemplate(r, tone){
   const full = String(r.cells[1] || '').trim();
   const contact = (full.split(',')[1] || '').trim().split(' ')[0] || full.split(',')[0].trim() || 'there';
   const title = String(r.cells[4] || '').trim() || 'your fire protection service';
   const link = String(r.cells[5] || '').trim();
-  const d = daysNum(r);
   const exp = parseDate(r.cells[6]);
   const expStr = exp ? fmtFull(exp) : '';
+  const t = tone || autoQuoteTone(r);
   let opening;
-  if (d !== null && d < 0){
+  if (t === 'expired'){
     opening = `Following up on quote #${r.key} for ${title}. The quote expired${expStr ? ' on ' + expStr : ''}, but we're happy to refresh it and get you on the schedule — the pricing stays the same.`;
-  } else if (d !== null && d <= 7){
+  } else if (t === 'expiring'){
     opening = `Following up on quote #${r.key} for ${title}. It expires${expStr ? ' on ' + expStr : ' soon'} — we'd love to get you locked in before then.`;
+  } else if (t === 'schedule'){
+    opening = `Following up on quote #${r.key} for ${title}. If everything looks good, we're ready to get you on the schedule — just let us know a day that works and we'll take care of the rest.`;
+  } else if (t === 'pricing'){
+    opening = `Following up on quote #${r.key} for ${title}. If the pricing is giving you pause, we're happy to walk through the numbers or look at options together — just let us know.`;
+  } else if (t === 'final'){
+    opening = `Following up one last time on quote #${r.key} for ${title}. If now isn't the right time, no problem at all — we'll set the quote aside for now, and you're always welcome to reach back out when you're ready.`;
   } else {
     opening = `Following up on quote #${r.key} for ${title}. Wanted to check if you have any questions or if you're ready to get on the schedule.`;
   }
@@ -2913,12 +2940,20 @@ function openMailer(x, draft, source, type){
   initMailSelects();
   $('#mFrom').value = MAIL_TYPE_FROM[mailType] || MAIL_ALIASES[0].addr;
   $('#mReply').value = '';   // default: replies go back to the From alias; pick a group per email
-  const tag = $('#mSrc');
-  tag.textContent = source === 'ai' ? 'AI draft' : 'Template';
-  tag.className = 'badge ' + (source === 'ai' ? 'b-blue' : 'b-gray');
+  setMailSource(source);
   $('#mTo').value = x.email || '';
   $('#mSubj').value = draft.subject;
   $('#mBody').value = draft.body;
+  mailDirty = false;
+  mailPrev = null;
+  $('#mAi').value = '';
+  $('#mUndo').style.display = 'none';
+  if (x._quoteRow){
+    fillToneSelect($('#mTone'), autoQuoteTone(x._quoteRow));
+    $('#mToneRow').style.display = '';
+  } else {
+    $('#mToneRow').style.display = 'none';
+  }
   $('#mailWrap').classList.add('on');
   $('#mailWrap').setAttribute('aria-hidden', 'false');
   syncSendBtn();
@@ -3041,10 +3076,20 @@ function logEmail(person, fromAlias, to, subject, replyTo){
 const SMS_OUTBOX_SHEET = 'SMS Outbox';
 let smsCtx = null, smsType = 'quote';
 
-function smsQuoteTemplate(r){
+function smsQuoteTemplate(r, tone){
   const org = String(r.cells[1]||'').split(',')[0].trim() || 'there';
   const who = autoSenderName();
-  return `Hi ${org}, this is ${who ? who + ' with ' : ''}ACE Fire LA following up on quote #${r.key}${r.cells[4] ? ' for ' + r.cells[4] : ''}. Happy to answer any questions \u2014 call or text us at ${CONFIG.COMPANY_PHONE}.`;
+  const intro = `Hi ${org}, this is ${who ? who + ' with ' : ''}ACE Fire LA`;
+  const exp = parseDate(r.cells[6]);
+  const expStr = exp ? fmtFull(exp) : '';
+  const ref = `quote #${r.key}${r.cells[4] ? ' for ' + r.cells[4] : ''}`;
+  const t = tone || autoQuoteTone(r);
+  if (t === 'expired')  return `${intro}. Your ${ref} has expired, but we're happy to refresh it at the same pricing and get you scheduled. Call or text us at ${CONFIG.COMPANY_PHONE}.`;
+  if (t === 'expiring') return `${intro}. Your ${ref} expires${expStr ? ' on ' + expStr : ' soon'} — happy to get you on the schedule before then. Call or text us at ${CONFIG.COMPANY_PHONE}.`;
+  if (t === 'schedule') return `${intro}. If ${ref} looks good, just reply with a day that works and we'll get you on the schedule.`;
+  if (t === 'pricing')  return `${intro} about ${ref}. Happy to go over the pricing or look at options together — call or text us at ${CONFIG.COMPANY_PHONE}.`;
+  if (t === 'final')    return `${intro} — one last follow-up on ${ref}. If now isn't the right time, no problem at all, just let us know. ${CONFIG.COMPANY_PHONE}`;
+  return `${intro} following up on ${ref}. Happy to answer any questions — call or text us at ${CONFIG.COMPANY_PHONE}.`;
 }
 function smsRenewalTemplate(x){
   const org = String(x.name||'').split(',')[0].trim() || 'there';
@@ -3062,6 +3107,17 @@ function openTexter(x, body, type){
   smsType = type || 'quote';
   $('#sTo').value = x.phone || '';
   $('#sBody').value = body || '';
+  smsDirty = false;
+  smsPrev = null;
+  $('#sAi').value = '';
+  $('#sUndo').style.display = 'none';
+  setSmsSource('template');
+  if (x._quoteRow){
+    fillToneSelect($('#sTone'), autoQuoteTone(x._quoteRow));
+    $('#sToneRow').style.display = '';
+  } else {
+    $('#sToneRow').style.display = 'none';
+  }
   smsSegInfo();
   $('#smsWrap').classList.add('on');
   $('#smsWrap').setAttribute('aria-hidden', 'false');
@@ -3198,6 +3254,167 @@ $('#btnSmsMode').addEventListener('click', async () => {
   } catch(e){
     toast('Could not update mode — has installSmsTriggers() been run in Apps Script?', 'err');
   } finally { b.disabled = false; }
+});
+
+/* ---- message angles + AI rewrite (v0.21) ----
+   The dropdown swaps the template opening for a chosen angle; the AI
+   line sends the current draft + a plain-English instruction to the
+   Priorities service (action:'rewrite'), which runs DeepSeek and
+   returns the rewritten copy. One-step undo keeps the previous draft. */
+const QUOTE_TONES = [
+  { id:'checkin',  label:'Friendly check-in' },
+  { id:'expiring', label:'Expiring soon — lock it in' },
+  { id:'expired',  label:'Expired — offer to refresh' },
+  { id:'schedule', label:'Ready to schedule' },
+  { id:'pricing',  label:'Open to discuss pricing' },
+  { id:'final',    label:'Final follow-up' }
+];
+function autoQuoteTone(r){
+  const d = daysNum(r);
+  if (d !== null && d < 0) return 'expired';
+  if (d !== null && d <= 7) return 'expiring';
+  return 'checkin';
+}
+function fillToneSelect(sel, current){
+  sel.innerHTML = '';
+  QUOTE_TONES.forEach(t => sel.appendChild(new Option(t.label, t.id)));
+  sel.value = current;
+  sel.dataset.applied = current;
+}
+function setMailSource(source){
+  const tag = $('#mSrc');
+  tag.textContent = source === 'ai' ? 'AI draft' : 'Template';
+  tag.className = 'badge ' + (source === 'ai' ? 'b-blue' : 'b-gray');
+}
+function setSmsSource(source){
+  const tag = $('#sSrc');
+  tag.textContent = source === 'ai' ? 'AI draft' : 'Template';
+  tag.className = 'badge ' + (source === 'ai' ? 'b-blue' : 'b-gray');
+}
+let mailDirty = false, smsDirty = false, mailPrev = null, smsPrev = null;
+$('#mSubj').addEventListener('input', () => { mailDirty = true; });
+$('#mBody').addEventListener('input', () => { mailDirty = true; });
+$('#sBody').addEventListener('input', () => { smsDirty = true; });
+$('#mTone').addEventListener('change', () => {
+  const sel = $('#mTone'), r = mailCtx && mailCtx._quoteRow;
+  if (!r) return;
+  if (mailDirty && !confirm('Replace your edits with the new template?')){ sel.value = sel.dataset.applied; return; }
+  const d = quoteFollowupTemplate(r, sel.value);
+  $('#mSubj').value = d.subject;
+  $('#mBody').value = d.body;
+  sel.dataset.applied = sel.value;
+  mailDirty = false;
+  mailPrev = null;
+  $('#mUndo').style.display = 'none';
+  setMailSource('template');
+});
+$('#sTone').addEventListener('change', () => {
+  const sel = $('#sTone'), r = smsCtx && smsCtx._quoteRow;
+  if (!r) return;
+  if (smsDirty && !confirm('Replace your edits with the new template?')){ sel.value = sel.dataset.applied; return; }
+  $('#sBody').value = smsQuoteTemplate(r, sel.value);
+  sel.dataset.applied = sel.value;
+  smsDirty = false;
+  smsPrev = null;
+  $('#sUndo').style.display = 'none';
+  setSmsSource('template');
+  smsSegInfo();
+  syncSmsBtn();
+});
+const AI_CHIPS = ['Shorter', 'Friendlier', 'More formal', 'En español'];
+[['#mChips', '#mAi', 'email'], ['#sChips', '#sAi', 'sms']].forEach(([wrap, input, ch]) => {
+  AI_CHIPS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ai-chip';
+    b.textContent = c;
+    b.addEventListener('click', () => { $(input).value = c; aiRewrite(ch); });
+    $(wrap).appendChild(b);
+  });
+});
+async function aiRewrite(channel){
+  const isMail = channel === 'email';
+  const instr = $(isMail ? '#mAi' : '#sAi').value.trim();
+  if (!instr){ toast('Type how you want the message changed', 'err'); return; }
+  const url = String(CONFIG.PRIORITIES_URL || '').trim();
+  if (!url){ toast('AI rewrite needs the Priorities service — set CONFIG.PRIORITIES_URL', 'err'); return; }
+  const btn = $(isMail ? '#mAiGo' : '#sAiGo');
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Rewriting…';
+  try {
+    const ctx = {};
+    const r = isMail ? (mailCtx && mailCtx._quoteRow) : (smsCtx && smsCtx._quoteRow);
+    if (r){
+      ctx.quote = r.key;
+      ctx.customer = r.cells[1] || '';
+      ctx.title = r.cells[4] || '';
+      ctx.expDate = r.cells[6] || '';
+      ctx.daysToExp = daysNum(r);
+    } else {
+      const c = isMail ? mailCtx : smsCtx;
+      if (c && c.name) ctx.customer = c.name;
+      if (c && c.srcKey) ctx.ref = c.srcKey;
+    }
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 25000);
+    const resp = await fetch(url, { method:'POST', body: JSON.stringify({
+      action:'rewrite', token: state.token, channel,
+      subject: isMail ? $('#mSubj').value : '',
+      body: $(isMail ? '#mBody' : '#sBody').value,
+      instruction: instr, context: ctx
+    }), signal: ctl.signal });
+    clearTimeout(to);
+    const txt = await resp.text();
+    let j = null;
+    try { j = JSON.parse(txt); }
+    catch(e){ throw new Error('The Priorities service returned a page instead of data — check it\u2019s deployed with access set to "Anyone"'); }
+    if (!j || !j.success || !j.body) throw new Error((j && j.error) || 'Rewrite failed — is the Priorities service on v1.3+?');
+    if (isMail){
+      mailPrev = { subject: $('#mSubj').value, body: $('#mBody').value };
+      if (j.subject) $('#mSubj').value = j.subject;
+      $('#mBody').value = j.body;
+      $('#mUndo').style.display = '';
+      setMailSource('ai');
+      mailDirty = true;
+      syncSendBtn();
+    } else {
+      smsPrev = $('#sBody').value;
+      $('#sBody').value = j.body;
+      $('#sUndo').style.display = '';
+      setSmsSource('ai');
+      smsDirty = true;
+      smsSegInfo();
+      syncSmsBtn();
+    }
+  } catch(e){
+    toast(e.name === 'AbortError' ? 'AI rewrite timed out — try again' : String(e.message || e), 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+}
+$('#mAiGo').addEventListener('click', () => aiRewrite('email'));
+$('#sAiGo').addEventListener('click', () => aiRewrite('sms'));
+$('#mAi').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); aiRewrite('email'); } });
+$('#sAi').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); aiRewrite('sms'); } });
+$('#mUndoLink').addEventListener('click', () => {
+  if (!mailPrev) return;
+  $('#mSubj').value = mailPrev.subject;
+  $('#mBody').value = mailPrev.body;
+  mailPrev = null;
+  $('#mUndo').style.display = 'none';
+  setMailSource('template');
+  syncSendBtn();
+});
+$('#sUndoLink').addEventListener('click', () => {
+  if (smsPrev === null) return;
+  $('#sBody').value = smsPrev;
+  smsPrev = null;
+  $('#sUndo').style.display = 'none';
+  setSmsSource('template');
+  smsSegInfo();
+  syncSmsBtn();
 });
 
 function draftQuoteText(r){
