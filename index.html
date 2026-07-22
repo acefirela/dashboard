@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.23 — Inbox tab removed: email intake now runs on autopilot (auto-notes + daily digest; see Gmail Intake Service v2.0) (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.24 — Emails in the record drawer: each quote/job shows its AI-matched email history (lazy-loaded from the Email Actions tab) (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -349,6 +349,10 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 }
 .act-btn:hover{border-color:var(--blue); color:var(--blue)}
 .d-sec{margin-bottom:18px}
+.ea-item{padding:8px 0;border-bottom:0.5px solid var(--line)}
+.ea-item:last-child{border-bottom:none}
+.ea-sum{font-size:13px;color:var(--ink2);margin-top:3px}
+.ea-ev{font-size:12px;color:var(--muted);font-style:italic;margin-top:2px;overflow-wrap:anywhere}
 .d-sec h3{
   font-family:'Barlow Condensed'; font-weight:600; font-size:15px; letter-spacing:.11em;
   text-transform:uppercase; color:var(--muted); margin:0 0 8px;
@@ -861,11 +865,12 @@ const CONFIG = {
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   RENEWAL_STATUS_SHEET: 'Renewal Status', // per-renewal outcome (Declined this cycle / Lost customer) — auto-created on first dismissal
+  EMAIL_ACTIONS_SHEET: 'Email Actions',  // written by the Gmail Intake Service — read lazily for the drawer's Emails section
   PRIORITIES_SHEET: 'Priorities',       // AI Today's Priorities — written by the standalone Priorities Service each morning
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.23'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.24'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -891,6 +896,7 @@ const state = {
   token:null, email:'', activeTab:'quotes',
   data:{}, headers:{}, dupes:{}, archive:[], qarchive:[], customers:{},
   activity:[], activityLoaded:false,
+  emailActions:null,   // null = not fetched yet; loaded once per session on first drawer that needs it
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
@@ -2086,6 +2092,68 @@ function renderDrawerResults(q){
   $('#dFoot').className = 'd-foot';
 }
 
+/* ---- Emails on a record: lazy view of the Email Actions tab -------------
+   Fetched once per session, only when a drawer first needs it. Never part of
+   loadAll or the localStorage cache. Rows without a record ref are ignored. */
+let eaLoadPromise = null;
+function loadEmailActions(){
+  if (state.emailActions !== null) return Promise.resolve(state.emailActions);
+  if (eaLoadPromise) return eaLoadPromise;
+  eaLoadPromise = api(`/values/${encodeURIComponent(`'${CONFIG.EMAIL_ACTIONS_SHEET}'!A2:AB`)}`)
+    .then(res => {
+      state.emailActions = (res.values || []).map(row => ({
+        q:   String(row[10] || '').trim(),
+        j:   String(row[11] || '').trim(),
+        cat: String(row[7]  || '').trim(),
+        created: String(row[3] || '').trim(),
+        summary: String(row[15] || '').trim(),
+        ev:  String(row[17] || '').trim(),
+        url: String(row[26] || '').trim()
+      })).filter(x => x.q || x.j);
+      return state.emailActions;
+    })
+    .catch(e => {
+      eaLoadPromise = null;               // allow retry next drawer open
+      if (e.message === 'auth') throw e;
+      state.emailActions = null;
+      return [];
+    });
+  return eaLoadPromise;
+}
+
+/* Pure: newest-first emails for one record. */
+function eaRowsFor(list, tabId, key){
+  return (list || [])
+    .filter(x => tabId === 'quotes' ? x.q === key : x.j === key)
+    .slice()
+    .sort((a, b) => b.created.localeCompare(a.created));
+}
+
+function buildEmailSection(items){
+  const sec = document.createElement('div');
+  sec.className = 'd-sec';
+  sec.innerHTML = `<h3>Emails <span class="badge b-gray" style="margin-left:4px">${items.length}</span></h3>`;
+  const shown = items.slice(0, 6);
+  shown.forEach(x => {
+    const it = document.createElement('div');
+    it.className = 'ea-item';
+    it.innerHTML =
+      `<span class="badge b-gray">${esc(x.created.slice(0, 10))}</span>` +
+      `<span class="badge b-blue">${esc(x.cat)}</span>` +
+      (x.url ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener" style="font-size:12px">Open in Gmail ↗</a>` : '') +
+      `<div class="ea-sum">${esc(x.summary)}</div>` +
+      (x.ev ? `<div class="ea-ev">“${esc(x.ev)}”</div>` : '');
+    sec.appendChild(it);
+  });
+  if (items.length > shown.length){
+    const more = document.createElement('div');
+    more.style.cssText = 'font-size:12px;color:var(--muted);padding-top:6px';
+    more.textContent = '+ ' + (items.length - shown.length) + ' older — see the Email Actions tab for the full history';
+    sec.appendChild(more);
+  }
+  return sec;
+}
+
 function renderDrawer(){
   const r = rowByUid(state.drawerUid);
   const tab = tabOfUid(state.drawerUid) || TABS[0];
@@ -2190,6 +2258,18 @@ function renderDrawer(){
   }
   info.appendChild(grid);
   body.appendChild(info);
+
+  /* Emails on this record — appears only once loaded and only if any match */
+  if (!isField()){
+    const eaSlot = document.createElement('div');
+    body.appendChild(eaSlot);
+    const myUid = state.drawerUid;
+    loadEmailActions().then(list => {
+      if (state.drawerUid !== myUid || !eaSlot.isConnected) return;
+      const items = eaRowsFor(list, tab.id, r.key);
+      if (items.length) eaSlot.appendChild(buildEmailSection(items));
+    }).catch(() => {});
+  }
 
   const ed = document.createElement('div');
   ed.className = 'd-sec';
