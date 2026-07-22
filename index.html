@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.24 — Emails in the record drawer: each quote/job shows its AI-matched email history (lazy-loaded from the Email Actions tab) (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.26 — list rows show a 📨 count badge for records with matched email history (lightweight K:L fetch in loadAll) (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -870,7 +870,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.24'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.26'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -897,6 +897,7 @@ const state = {
   data:{}, headers:{}, dupes:{}, archive:[], qarchive:[], customers:{},
   activity:[], activityLoaded:false,
   emailActions:null,   // null = not fetched yet; loaded once per session on first drawer that needs it
+  emailRefCounts:{},   // 'q:142' / 'j:318' -> matched-email count, for the list-row indicator
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
@@ -996,7 +997,7 @@ function saveCache(){
       archive: state.archive.map(r => r.cells),
       qarchive: state.qarchive.map(r => r.cells),
       customers: state.customers,
-      prefs: state.prefs, threadDone: state.threadDone, renStatus: state.renStatus, replyGroups: state.replyGroups, roles: state.roles,
+      prefs: state.prefs, threadDone: state.threadDone, renStatus: state.renStatus, replyGroups: state.replyGroups, roles: state.roles, emailRefCounts: state.emailRefCounts,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
@@ -1020,6 +1021,7 @@ function hydrateCache(){
     state.customers = p.customers || {};
     state.prefs = p.prefs || {};
     state.threadDone = p.threadDone || {};
+    state.emailRefCounts = p.emailRefCounts || {};
     state.renStatus = {};
     Object.entries(p.renStatus || {}).forEach(([k, v]) => {
       state.renStatus[k] = { status: v.status || '', dueAtMark: v.dueAtMark ? new Date(v.dueAtMark) : null,
@@ -1242,6 +1244,17 @@ async function loadAll(showToast){
           dueAtMark: parseDate(row[4]), lastAtMark: parseDate(row[5]), row: i + 2 };
       });
     } catch(e){ state.renStatus = {}; }
+
+    // email indicator counts — only Email Actions!K:L (record refs), a few KB
+    try {
+      const ec = await api(`/values/${encodeURIComponent(`'${CONFIG.EMAIL_ACTIONS_SHEET}'!K2:L`)}`);
+      state.emailRefCounts = {};
+      (ec.values || []).forEach(row => {
+        const q = String(row[0] || '').trim(), j = String(row[1] || '').trim();
+        if (q) state.emailRefCounts['q:' + q] = (state.emailRefCounts['q:' + q] || 0) + 1;
+        else if (j) state.emailRefCounts['j:' + j] = (state.emailRefCounts['j:' + j] || 0) + 1;
+      });
+    } catch(e){ state.emailRefCounts = {}; }
 
     // AI Today's Priorities — optional tab written by the Priorities Service
     await loadPriorities();
@@ -1928,6 +1941,7 @@ function rowMeta(tab, r){
     if (r.cells[9]) parts.push(`<span class="badge b-gray">${esc(r.cells[9])}</span>`);
     const pb = prefBadge(r.cells[1]);
     if (pb) parts.push(pb);
+    parts.push(eaListBadge('quotes', r.key));
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
     if (canContact() && !prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
     if (canContact() && (r.cells[3]||'').trim() && !prefNoText(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
@@ -1937,6 +1951,7 @@ function rowMeta(tab, r){
   const parts = [ statusBadge(r.cells[3]), wixBadge(r.cells[4]) ];
   const pb2 = prefBadge(r.cells[1]);
   if (pb2) parts.push(pb2);
+  parts.push(eaListBadge('tracker', r.key));
   if (r.cells[13]) parts.push(jobBadge(r.cells[13]));
   if (r.cells[8]) parts.push(`<span class="badge b-blue">${esc(r.cells[8])}${r.cells[7] ? ' · ' + esc(r.cells[7]) : ''}</span>`);
   return parts.filter(Boolean).join('');
@@ -2121,6 +2136,13 @@ function loadEmailActions(){
   return eaLoadPromise;
 }
 
+/* List-row indicator: records with matched email history get a count badge. */
+function eaListBadge(tabId, key){
+  if (isField()) return '';
+  const n = state.emailRefCounts[(tabId === 'quotes' ? 'q:' : 'j:') + key] || 0;
+  return n ? `<span class="badge b-gray" title="${n} email${n > 1 ? 's' : ''} on this record — open for history">📨 ${n}</span>` : '';
+}
+
 /* Pure: newest-first emails for one record. */
 function eaRowsFor(list, tabId, key){
   return (list || [])
@@ -2140,7 +2162,7 @@ function buildEmailSection(items){
     it.innerHTML =
       `<span class="badge b-gray">${esc(x.created.slice(0, 10))}</span>` +
       `<span class="badge b-blue">${esc(x.cat)}</span>` +
-      (x.url ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener" style="font-size:12px">Open in Gmail ↗</a>` : '') +
+      (x.url && low(state.email) === 'info@acefirela.com' ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener" style="font-size:12px">Open in Gmail ↗</a>` : '') +
       `<div class="ea-sum">${esc(x.summary)}</div>` +
       (x.ev ? `<div class="ea-ev">“${esc(x.ev)}”</div>` : '');
     sec.appendChild(it);
