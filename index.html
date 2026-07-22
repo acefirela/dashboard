@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.21 — outreach composer: message-angle picker + AI rewrite (DeepSeek via the Priorities service) (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.22 — Inbox tab: AI-classified email actions (Gmail Intake Service) with grading mode; apply gated behind CONFIG.EMAIL_ACTIONS_APPLY (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -753,6 +753,8 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     .ai-line button:disabled{opacity:.5;cursor:default}
     .ai-undo{margin-top:6px;font-size:12.5px;color:var(--muted)}
     .ai-undo a{color:var(--blue);cursor:pointer;text-decoration:underline}
+    .ea-ev{font-size:12.5px;color:var(--muted);font-style:italic;margin-top:3px;overflow-wrap:anywhere}
+    .ea-note{font-size:13px;color:var(--muted);background:var(--blue-bg);border:1px solid #CBD9EC;border-radius:8px;padding:8px 12px;margin-bottom:10px}
   </style>
   <div class="mailer" role="dialog" aria-modal="true" aria-label="Send email">
     <div class="m-head">
@@ -861,11 +863,13 @@ const CONFIG = {
   PREFS_SHEET: 'Contact Prefs',         // per-customer contact preference — dashboard-managed, separate from Customers so nothing overwrites it
   THREAD_STATUS_SHEET: 'Thread Status', // per-conversation Open/Done state (Texts tab)
   RENEWAL_STATUS_SHEET: 'Renewal Status', // per-renewal outcome (Declined this cycle / Lost customer) — auto-created on first dismissal
+  EMAIL_ACTIONS_SHEET: 'Email Actions',  // AI-classified inbound email — written by the Gmail Intake Service (runs as info@)
+  EMAIL_ACTIONS_APPLY: false,           // false = grading mode (verdict buttons only, records untouched); true = Approve/Relink/Dismiss can change records
   PRIORITIES_SHEET: 'Priorities',       // AI Today's Priorities — written by the standalone Priorities Service each morning
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.21'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.22'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -881,8 +885,37 @@ const TABS = [
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
 const QC_ACTION = { 10:'Email', 11:'Text', 12:'Call' };
 /* UI tabs = the two sheet tabs + the computed Renewals radar */
-const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }];
+const UI_TABS = [...TABS, { id:'inbox', label:'Inbox' }, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }];
 const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
+
+/* Email Actions column map (0-based; sheet written by the Gmail Intake Service —
+   28 columns A..AB, position-pinned; keep in sync with the intake script). */
+const EA = { ID:0, MSG:1, THREAD:2, CREATED:3, SENDER:4, ROLE:5, SRC:6, CAT:7, CUST:8, PROP:9,
+             QUOTE:10, JOB:11, REF:12, FIELD:13, VALUE:14, SUMMARY:15, EV_SRC:16, EV_EXC:17,
+             CCONF:18, MCONF:19, STATUS:20, ASSIGNED:21, REV_BY:22, REV_AT:23, APPLIED:24,
+             ACTREF:25, URL:26, VERDICT:27 };
+
+/* What Approve is allowed to change — a fixed map, so the AI never picks a
+   column and an unmappable action can never silently claim it was applied.
+   Quotes: col 16 = Outcome, col 13 = Notes. Tracker: col 10 = Notes. */
+function eaPlan(a){
+  const field = (a.cells[EA.FIELD] || '').trim();
+  const q = (a.cells[EA.QUOTE] || '').trim(), j = (a.cells[EA.JOB] || '').trim();
+  if (field === 'outcome' && q){
+    const v = (a.cells[EA.VALUE] || '').trim();
+    const valid = OUTCOME_OPTIONS.includes(v);
+    return { kind:'outcome', tabId:'quotes', key:q, col:16, value: valid ? v : '', pick: !valid, needsAdmin:true };
+  }
+  if (field === 'note' && q) return { kind:'note', tabId:'quotes',  key:q, col:13, needsAdmin:false };
+  if (field === 'note' && j) return { kind:'note', tabId:'tracker', key:j, col:10, needsAdmin:false };
+  return { kind:'ack', needsAdmin:false };   // lead / unmatched / outcome-on-job — mark reviewed, records untouched
+}
+
+/* Relink input parser: 'Q142', 'q 142', 'J-318' … */
+function eaParseRef(s){
+  const m = String(s || '').trim().match(/^([QqJj])[\s-]*([\w]+)$/);
+  return m ? { tabId: m[1].toUpperCase() === 'Q' ? 'quotes' : 'tracker', key: m[2] } : null;
+}
 
 /* =====================================================================
    State / helpers
@@ -891,6 +924,7 @@ const state = {
   token:null, email:'', activeTab:'quotes',
   data:{}, headers:{}, dupes:{}, archive:[], qarchive:[], customers:{},
   activity:[], activityLoaded:false,
+  emailActions:[], inboxFilter:'',
   options:{}, suggest:{},
   search:'', filter:{quotes:'all', tracker:'all'}, sort:{quotes:'sheet', tracker:'sheet'},
   trackerStatus:'',
@@ -1236,6 +1270,15 @@ async function loadAll(showToast){
           dueAtMark: parseDate(row[4]), lastAtMark: parseDate(row[5]), row: i + 2 };
       });
     } catch(e){ state.renStatus = {}; }
+
+    // AI-classified inbound email — Email Actions tab (Gmail Intake Service).
+    // Loaded fresh every time and deliberately NOT persisted to the localStorage cache.
+    try {
+      const ea = await api(`/values/${encodeURIComponent(`'${CONFIG.EMAIL_ACTIONS_SHEET}'!A2:AB`)}`);
+      state.emailActions = (ea.values || []).map((row, i) =>
+        ({ sheetRow:i + 2, cells: Array.from({ length:28 }, (_, c) => row[c] !== undefined ? String(row[c]) : '') }))
+        .filter(a => a.cells[EA.ID].trim());
+    } catch(e){ state.emailActions = []; }
 
     // AI Today's Priorities — optional tab written by the Priorities Service
     await loadPriorities();
@@ -1706,8 +1749,47 @@ function renderAll(){
   }
   const xc = document.querySelector('[data-cnt="texts"]');
   if (xc) xc.textContent = computeThreads().reduce((s, t) => s + t.unread, 0);
+  const ic = document.querySelector('[data-cnt="inbox"]');
+  if (ic){
+    const A = state.emailActions;
+    ic.textContent = CONFIG.EMAIL_ACTIONS_APPLY
+      ? A.filter(a => a.cells[EA.STATUS] === 'Pending' || a.cells[EA.STATUS] === 'Ambiguous').length
+      : A.filter(a => !a.cells[EA.VERDICT].trim()).length;
+  }
   updateStale();
   renderSummary();
+
+  /* ---- Inbox (Email Actions review queue) ---- */
+  if (state.activeTab === 'inbox'){
+    $('#sortSel').style.display = 'none';
+    $('#statusSel').style.display = 'none';
+    $('#dupeBanner').classList.remove('on');
+    const fb = $('#filterBar');
+    fb.innerHTML = '';
+    const A = state.emailActions;
+    const chips = CONFIG.EMAIL_ACTIONS_APPLY ? [
+      { id:'pending', label:'Pending',   fn:a => a.cells[EA.STATUS] === 'Pending' },
+      { id:'ambig',   label:'Ambiguous', fn:a => a.cells[EA.STATUS] === 'Ambiguous' },
+      { id:'done',    label:'Done',      fn:a => a.cells[EA.STATUS] === 'Approved' || a.cells[EA.STATUS] === 'Dismissed' },
+      { id:'all',     label:'All',       fn:() => true }
+    ] : [
+      { id:'attn',   label:'To grade', fn:a => !a.cells[EA.VERDICT].trim() },
+      { id:'graded', label:'Graded',   fn:a => !!a.cells[EA.VERDICT].trim() },
+      { id:'all',    label:'All',      fn:() => true }
+    ];
+    if (!chips.some(c => c.id === state.inboxFilter)) state.inboxFilter = chips[0].id;
+    chips.forEach(f => {
+      const n = A.filter(f.fn).length;
+      const b = document.createElement('button');
+      b.className = 'fchip' + (state.inboxFilter === f.id ? ' active' : '');
+      b.setAttribute('aria-pressed', state.inboxFilter === f.id ? 'true' : 'false');
+      b.innerHTML = `${esc(f.label)}<span class="n">${n}</span>`;
+      b.addEventListener('click', () => { state.inboxFilter = f.id; renderAll(); });
+      fb.appendChild(b);
+    });
+    renderContent();
+    return;
+  }
 
   /* ---- Renewals radar (computed, not a sheet) ---- */
   if (state.activeTab === 'renewals'){
@@ -1812,6 +1894,7 @@ function renderAll(){
   renderContent();
 }
 function renderContent(){
+  if (state.activeTab === 'inbox'){ renderInbox(); return; }
   if (state.activeTab === 'renewals'){ renderRenewals(); return; }
   if (state.activeTab === 'texts'){ renderTexts(); return; }
   renderList();
@@ -3487,6 +3570,213 @@ function computeThreads(){
     return t;
   }).sort((a, b) => (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0));
 }
+/* =====================================================================
+   Inbox — Email Actions review queue (Gmail Intake Service output)
+   Grading mode (EMAIL_ACTIONS_APPLY:false): verdict buttons write column AB
+   only — nothing touches Quotes/Tracker. Apply mode: Approve/Relink/Dismiss,
+   with quote outcomes admin-gated and Applied-At stamped only when a record
+   actually changed.
+   ===================================================================== */
+function renderInbox(){
+  const main = $('#main');
+  main.innerHTML = '';
+  const APPLY = CONFIG.EMAIL_ACTIONS_APPLY;
+
+  if (!APPLY){
+    const note = document.createElement('div');
+    note.className = 'ea-note';
+    note.textContent = 'Grading mode — these buttons only record whether the AI got it right. Nothing changes your Quotes or Tracker.';
+    main.appendChild(note);
+  }
+
+  const chipsFn = {
+    pending: a => a.cells[EA.STATUS] === 'Pending',
+    ambig:   a => a.cells[EA.STATUS] === 'Ambiguous',
+    done:    a => a.cells[EA.STATUS] === 'Approved' || a.cells[EA.STATUS] === 'Dismissed',
+    attn:    a => !a.cells[EA.VERDICT].trim(),
+    graded:  a => !!a.cells[EA.VERDICT].trim(),
+    all:     () => true
+  };
+  let items = state.emailActions.filter(chipsFn[state.inboxFilter] || chipsFn.all);
+  const q = state.search.trim().toLowerCase();
+  if (q) items = items.filter(a =>
+    (a.cells[EA.SENDER] + ' ' + a.cells[EA.CUST] + ' ' + a.cells[EA.SUMMARY] + ' ' +
+     a.cells[EA.CAT] + ' ' + a.cells[EA.QUOTE] + ' ' + a.cells[EA.JOB]).toLowerCase().includes(q));
+  items = items.slice().sort((a, b) => b.cells[EA.CREATED].localeCompare(a.cells[EA.CREATED]));
+
+  const list = document.createElement('div');
+  list.className = 'list';
+  if (!items.length){
+    list.innerHTML = `<div class="empty">${q ? 'No inbox actions match your search.'
+      : state.inboxFilter === 'attn' ? 'All caught up — every action has been graded.'
+      : state.inboxFilter === 'pending' ? 'No pending actions — the intake service adds new ones as email arrives.'
+      : 'Nothing here yet.'}</div>`;
+    main.appendChild(list);
+    return;
+  }
+
+  items.forEach(a => {
+    const c = a.cells;
+    const status = c[EA.STATUS], verdict = c[EA.VERDICT].trim();
+    const cconf = parseFloat(c[EA.CCONF]);
+    const row = document.createElement('div');
+    row.className = 'row' + (status === 'Ambiguous' ? ' u-soon' : verdict || status === 'Dismissed' ? ' u-closed' : '');
+
+    const badges = [];
+    badges.push(`<span class="badge b-blue">${esc(c[EA.CAT])}</span>`);
+    if (c[EA.ROLE]) badges.push(`<span class="badge b-gray">internal · ${esc(c[EA.ROLE])}</span>`);
+    if (status === 'Ambiguous') badges.push('<span class="badge b-amber">needs relink</span>');
+    if (isFinite(cconf) && cconf < 0.7) badges.push(`<span class="badge b-amber">⚠ conf ${cconf.toFixed(2)}</span>`);
+    if (c[EA.QUOTE]) badges.push(`<span class="badge b-green">Quote #${esc(c[EA.QUOTE])}</span>`);
+    if (c[EA.JOB]) badges.push(`<span class="badge b-green">Job #${esc(c[EA.JOB])}</span>`);
+    if (APPLY && status !== 'Pending' && status !== 'Ambiguous')
+      badges.push(`<span class="badge b-gray">${esc(status)}${c[EA.APPLIED] ? ' · applied' : ''}</span>`);
+    if (!APPLY && verdict) badges.push(`<span class="badge b-gray">✓ ${esc(verdict)}</span>`);
+
+    const who = c[EA.CUST] || c[EA.SENDER].replace(/<.*$/, '').trim() || c[EA.SENDER];
+    const when = c[EA.CREATED].slice(0, 16);
+
+    let actions = '';
+    if (!APPLY){
+      actions = verdict
+        ? `<button type="button" class="fu" data-act="regrade">↻ Regrade</button>`
+        : `<button type="button" class="fu" data-act="v-correct">✓ Correct</button>
+           <button type="button" class="fu" data-act="v-cat">Wrong category</button>
+           <button type="button" class="fu" data-act="v-match">Wrong match</button>
+           <button type="button" class="fu" data-act="v-wrong">✗ Incorrect</button>`;
+    } else if (status === 'Pending' || status === 'Ambiguous'){
+      const plan = eaPlan(a);
+      const canApprove = status === 'Pending' && (!plan.needsAdmin || isAdmin());
+      actions =
+        (canApprove ? `<button type="button" class="fu draft" data-act="approve">✓ Approve${plan.kind === 'ack' ? ' (no change)' : ''}</button>` :
+         status === 'Pending' ? '<span class="badge b-amber">admin approval</span>' : '') +
+        `<button type="button" class="fu" data-act="relink">🔗 Relink</button>
+         <button type="button" class="fu" data-act="dismiss">✕ Dismiss</button>`;
+    }
+    const gmail = c[EA.URL] ? `<a class="fu" href="${esc(c[EA.URL])}" target="_blank" rel="noopener">✉ Open email</a>` : '';
+
+    row.innerHTML = `
+      <div class="r-line1"><span class="r-nm">${esc(who)}</span>${badges.join('')}</div>
+      <div class="r-ttl">${esc(c[EA.SUMMARY])}</div>
+      ${c[EA.EV_EXC] ? `<div class="ea-ev">“${esc(c[EA.EV_EXC])}”</div>` : ''}
+      <div class="r-meta"><span class="badge b-gray">${esc(when)}</span>${gmail}${actions}</div>`;
+
+    row.querySelectorAll('[data-act]').forEach(btn => {
+      btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const act = btn.getAttribute('data-act');
+        if (act === 'v-correct') gradeEmailAction(a, 'Correct');
+        else if (act === 'v-cat') gradeEmailAction(a, 'Wrong Category');
+        else if (act === 'v-match') gradeEmailAction(a, 'Wrong Match');
+        else if (act === 'v-wrong') gradeEmailAction(a, 'Incorrect');
+        else if (act === 'regrade') gradeEmailAction(a, '');
+        else if (act === 'approve') approveEmailAction(a);
+        else if (act === 'relink') relinkEmailAction(a);
+        else if (act === 'dismiss') dismissEmailAction(a);
+      });
+    });
+    list.appendChild(row);
+  });
+  main.appendChild(list);
+}
+
+/* Write cells on an Email Actions row, verifying the Action ID still sits at
+   the expected sheet row first (same drift discipline as commitEdits). When
+   requirePending, re-read Status so two reviewers can't double-handle.       */
+async function writeEmailAction(a, changes, requirePending){
+  const sh = CONFIG.EMAIL_ACTIONS_SHEET;
+  const chk = await api(`/values/${encodeURIComponent(`'${sh}'!A${a.sheetRow}`)}`);
+  if (String(chk.values?.[0]?.[0] ?? '').trim() !== a.cells[EA.ID].trim())
+    throw new Error('Inbox rows shifted — refresh and try again');
+  if (requirePending){
+    const st = await api(`/values/${encodeURIComponent(`'${sh}'!${colLetter(EA.STATUS)}${a.sheetRow}`)}`);
+    const cur = String(st.values?.[0]?.[0] ?? '').trim();
+    if (cur !== 'Pending' && cur !== 'Ambiguous')
+      throw new Error('Already handled (' + (cur || 'updated') + ') — refreshing');
+  }
+  await api('/values:batchUpdate', {
+    method:'POST',
+    body: JSON.stringify({
+      valueInputOption:'USER_ENTERED',
+      data: Object.entries(changes).map(([col, v]) => ({ range:`'${sh}'!${colLetter(+col)}${a.sheetRow}`, values:[[String(v)]] }))
+    })
+  });
+  Object.entries(changes).forEach(([col, v]) => a.cells[+col] = String(v));
+}
+
+async function gradeEmailAction(a, verdict){
+  try {
+    await writeEmailAction(a, {
+      [EA.VERDICT]: verdict,
+      [EA.REV_BY]: verdict ? state.email : '',
+      [EA.REV_AT]: verdict ? new Date().toLocaleString() : ''
+    }, false);
+    toast(verdict ? 'Graded: ' + verdict : 'Verdict cleared — grade again', 'ok');
+    renderAll();
+  } catch(e){ toast(e.message, 'err'); }
+}
+
+async function approveEmailAction(a){
+  const plan = eaPlan(a);
+  if (plan.needsAdmin && !isAdmin()){ toast('Only an admin can apply quote outcomes', 'err'); return; }
+  try {
+    const ts = new Date().toLocaleString();
+    let applied = false;
+    if (plan.kind === 'outcome'){
+      let val = plan.value;
+      if (plan.pick){
+        val = (prompt('Outcome for quote #' + plan.key + ' — type one of:\n' + OUTCOME_OPTIONS.join('  /  ')) || '').trim();
+        if (!val) return;
+        if (!OUTCOME_OPTIONS.includes(val)){ toast('Not a valid outcome — copy one from the list', 'err'); return; }
+      }
+      const r = rowByKey('quotes', plan.key);
+      if (!r){ toast('Quote #' + plan.key + ' not in the live sheet — refresh or relink', 'err'); return; }
+      await commitEdits(TABS[0], r, { 16: val }, 'Email action approved');
+      applied = true;
+    } else if (plan.kind === 'note'){
+      const tab = TABS.find(t => t.id === plan.tabId);
+      const r = rowByKey(plan.tabId, plan.key);
+      if (!r){ toast('#' + plan.key + ' not in the live sheet — refresh or relink', 'err'); return; }
+      const add = '[' + new Date().toLocaleDateString() + ' email] ' +
+                  (a.cells[EA.VALUE] || a.cells[EA.SUMMARY]);
+      const old = r.cells[plan.col] || '';
+      await commitEdits(tab, r, { [plan.col]: old ? old + ' | ' + add : add }, 'Email action approved');
+      applied = true;
+    }
+    await writeEmailAction(a, Object.assign({
+      [EA.STATUS]: 'Approved', [EA.REV_BY]: state.email, [EA.REV_AT]: ts
+    }, applied ? { [EA.APPLIED]: ts } : {}), true);
+    toast(applied ? 'Approved and applied' : 'Approved (no record change)', 'ok');
+    renderAll();
+  } catch(e){ toast(e.message, 'err'); }
+}
+
+async function dismissEmailAction(a){
+  try {
+    await writeEmailAction(a, {
+      [EA.STATUS]: 'Dismissed', [EA.REV_BY]: state.email, [EA.REV_AT]: new Date().toLocaleString()
+    }, true);
+    toast('Dismissed', 'ok');
+    renderAll();
+  } catch(e){ toast(e.message, 'err'); }
+}
+
+async function relinkEmailAction(a){
+  const ref = eaParseRef(prompt('Link to which record? Type Q + quote # or J + job # (e.g. Q142 or J318)'));
+  if (!ref) return;
+  if (!rowByKey(ref.tabId, ref.key)){ toast((ref.tabId === 'quotes' ? 'Quote' : 'Job') + ' #' + ref.key + ' not found in the live sheet', 'err'); return; }
+  try {
+    await writeEmailAction(a, {
+      [EA.QUOTE]: ref.tabId === 'quotes' ? ref.key : '',
+      [EA.JOB]:   ref.tabId === 'tracker' ? ref.key : '',
+      [EA.MCONF]: '1 (manual)',
+      [EA.STATUS]: 'Pending'
+    }, false);
+    toast('Linked to #' + ref.key, 'ok');
+    renderAll();
+  } catch(e){ toast(e.message, 'err'); }
+}
+
 function renderTexts(){
   const main = $('#main');
   main.innerHTML = '';
