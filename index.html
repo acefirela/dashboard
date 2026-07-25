@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.26 — list rows show a 📨 count badge for records with matched email history (lightweight K:L fetch in loadAll) (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.28 — hardening pass: unlisted emails default to the restricted Field view, saves blocked on duplicate quote #s, background refresh can no longer discard in-progress edits, activity-log writes retry and warn on failure, strict date parsing (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -244,6 +244,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-soon .r-q{color:var(--amber)}
 .row.u-closed .r-q{color:var(--muted)}
 .row.u-closed .r-nm{color:var(--muted); font-weight:600}
+.row.u-closed{background:#F7F6F2; box-shadow:inset 4px 0 0 var(--line2)}
+.row.u-closed:hover{background:#F1F0EB}
+.row.u-closed .r-ttl, .row.u-closed .r-meta{opacity:.75}
+.row.u-closed.sel{background:var(--red-bg)}
 .ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
 .r-nm{font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; align-self:center}
@@ -331,6 +335,16 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 }
 .d-search.has .clr{display:block}
 .d-body{flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch}
+/* outcome banner — closed quotes announce their result at the top of the panel */
+.d-outcome{
+  display:flex; align-items:center; gap:10px; margin:0 0 16px; padding:12px 14px;
+  border-radius:10px; font-weight:700; font-size:15px; border:1px solid transparent;
+}
+.d-outcome .oc-ic{font-size:17px; line-height:1; flex:none}
+.d-outcome .oc-sub{font-weight:500; font-size:12px; opacity:.75; margin-left:auto; padding-left:10px; text-align:right}
+.d-outcome.oc-won{background:var(--green-bg); color:var(--green); border-color:#CBE3D4}
+.d-outcome.oc-post{background:var(--amber-bg); color:var(--amber); border-color:#EBD9B4}
+.d-outcome.oc-lost{background:#F1F0EC; color:var(--ink2); border-color:var(--line2)}
 .d-results .rrow{
   display:flex; flex-direction:column; gap:1px; width:100%; text-align:left;
   appearance:none; background:none; border:none; border-bottom:1px solid var(--line);
@@ -452,7 +466,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 
 /* ============ Larger type + padding on desktop ============ */
 @media (min-width:900px){
-  :root{--drawer-w:500px}
+  :root{--drawer-w:min(1080px, 94vw)}
   body{font-size:15px}
   input,select,textarea{font-size:15px}
   h1.ace{font-size:26px}
@@ -509,7 +523,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   .fu{padding:4px 10px}
   .d-head{padding:14px 16px}
   .d-search{padding:12px 16px}
-  .d-body{padding:18px}
+  .d-body{padding:22px max(22px, calc((100% - 900px)/2))}
   .ctl input[type=text], .ctl select, .ctl textarea{padding:11px 12px}
   .act-btn{padding:9px 15px}
   .chip{padding:7px 13px}
@@ -868,9 +882,9 @@ const CONFIG = {
   EMAIL_ACTIONS_SHEET: 'Email Actions',  // written by the Gmail Intake Service — read lazily for the drawer's Emails section
   PRIORITIES_SHEET: 'Priorities',       // AI Today's Priorities — written by the standalone Priorities Service each morning
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
-  ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — missing tab or unlisted email = Back office
+  ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.26'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.28'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -923,9 +937,11 @@ const filledVal = v => { const t = String(v||'').trim(); return !!t && !/^not se
 const isX = v => String(v||'').trim().toUpperCase() === 'X';
 const normName = v => String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
 const low = v => String(v||'').trim().toLowerCase();
-/* ---- roles: Admin (everything + financials), Back office (default, today's behavior), Field (Quotes + Tracker, no financials — chat access is governed separately by team_members.role in Supabase) ---- */
-const ROLE_OF = v => { const r = String(v||'').toLowerCase(); return /admin/.test(r) ? 'admin' : /field|tech/.test(r) ? 'field' : 'back'; };
-function computeRole(){ state.role = ROLE_OF(state.roles[low(state.email)]); }
+/* ---- roles: Admin (everything + financials), Back office, Field (Quotes + Tracker, no financials — chat access is governed separately by team_members.role in Supabase).
+   v0.28: with a Roles roster present, unlisted or unrecognized entries default DOWN to Field instead of up to Back office.
+   An empty/missing roster keeps the legacy everyone-is-Back-office behavior so a brand-new sheet doesn't lock the team out. ---- */
+const ROLE_OF = v => { const r = String(v||'').toLowerCase(); return /admin/.test(r) ? 'admin' : /back|office/.test(r) ? 'back' : 'field'; };
+function computeRole(){ state.role = Object.keys(state.roles).length ? ROLE_OF(state.roles[low(state.email)]) : 'back'; }
 const effRole = () => (state.role === 'admin' && state.viewAs) ? state.viewAs : state.role;
 const isAdmin = () => effRole() === 'admin';
 const isField = () => effRole() === 'field';
@@ -965,13 +981,20 @@ const addDays = (d, n) => new Date(d.getTime() + n * DAY);
 function parseDate(v){
   const t = String(v || '').trim();
   if (!t) return null;
+  /* build + round-trip verify so 2/30/2026 comes back null instead of silently becoming March 2 (v0.28) */
+  const mk = (y, mo, da) => {
+    const d = new Date(y, mo - 1, da);
+    return (d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === da) ? d : null;
+  };
   const m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
   if (m){
     let y = m[3] ? +m[3] : new Date().getFullYear();
     if (y < 100) y += 2000;
-    const d = new Date(y, +m[1] - 1, +m[2]);
-    return isNaN(d) ? null : d;
+    return mk(y, +m[1], +m[2]);
   }
+  /* ISO dates are calendar dates — parse the components locally; new Date('2026-07-25') is UTC and lands a day early in LA */
+  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return mk(+iso[1], +iso[2], +iso[3]);
   const d = new Date(t);
   return isNaN(d) ? null : startOfDay(d);
 }
@@ -985,6 +1008,14 @@ function toast(msg, kind){
   t._h = setTimeout(() => t.className = '', 3400);
 }
 function loading(on){ $('#loadbar').classList.toggle('on', !!on); }
+/* activity-log appends: one retry, then a visible warning — audit entries must not vanish silently (v0.28) */
+function logActivityAppend(entry){
+  const send = () => api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
+    { method:'POST', body: JSON.stringify({ values:[entry] }) });
+  return send().catch(() => send()).catch(e => {
+    if ((e && e.message) !== 'auth') toast('Saved, but the Activity Log entry could not be written — Recent activity may be missing this change', 'err');
+  });
+}
 
 /* =====================================================================
    Local cache — instant paint, then background refresh
@@ -1140,13 +1171,21 @@ async function api(path, opts = {}, retry = true){
 /* =====================================================================
    Data loading
    ===================================================================== */
-async function loadAll(showToast){
+let loadAllInflight = null;             // single-flight: overlapping refresh triggers reuse the same request (v0.28)
+function loadAll(showToast){
+  if (loadAllInflight) return loadAllInflight;
+  loadAllInflight = loadAllRun(showToast).finally(() => { loadAllInflight = null; });
+  return loadAllInflight;
+}
+async function loadAllRun(showToast){
   loading(true);
   const drawerOpen = $('#drawer').classList.contains('on');
   const openKey = drawerOpen ? (rowByUid(state.drawerUid) || {}).key : null;
   try {
     const ranges = TABS.map(t => `'${t.sheet}'!A1:${t.lastCol}`);
     const res = await api('/values:batchGet?valueRenderOption=FORMATTED_VALUE&ranges=' + ranges.map(encodeURIComponent).join('&ranges='));
+    /* re-check at apply time: an edit may have begun while the fetch was in flight — a refresh must never discard it (v0.28) */
+    if (hasUnsaved()) return;
     TABS.forEach((t, i) => {
       const vals = (res.valueRanges[i] && res.valueRanges[i].values) || [];
       state.headers[t.id] = vals[0] || [];
@@ -1281,7 +1320,7 @@ async function loadAll(showToast){
         const k = low(row[0]);
         if (k) state.roles[k] = String(row[1] || '').trim();
       });
-    } catch(e){ state.roles = {}; }
+    } catch(e){ /* keep the roles we already have (cache / last load) — a transient read failure must not change anyone's access */ }
     computeRole();
     applyRoleUI();
 
@@ -1393,8 +1432,7 @@ async function savePref(name, pref, viaKey){
     const entry = [when, state.email, 'Contact preference', CONFIG.PREFS_SHEET, viaKey || '',
       name + ' → ' + (pref || '(cleared)'), ''];
     state.activity.push(entry);
-    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    logActivityAppend(entry);
   }
 }
 
@@ -1825,7 +1863,7 @@ function renderAll(){
   const dupes = state.dupes[tab.id] || [];
   $('#dupeBanner').classList.toggle('on', dupes.length > 0);
   if (dupes.length){
-    $('#dupeText').textContent = `⚠ Duplicate quote #s on ${tab.label}: ${dupes.join(', ')} — saves verify the exact row first, but clean these up in the sheet.`;
+    $('#dupeText').textContent = `⚠ Duplicate quote #s on ${tab.label}: ${dupes.join(', ')} — saves on these #s are blocked until the duplicates are cleaned up in the sheet.`;
   }
 
   renderContent();
@@ -2200,6 +2238,21 @@ function renderDrawer(){
 
   body.innerHTML = '';
 
+  /* outcome banner — closed quotes show their result before anything else (v0.27) */
+  if (tab.id === 'quotes'){
+    const oc = outcomeOf(r);
+    if (oc){
+      const won = oc === 'Won', post = oc === 'Postponed';
+      const ocLbl = (state.headers.quotes || [])[16] || 'Outcome';
+      const bn = document.createElement('div');
+      bn.className = 'd-outcome ' + (won ? 'oc-won' : post ? 'oc-post' : 'oc-lost');
+      bn.innerHTML = `<span class="oc-ic">${won ? '✓' : post ? '⏸' : '✕'}</span>` +
+        `<span>${won ? 'Won' : post ? 'Postponed' : 'Closed — ' + esc(oc)}</span>` +
+        `<span class="oc-sub">clear “${esc(ocLbl)}” below to reopen</span>`;
+      body.appendChild(bn);
+    }
+  }
+
   const acts = document.createElement('div');
   acts.className = 'd-actions';
   const email = tab.id === 'quotes' ? (r.cells[2]||'').trim() : '';
@@ -2398,6 +2451,12 @@ function switchToRecord(tabId, uid){
    Editable controls
    ===================================================================== */
 const currentVal = (r, c) => c in r.edits ? r.edits[c] : (r.cells[c] || '');
+/* notes boxes size themselves to their content — no dragging to read long histories (v0.27) */
+function autoGrowTA(ta){
+  if (!ta) return;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight + 2, Math.round(window.innerHeight * 0.5)) + 'px';
+}
 function setEdit(tab, r, colIdx, val){
   if (val === (r.cells[colIdx] || '')) delete r.edits[colIdx];
   else r.edits[colIdx] = val;
@@ -2431,8 +2490,9 @@ function buildControl(tab, r, colIdx){
       ta.id = 'fld-' + colIdx;
       ta.value = val;
       ta.placeholder = 'Notes…';
-      ta.addEventListener('input', () => setEdit(tab, r, colIdx, ta.value));
+      ta.addEventListener('input', () => { setEdit(tab, r, colIdx, ta.value); autoGrowTA(ta); });
       box.appendChild(ta);
+      requestAnimationFrame(() => autoGrowTA(ta));
       box.appendChild(chipRow(canContact() ? [
         { l:'+ ' + todayMD() + ' Sent email', v:() => appendLine(ta, todayMD() + ' Sent email,') },
         { l:'+ ' + todayMD() + ' Sent text',  v:() => appendLine(ta, todayMD() + ' Sent text:') },
@@ -2440,7 +2500,7 @@ function buildControl(tab, r, colIdx){
       ] : [
         { l:'+ ' + todayMD() + ' Job walk',   v:() => appendLine(ta, todayMD() + ' Job walk:') },
         { l:'+ ' + todayMD() + ' Site note',  v:() => appendLine(ta, todayMD() + ' Site note:') }
-      ], () => setEdit(tab, r, colIdx, ta.value)));
+      ], () => { setEdit(tab, r, colIdx, ta.value); autoGrowTA(ta); }));
       return box;
     }
     const inp = mkInput(val, 'e.g. ' + todayMD());
@@ -2538,6 +2598,10 @@ async function commitEdits(tab, r, changesObj, action = 'Edit (Dashboard)'){
   if (isField() && tab.id === 'quotes' && Object.keys(changesObj).some(c => +c !== 13)){
     throw new Error('Field accounts can only update notes on quotes');
   }
+  /* duplicate quote #s make "which row?" ambiguous — refuse rather than risk updating the wrong one (v0.28) */
+  if ((state.dupes[tab.id] || []).includes(r.key)){
+    throw new Error(`#${r.key} appears more than once on ${tab.label} — fix the duplicate rows in the sheet, refresh, then save`);
+  }
   let target = r.sheetRow;
   const chk = await api(`/values/${encodeURIComponent(`'${tab.sheet}'!A${target}`)}`);
   if (String(chk.values?.[0]?.[0] ?? '').trim() !== r.key){
@@ -2566,8 +2630,7 @@ async function commitEdits(tab, r, changesObj, action = 'Edit (Dashboard)'){
     const undoData = { t: tab.id, c: Object.fromEntries(changes.map(([c, v]) => [c, { o: r.cells[+c] || '', n: String(v) }])) };
     const entry = [new Date().toLocaleString(), state.email, action, tab.sheet, r.key, details, JSON.stringify(undoData)];
     state.activity.push(entry);
-    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    logActivityAppend(entry);
   }
 
   changes.forEach(([c, v]) => r.cells[+c] = v);
@@ -2881,8 +2944,7 @@ async function saveRenewalStatus(x, status){
       const entry = [when, state.email, 'Renewal outcome', 'Renewals', x.srcKey || '',
         x.name + ' — ' + x.cyc.label + ' ' + x.cat + ' → ' + (status || 'restored'), ''];
       state.activity.push(entry);
-      api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-        { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+      logActivityAppend(entry);
     }
     renderAll();
     toast(status ? `${x.name} — ${status.toLowerCase()}` : `${x.name} — renewal restored`, 'ok');
@@ -3164,8 +3226,7 @@ function logEmail(person, fromAlias, to, subject, replyTo){
     const entry = [new Date().toLocaleString(), state.email, 'Email sent (' + mailType + ')', 'Renewals', key,
       'To ' + to + ' — ' + subject + (person ? ' — by ' + person : '') + (replyTo ? ' — replies to ' + replyTo : ''), ''];
     state.activity.push(entry);
-    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    logActivityAppend(entry);
   }
 }
 
@@ -3289,8 +3350,7 @@ function logSmsActivity(person, to){
     const entry = [new Date().toLocaleString(), state.email, 'Text sent (' + smsType + ')', 'SMS', key,
       'To ' + to + (person ? ' \u2014 by ' + person : ''), ''];
     state.activity.push(entry);
-    api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-      { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+    logActivityAppend(entry);
   }
 }
 /* poll the queued row once after ~8 s so the sender sees SENT / FAILED */
@@ -3350,8 +3410,7 @@ $('#btnSmsMode').addEventListener('click', async () => {
     if (CONFIG.ACTIVITY_LOG_SHEET){
       const entry = [new Date().toLocaleString(), state.email, 'Auto-SMS mode → ' + next, 'SMS', '', '', ''];
       state.activity.push(entry);
-      api(`/values/${encodeURIComponent(`'${CONFIG.ACTIVITY_LOG_SHEET}'!A:G`)}:append?valueInputOption=USER_ENTERED`,
-        { method:'POST', body: JSON.stringify({ values:[entry] }) }).catch(() => {});
+      logActivityAppend(entry);
     }
   } catch(e){
     toast('Could not update mode — has installSmsTriggers() been run in Apps Script?', 'err');
