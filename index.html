@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.28 — hardening pass: unlisted emails default to the restricted Field view, saves blocked on duplicate quote #s, background refresh can no longer discard in-progress edits, activity-log writes retry and warn on failure, strict date parsing (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.29 — closed quote rows tint by outcome: subtle green for Won, subtle amber for Postponed/pending-style outcomes, gray for lost; drawer banner uses the same classification (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -246,6 +246,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-closed .r-nm{color:var(--muted); font-weight:600}
 .row.u-closed{background:#F7F6F2; box-shadow:inset 4px 0 0 var(--line2)}
 .row.u-closed:hover{background:#F1F0EB}
+.row.u-closed.oc-won{background:#F5FAF6; box-shadow:inset 4px 0 0 #BFDCCB}
+.row.u-closed.oc-won:hover{background:#EFF6F1}
+.row.u-closed.oc-post{background:#FCF9EE; box-shadow:inset 4px 0 0 #E8D6A4}
+.row.u-closed.oc-post:hover{background:#F7F3E4}
 .row.u-closed .r-ttl, .row.u-closed .r-meta{opacity:.75}
 .row.u-closed.sel{background:var(--red-bg)}
 .ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
@@ -884,7 +888,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.28'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.29'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1387,6 +1391,14 @@ const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim(
 const OUTCOME_OPTIONS = ['Won','Went with competitor','No longer needed','Too expensive','Postponed','No response','Bad contact info'];
 const outcomeOf = r => (r.cells[16] || '').trim();
 const isClosed = r => !!outcomeOf(r);
+/* one classification for list tint + drawer banner — also catches custom typed outcomes like "Pending approval" (v0.29) */
+const outcomeKind = o => {
+  const t = low(o);
+  if (!t) return '';
+  if (/\bwon\b/.test(t)) return 'won';
+  if (/postpon|pause|pending|hold|later|follow.?up|revisit|call back|check back|next (year|month|cycle|quarter)/.test(t)) return 'post';
+  return 'lost';
+};
 
 /* ---- contact preferences (per customer, saved in the Contact Prefs tab) ----
    "No text (landline)" and "Do not contact" are enforced: they hide the
@@ -1918,7 +1930,8 @@ function renderList(){
     b.tabIndex = 0;
     let urgency = '';
     if (tab.id === 'quotes' && isClosed(r)){
-      urgency = ' u-closed';
+      const k = outcomeKind(outcomeOf(r));
+      urgency = ' u-closed' + (k === 'won' ? ' oc-won' : k === 'post' ? ' oc-post' : '');
     } else if (tab.id === 'quotes'){
       const d = daysNum(r);
       if (d !== null && d < 0) urgency = ' u-exp';
@@ -2242,12 +2255,12 @@ function renderDrawer(){
   if (tab.id === 'quotes'){
     const oc = outcomeOf(r);
     if (oc){
-      const won = oc === 'Won', post = oc === 'Postponed';
+      const k = outcomeKind(oc), won = k === 'won', post = k === 'post';
       const ocLbl = (state.headers.quotes || [])[16] || 'Outcome';
       const bn = document.createElement('div');
       bn.className = 'd-outcome ' + (won ? 'oc-won' : post ? 'oc-post' : 'oc-lost');
       bn.innerHTML = `<span class="oc-ic">${won ? '✓' : post ? '⏸' : '✕'}</span>` +
-        `<span>${won ? 'Won' : post ? 'Postponed' : 'Closed — ' + esc(oc)}</span>` +
+        `<span>${won || post ? esc(oc) : 'Closed — ' + esc(oc)}</span>` +
         `<span class="oc-sub">clear “${esc(ocLbl)}” below to reopen</span>`;
       body.appendChild(bn);
     }
