@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.29 — closed quote rows tint by outcome: subtle green for Won, subtle amber for Postponed/pending-style outcomes, gray for lost; drawer banner uses the same classification (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.30 — outcome tints turned way up: Won rows are clearly green, Postponed/pending rows clearly yellow, with solid color left bars (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -246,10 +246,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-closed .r-nm{color:var(--muted); font-weight:600}
 .row.u-closed{background:#F7F6F2; box-shadow:inset 4px 0 0 var(--line2)}
 .row.u-closed:hover{background:#F1F0EB}
-.row.u-closed.oc-won{background:#F5FAF6; box-shadow:inset 4px 0 0 #BFDCCB}
-.row.u-closed.oc-won:hover{background:#EFF6F1}
-.row.u-closed.oc-post{background:#FCF9EE; box-shadow:inset 4px 0 0 #E8D6A4}
-.row.u-closed.oc-post:hover{background:#F7F3E4}
+.row.u-closed.oc-won{background:#DCEFE3; box-shadow:inset 5px 0 0 var(--green)}
+.row.u-closed.oc-won:hover{background:#D0E8D9}
+.row.u-closed.oc-post{background:#FAEBC4; box-shadow:inset 5px 0 0 #E0A93E}
+.row.u-closed.oc-post:hover{background:#F6E3B0}
 .row.u-closed .r-ttl, .row.u-closed .r-meta{opacity:.75}
 .row.u-closed.sel{background:var(--red-bg)}
 .ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
@@ -888,7 +888,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.29'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.30'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
