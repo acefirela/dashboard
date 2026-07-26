@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.30 — outcome tints turned way up: Won rows are clearly green, Postponed/pending rows clearly yellow, with solid color left bars (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.31 — search now matches unformatted numbers: typing 1000 finds $1,000.00, and typing 8183398016 finds +1 818-339-8016 (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -888,7 +888,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.30'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.31'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1490,13 +1490,36 @@ function visibleRows(tab){
   if (tab.id === 'quotes' && state.filter.quotes === 'closed' && state.quotesOutcome){
     rows = rows.filter(r => outcomeOf(r) === state.quotesOutcome);
   }
-  const q = state.search.trim().toLowerCase();
-  if (q) rows = rows.filter(r => searchText(tab, r).includes(q));
+  const q = srchQ(state.search);
+  if (q) rows = rows.filter(r => srchHit(searchText(tab, r), q));
   const s = state.sort[tab.id];
   if (s === 'newest') rows = [...rows].sort((a,b) => quoteNum(b.key) - quoteNum(a.key));
   else if (s === 'expiring') rows = [...rows].sort((a,b) => (daysNum(a) ?? 9e9) - (daysNum(b) ?? 9e9));
   return rows;
 }
+
+/* --- search normalisation (v0.31) -----------------------------------
+   Sheets hands us FORMATTED_VALUE, so money arrives as "$1,000.00" and
+   phones as "+1 818-339-8016". Typing 1000 or 8183398016 used to miss.
+   srchTxt() expands the haystack; srchQ() canonicalises the query.     */
+function srchTxt(s){
+  const t = String(s == null ? '' : s).toLowerCase();
+  // "$1,000.00" -> "1000.00"  (only strips commas sitting in a digit group)
+  const flat = t.replace(/\$/g, '').replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+  // digits-only copies of phone-like runs, appended so both forms match
+  const phones = (t.match(/\d[\d\s().+-]{6,}\d/g) || [])
+    .map(x => x.replace(/\D/g, ''))
+    .filter(x => x.length >= 7);
+  return phones.length ? flat + ' ' + phones.join(' ') : flat;
+}
+function srchQ(q){
+  const t = String(q == null ? '' : q).toLowerCase().trim();
+  const d = t.replace(/\D/g, '');
+  // an all-punctuation-and-digits query with 7+ digits is a phone: compare bare
+  if (d.length >= 7 && /^[\d\s().+-]+$/.test(t)) return d;
+  return t.replace(/\$/g, '').replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+}
+function srchHit(text, q){ return srchTxt(text).includes(q); }
 
 function searchText(tab, r){
   const skip = (tab.id === 'quotes' && !(CONFIG.SHOW_FINANCIALS || isAdmin())) ? [7] : [];
@@ -2135,7 +2158,7 @@ $('#dSearchClr').addEventListener('click', () => {
 });
 function renderDrawerResults(q){
   const tab = tabOfUid(state.drawerUid) || activeTabDef() || TABS[0];
-  const hits = (state.data[tab.id] || []).filter(r => searchText(tab, r).includes(q)).slice(0, 25);
+  const hits = (state.data[tab.id] || []).filter(r => srchHit(searchText(tab, r), srchQ(q))).slice(0, 25);
   const body = $('#dBody');
   body.innerHTML = '<div class="d-results"></div>';
   const box = body.firstChild;
@@ -2829,8 +2852,8 @@ function renderRenewals(){
   };
   const fn = buckets[state.renBucket] || buckets.d30;
   let items = computeRenewals().filter(fn);
-  const q = state.search.trim().toLowerCase();
-  if (q) items = items.filter(x => (x.name + ' ' + x.cat + ' ' + x.cyc.label + ' ' + x.srcKey).toLowerCase().includes(q));
+  const q = srchQ(state.search);
+  if (q) items = items.filter(x => srchHit(x.name + ' ' + x.cat + ' ' + x.cyc.label + ' ' + x.srcKey, q));
 
   const list = document.createElement('div');
   list.className = 'list';
@@ -3669,9 +3692,9 @@ function renderTexts(){
   if (tf === 'unread') items = items.filter(t => t.unread > 0);
   else if (tf === 'open') items = items.filter(t => !t.done);
   else if (tf === 'done') items = items.filter(t => t.done);
-  const q = state.search.trim().toLowerCase();
+  const q = srchQ(state.search);
   if (q) items = items.filter(t =>
-    (t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' ')).toLowerCase().includes(q));
+    srchHit(t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' '), q));
   const rq = renderReminderQueue();
   if (rq) main.appendChild(rq);
   const list = document.createElement('div');
@@ -4108,9 +4131,9 @@ function renderHistBody(){
     body.innerHTML = '<div class="log-none" style="padding:14px 0">Loading history…</div>';
     return;
   }
-  const q = $('#histSearch').value.trim().toLowerCase();
+  const q = srchQ($('#histSearch').value);
   let entries = [...state.activity].reverse();
-  if (q) entries = entries.filter(a => a.slice(0, 6).join(' ').toLowerCase().includes(q));
+  if (q) entries = entries.filter(a => srchHit(a.slice(0, 6).join(' '), q));
   entries = entries.slice(0, 60);
   if (!entries.length){
     body.innerHTML = '<div class="log-none" style="padding:14px 0">No changes logged' + (q ? ' matching your filter.' : ' yet — edits made in the dashboard appear here.') + '</div>';
