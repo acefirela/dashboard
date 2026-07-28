@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.31 — search now matches unformatted numbers: typing 1000 finds $1,000.00, and typing 8183398016 finds +1 818-339-8016 (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.32 — Outcome now has a colour you pick yourself: green / yellow / red, saved with the answer (e.g. "🟡 Follow up on 8/5") and used to tint the quote in the list and the panel banner (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -250,6 +250,10 @@ main{max-width:none; margin:0 auto; padding:12px 16px 90px}
 .row.u-closed.oc-won:hover{background:#D0E8D9}
 .row.u-closed.oc-post{background:#FAEBC4; box-shadow:inset 5px 0 0 #E0A93E}
 .row.u-closed.oc-post:hover{background:#F6E3B0}
+.row.u-closed.oc-red{background:#F8DEDC; box-shadow:inset 5px 0 0 var(--red)}
+.row.u-closed.oc-red:hover{background:#F3D2CF}
+.row.u-closed.oc-won .r-q, .row.u-closed.oc-post .r-q, .row.u-closed.oc-red .r-q{color:var(--ink)}
+.row.u-closed.oc-won .r-nm, .row.u-closed.oc-post .r-nm, .row.u-closed.oc-red .r-nm{color:var(--ink)}
 .row.u-closed .r-ttl, .row.u-closed .r-meta{opacity:.75}
 .row.u-closed.sel{background:var(--red-bg)}
 .ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
@@ -348,7 +352,23 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .d-outcome .oc-sub{font-weight:500; font-size:12px; opacity:.75; margin-left:auto; padding-left:10px; text-align:right}
 .d-outcome.oc-won{background:var(--green-bg); color:var(--green); border-color:#CBE3D4}
 .d-outcome.oc-post{background:var(--amber-bg); color:var(--amber); border-color:#EBD9B4}
+.d-outcome.oc-red{background:var(--red-bg); color:var(--red-dk); border-color:#EFD2D1}
 .d-outcome.oc-lost{background:#F1F0EC; color:var(--ink2); border-color:var(--line2)}
+/* outcome colour picker (v0.32) — green / yellow / red, chosen by hand on any answer */
+.sw-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
+.sw-row.dim{opacity:.5}
+.sw{
+  appearance:none; font:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:650; color:var(--ink2); background:#F7F6F2;
+  border:1px solid var(--line2); border-radius:999px; padding:5px 11px; min-height:30px;
+}
+.sw i{width:11px; height:11px; border-radius:50%; flex:none; border:1px solid rgba(0,0,0,.14)}
+.sw-green i{background:var(--green)} .sw-yellow i{background:#E0A93E} .sw-red i{background:var(--red)}
+.sw:hover{border-color:var(--ink2)}
+.sw.on{color:#fff; border-color:transparent}
+.sw-green.on{background:var(--green)} .sw-yellow.on{background:#B26A00} .sw-red.on{background:var(--red)}
+.sw.on i{background:#fff; border-color:rgba(255,255,255,.65)}
+.sw-hint{font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.4}
 .d-results .rrow{
   display:flex; flex-direction:column; gap:1px; width:100%; text-align:left;
   appearance:none; background:none; border:none; border-bottom:1px solid var(--line);
@@ -888,7 +908,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.31'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.32'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1389,16 +1409,48 @@ const daysNum = r => { const n = parseInt(String(r.cells[8]).replace(/[^\-0-9]/g
 const noFollowUp = r => [10,11,12].every(c => { const v = (r.cells[c]||'').trim().toLowerCase(); return v === '' || v === 'not sent'; });
 
 const OUTCOME_OPTIONS = ['Won','Went with competitor','No longer needed','Too expensive','Postponed','No response','Bad contact info'];
+
+/* ---- outcome colours (v0.32) ------------------------------------------
+   The colour you pick is stored as a coloured dot in front of the answer —
+   the Quotes sheet cell literally reads "🟡 Follow up on 8/5". That way the
+   choice survives in Sheets, in Supabase and in any export, with no extra
+   column, and the dashboard tints the list row + panel banner to match.
+   Outcomes saved before v0.32 have no dot and keep the old keyword guess. */
+const OUTCOME_COLORS = [
+  { key:'green',  dot:'🟢', kind:'won',  label:'Green',  hint:'Good — won, handled, approved' },
+  { key:'yellow', dot:'🟡', kind:'post', label:'Yellow', hint:'Follow up / waiting — e.g. “Follow up on 8/5”' },
+  { key:'red',    dot:'🔴', kind:'red',  label:'Red',    hint:'Lost or a problem — needs attention' }
+];
+const OUTCOME_DOT_RE = /^\s*(\u{1F7E2}|\u{1F7E1}|\u{1F534})\s*/u;
+const outcomeColor = o => {
+  const m = OUTCOME_DOT_RE.exec(String(o || ''));
+  return m ? ((OUTCOME_COLORS.find(c => c.dot === m[1]) || {}).key || '') : '';
+};
+/* the answer with its colour dot removed — what we show in badges and banners */
+const outcomeText = o => String(o || '').replace(OUTCOME_DOT_RE, '').trim();
+/* recombine answer + colour into the value we store in the sheet */
+const withOutcomeColor = (text, key) => {
+  const t = outcomeText(text);
+  if (!t) return '';
+  const c = OUTCOME_COLORS.find(x => x.key === key);
+  return c ? c.dot + ' ' + t : t;
+};
+
 const outcomeOf = r => (r.cells[16] || '').trim();
 const isClosed = r => !!outcomeOf(r);
-/* one classification for list tint + drawer banner — also catches custom typed outcomes like "Pending approval" (v0.29) */
+/* one classification for list tint + drawer banner — an explicit colour dot wins;
+   otherwise fall back to reading the words, which also catches custom typed
+   outcomes like "Pending approval" (v0.29) */
 const outcomeKind = o => {
-  const t = low(o);
+  const picked = outcomeColor(o);
+  if (picked) return (OUTCOME_COLORS.find(c => c.key === picked) || {}).kind || 'lost';
+  const t = low(outcomeText(o));
   if (!t) return '';
   if (/\bwon\b/.test(t)) return 'won';
   if (/postpon|pause|pending|hold|later|follow.?up|revisit|call back|check back|next (year|month|cycle|quarter)/.test(t)) return 'post';
   return 'lost';
 };
+const outcomeClass = k => k === 'won' ? 'oc-won' : k === 'post' ? 'oc-post' : k === 'red' ? 'oc-red' : 'oc-lost';
 
 /* ---- contact preferences (per customer, saved in the Contact Prefs tab) ----
    "No text (landline)" and "Do not contact" are enforced: they hide the
@@ -1954,7 +2006,7 @@ function renderList(){
     let urgency = '';
     if (tab.id === 'quotes' && isClosed(r)){
       const k = outcomeKind(outcomeOf(r));
-      urgency = ' u-closed' + (k === 'won' ? ' oc-won' : k === 'post' ? ' oc-post' : '');
+      urgency = ' u-closed' + (k === 'lost' ? '' : ' ' + outcomeClass(k));
     } else if (tab.id === 'quotes'){
       const d = daysNum(r);
       if (d !== null && d < 0) urgency = ' u-exp';
@@ -2003,7 +2055,11 @@ function renderList(){
 function rowSide(tab, r){
   if (tab.id === 'quotes'){
     const o = outcomeOf(r);
-    if (o) return `<span class="badge ${o === 'Won' ? 'b-green' : 'b-gray'}">${esc(o)}</span>`;
+    if (o){
+      const k = outcomeKind(o);
+      const cls = k === 'won' ? 'b-green' : k === 'post' ? 'b-amber' : k === 'red' ? 'b-red' : 'b-gray';
+      return `<span class="badge ${cls}" title="Outcome">${esc(outcomeText(o))}</span>`;
+    }
     return daysBadge(r);
   }
   return invStatusBadge(r.cells[6]) || jobBadge(r.cells[13]) || '';
@@ -2280,10 +2336,11 @@ function renderDrawer(){
     if (oc){
       const k = outcomeKind(oc), won = k === 'won', post = k === 'post';
       const ocLbl = (state.headers.quotes || [])[16] || 'Outcome';
+      const txt = outcomeText(oc);
       const bn = document.createElement('div');
-      bn.className = 'd-outcome ' + (won ? 'oc-won' : post ? 'oc-post' : 'oc-lost');
-      bn.innerHTML = `<span class="oc-ic">${won ? '✓' : post ? '⏸' : '✕'}</span>` +
-        `<span>${won || post ? esc(oc) : 'Closed — ' + esc(oc)}</span>` +
+      bn.className = 'd-outcome ' + outcomeClass(k);
+      bn.innerHTML = `<span class="oc-ic">${won ? '✓' : post ? '⏸' : k === 'red' ? '⚠' : '✕'}</span>` +
+        `<span>${k === 'lost' ? 'Closed — ' + esc(txt) : esc(txt)}</span>` +
         `<span class="oc-sub">clear “${esc(ocLbl)}” below to reopen</span>`;
       body.appendChild(bn);
     }
@@ -2518,7 +2575,7 @@ function buildControl(tab, r, colIdx){
 
   if (tab.id === 'quotes'){
     if (colIdx === 16){
-      buildSelect(box, tab, r, colIdx, OUTCOME_OPTIONS, val);
+      buildOutcomeControl(box, tab, r, colIdx);
       return box;
     }
     if (colIdx === 13){
@@ -2588,6 +2645,97 @@ function buildSelect(box, tab, r, colIdx, opts, val){
   });
   box.appendChild(sel);
 }
+/* ---- Outcome control (v0.32) ----------------------------------------
+   Answer (list or typed) + a green / yellow / red colour you pick yourself.
+   The colour is saved in front of the answer ("🟡 Follow up on 8/5") so it
+   sticks in the sheet, and it tints the quote in the list and the banner at
+   the top of the panel — on any answer, not just Won and Postponed. */
+function buildOutcomeControl(box, tab, r, colIdx){
+  box.innerHTML = '';
+  const start = currentVal(r, colIdx);
+  let text  = outcomeText(start);
+  let color = outcomeColor(start);
+
+  const field = document.createElement('div');
+  const swRow = document.createElement('div');
+  swRow.className = 'sw-row';
+
+  const push  = () => setEdit(tab, r, colIdx, withOutcomeColor(text, color));
+  const paint = () => {
+    swRow.querySelectorAll('.sw').forEach(b => {
+      const on = b.dataset.color === color;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    swRow.classList.toggle('dim', !text);
+  };
+
+  function mountList(){
+    field.innerHTML = '';
+    const sel = document.createElement('select');
+    sel.id = 'fld-' + colIdx;
+    const all = [...OUTCOME_OPTIONS];
+    if (text && !all.includes(text)) all.unshift(text);
+    sel.appendChild(new Option('— select —', ''));
+    all.forEach(o => sel.appendChild(new Option(o, o)));
+    sel.appendChild(new Option('✎ Type a custom answer…', '__custom__'));
+    sel.value = all.includes(text) ? text : '';
+    sel.addEventListener('change', () => {
+      if (sel.value === '__custom__'){ mountCustom(true); return; }
+      text = sel.value;
+      if (!text) color = '';          // cleared outcome reopens the quote — drop the colour too
+      push(); paint();
+    });
+    field.appendChild(sel);
+  }
+
+  function mountCustom(focus){
+    field.innerHTML = '';
+    const inp = mkInput(text, 'e.g. Follow up on ' + todayMD());
+    inp.id = 'fld-' + colIdx;
+    const dlId = 'dl-custom-' + colIdx;
+    ensureDatalist(dlId, [...new Set([...OUTCOME_OPTIONS, ...(state.suggest[colIdx] || []).map(outcomeText)])].filter(Boolean));
+    inp.setAttribute('list', dlId);
+    inp.addEventListener('input', () => {
+      text = inp.value;
+      if (!text.trim()) color = '';
+      push(); paint();
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveActive(); });
+    field.appendChild(inp);
+    const back = document.createElement('button');
+    back.className = 'backlist'; back.type = 'button'; back.textContent = '↩ back to list';
+    back.addEventListener('click', () => { mountList(); paint(); });
+    field.appendChild(back);
+    if (focus) inp.focus();
+  }
+
+  OUTCOME_COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sw sw-' + c.key;
+    b.dataset.color = c.key;
+    b.title = c.hint;
+    b.setAttribute('aria-label', c.label + ' — ' + c.hint);
+    b.innerHTML = '<i></i>' + c.label;
+    b.addEventListener('click', () => {
+      color = (color === c.key) ? '' : c.key;   // click the active colour again to clear it
+      push(); paint();
+    });
+    swRow.appendChild(b);
+  });
+
+  box.appendChild(field);
+  box.appendChild(swRow);
+  const hint = document.createElement('div');
+  hint.className = 'sw-hint';
+  hint.textContent = 'Pick a colour to tint this quote in the list and on the banner above — tap it again to clear. It saves with the answer, e.g. “🟡 Follow up on ' + todayMD() + '”.';
+  box.appendChild(hint);
+
+  if (text && !OUTCOME_OPTIONS.includes(text)) mountCustom(false); else mountList();
+  paint();
+}
+
 function toCustomInput(box, tab, r, colIdx, opts){
   box.innerHTML = '';
   const inp = mkInput('', 'Custom answer…');
