@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.33 — Property Identity Integration: new Properties tab reads the FROZEN property layer (P-0001…P-0501) from Supabase — searchable P-numbers, per-property linked records, relationships, customers, Ember links, and compliance alerts. Read-only: the frozen layer is never regenerated, renumbered, or edited from the dashboard. (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.34 — Properties tab readability pass: larger type, real contrast, deduped customers, quote/job references shown once with ×n counts, and Ember appointment dedupe-keys no longer rendered as digit soup (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -908,7 +908,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.33'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.34'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -5515,12 +5515,11 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 /*TEAMCHAT_END*/
 </script>
 <script>
-/*PROPERTIES_START v0.33 — frozen property layer (read-only)
+/*PROPERTIES_START v0.34 — frozen property layer (read-only)
   P-0001…P-0501 are PERMANENT. This module only reads: no insert, no update,
   no renumbering, no normalization. New properties append past P-0501 through
   the controlled freeze workflow, never from here. RLS: SELECT is granted to
-  the authenticated role only — sign-in (same Google session Team Chat uses)
-  is required before any property data loads. */
+  the authenticated role only. v0.34 is a pure presentation pass. */
 (function(){
   'use strict';
   var SB_URL = 'https://uqikcjfshbvthkjgdwgr.supabase.co';
@@ -5528,7 +5527,35 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   if (!(window.supabase && window.supabase.createClient)){ console.warn('Properties: supabase-js not loaded'); return; }
   var sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-  /* Compliance alerts on frozen properties. Data-driven: add entries here. */
+  var css = [
+    '.prop-wrap{max-width:880px;margin:0 auto;padding:12px 6px;color:#22252B}',
+    '.prop-meta{font-size:13.5px;color:#5A5F6A;margin:2px 0 10px}',
+    '.prop-row{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid #D8D5CD;border-radius:10px;background:#FFFFFF;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(30,30,28,.06)}',
+    '.prop-row:hover{border-color:#B9B4A8;box-shadow:0 2px 6px rgba(30,30,28,.10)}',
+    '.prop-pid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:14.5px;color:#9E2724;letter-spacing:.2px}',
+    '.prop-title{font-weight:650;font-size:15.5px;color:#1E2126;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.prop-sub{font-size:13px;color:#5A5F6A;margin-top:2px}',
+    '.prop-lbl{font-weight:400;color:#5A5F6A}',
+    '.prop-chip{display:inline-block;font-size:12px;font-weight:650;padding:2px 9px;border-radius:9px;white-space:nowrap}',
+    '.prop-card{margin-top:12px;padding:18px;border:1px solid #D8D5CD;border-radius:12px;background:#FFFFFF;box-shadow:0 1px 3px rgba(30,30,28,.07)}',
+    '.prop-h1{font-weight:750;font-size:19px;color:#1E2126}',
+    '.prop-id-line{font-size:13.5px;color:#4A4F58;margin-top:5px}',
+    '.prop-sec{margin-top:14px;padding-top:12px;border-top:1px solid #ECEAE4}',
+    '.prop-sec b{font-size:14.5px;color:#1E2126}',
+    '.prop-sec .cnt{font-size:13px;color:#767B85;font-weight:400}',
+    '.prop-body{font-size:14.5px;color:#2C2F36;line-height:1.55;margin-top:4px}',
+    '.prop-alert{border-left:4px solid #9E2724;background:#FBEAEA;padding:12px 14px;border-radius:8px;margin:12px 0}',
+    '.prop-alert .t{font-weight:700;color:#9E2724;font-size:14.5px}',
+    '.prop-alert .b{font-size:14px;color:#2C2F36;margin-top:4px;line-height:1.5}',
+    '.prop-back{border:0;background:#E9E6DE;color:#2C2F36;font-weight:650;font-size:14px;padding:8px 14px;border-radius:9px;cursor:pointer}',
+    '.prop-back:hover{background:#DEDAD0}',
+    '.prop-jump{color:#9E2724;font-weight:650;text-decoration:none}',
+    '.prop-jump:hover{text-decoration:underline}',
+    '.prop-note{font-size:12px;color:#A8A49B;margin-top:14px}',
+    '.prop-center{max-width:880px;margin:24px auto;font-size:15px;text-align:center;padding:30px 10px;color:#5A5F6A}'
+  ].join('\n');
+  var tag = document.createElement('style'); tag.textContent = css; document.head.appendChild(tag);
+
   var ALERTS = {
     'P-0137': [{ sev:'red', title:'Backup power failed \u2014 no retest on file',
       body:'Emergency generator + UPS failed testing 09/13/2025 and were marked '+
@@ -5589,14 +5616,50 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
                (p.city || '') + ' ' + (custList || []).join(' ')).toLowerCase();
     return hay.indexOf(q) !== -1;
   }
-  window.__propMatch = propMatch; /* exposed for the logic harness */
+  window.__propMatch = propMatch;
 
-  var CONF_STYLE = { high:'background:#EAF4EE;color:#2E7D4F', probable:'background:#FDF6E3;color:#8A6D1A',
-                     ambiguous:'background:#FBEAEA;color:#9E2724', resolved_split:'background:#EAF0FB;color:#2C4E9E',
-                     multi_address_unsplit:'background:#F3EAFB;color:#6B2C9E' };
-  function confChip(c){ return '<span style="display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px;' +
-    (CONF_STYLE[c] || 'background:#EEECE6;color:#767B85') + '">' + esc(c) + '</span>'; }
-  function pidChip(id){ return '<span style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#9E2724">' + esc(id) + '</span>'; }
+  /* v0.34: references shown once, with a multiplier when a ref repeats.
+     "#1122 \u00d72 \u00b7 #1130" instead of "1122 \u00b7 1130 \u00b7 1130 \u00b7 1122". Pure. */
+  function fmtRefs(rows, prefix){
+    var counts = {}, order = [];
+    rows.forEach(function(l){
+      var r = String(l.source_reference || '').trim();
+      if (!r) return;
+      if (!(r in counts)){ counts[r] = 0; order.push(r); }
+      counts[r]++;
+    });
+    order.sort(function(a, b){
+      var na = parseInt(a, 10), nb = parseInt(b, 10);
+      if (!isNaN(na) && !isNaN(nb)) return nb - na;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return order.map(function(r){
+      return prefix + r.replace(/^0+(?=\d)/, '') + (counts[r] > 1 ? ' \u00d7' + counts[r] : '');
+    }).join(' \u00b7 ');
+  }
+  window.__fmtRefs = fmtRefs;
+
+  /* v0.34: case-insensitive customer dedupe, longest variant wins. Pure. */
+  function dedupeCustomers(list){
+    var seen = {}, order = [];
+    (list || []).forEach(function(c){
+      var k = String(c || '').trim().replace(/[.,\-]/g, '').replace(/\s+/g, ' ').toLowerCase();
+      if (!k) return;
+      if (!(k in seen)){ seen[k] = c.trim(); order.push(k); }
+      else if (c.trim().length > seen[k].length) seen[k] = c.trim();
+    });
+    return order.map(function(k){ return seen[k]; });
+  }
+  window.__dedupeCustomers = dedupeCustomers;
+
+  var CONF_STYLE = { high:'background:#E3F1E8;color:#1F6B41', probable:'background:#FBF1D4;color:#7A5E0E',
+                     ambiguous:'background:#F9E2E2;color:#8F1F1C', resolved_split:'background:#E2EAF9;color:#1F3F8F',
+                     multi_address_unsplit:'background:#EFE2F9;color:#5B1F8F' };
+  function confChip(c){ return '<span class="prop-chip" style="' + (CONF_STYLE[c] || 'background:#EAE7DF;color:#5A5F6A') + '">' + esc(c) + '</span>'; }
+
+  var SRC_LABEL = { quote:'Quotes', accepted:'Accepted jobs', tracker:'Tracker jobs', job:'Jobs',
+                    invoice:'Invoices', receipt:'Receipts', appointment:'Ember appointments',
+                    renewal:'Renewals', email:'Emails', manual:'Manual links' };
 
   function filtered(){
     var q = (window.state && window.state.search) || '';
@@ -5629,76 +5692,80 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 
   function alertBanner(pid){
     return (ALERTS[pid] || []).map(function(a){
-      return '<div style="border-left:4px solid #9E2724;background:#FBEAEA;padding:10px 12px;border-radius:6px;margin:8px 0">' +
-        '<div style="font-weight:700;color:#9E2724;font-size:13px">\u26A0 ' + esc(a.title) + '</div>' +
-        '<div style="font-size:13px;color:#3C4048;margin-top:3px">' + esc(a.body) + '</div></div>';
+      return '<div class="prop-alert"><div class="t">\u26A0 ' + esc(a.title) + '</div>' +
+             '<div class="b">' + esc(a.body) + '</div></div>';
     }).join('');
   }
 
   function detail(pid){
     var p = P.byId[pid]; if (!p){ P.sel = null; return list(); }
-    var L = P.links[pid] || [], R = P.rels[pid] || [], C = P.custs[pid] || [], E = P.ember[pid] || [];
+    var L = P.links[pid] || [], R = P.rels[pid] || [], E = P.ember[pid] || [];
+    var C = dedupeCustomers(P.custs[pid]);
     var bySrc = {}; L.forEach(function(l){ grp(bySrc, l.source_type, l); });
-    var h = '<div style="max-width:860px;margin:0 auto;padding:14px 4px">';
-    h += '<button id="propBack" style="border:0;background:#EEECE6;color:#3C4048;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer">\u2190 All properties</button>';
-    h += '<div style="margin-top:12px;padding:14px;border:1px solid #E4E2DC;border-radius:10px;background:#fff">';
-    h += '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' + pidChip(pid) +
-         '<span style="font-weight:700;font-size:16px">' + esc(p.normalized_address) + '</span>' +
-         (p.building_label ? '<span style="font-size:13px;color:#767B85">' + esc(p.building_label) + '</span>' : '') +
+    var h = '<div class="prop-wrap">';
+    h += '<button id="propBack" class="prop-back">\u2190 All properties</button>';
+    h += '<div class="prop-card">';
+    h += '<div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap"><span class="prop-pid" style="font-size:16px">' + esc(pid) + '</span>' +
+         '<span class="prop-h1">' + esc(p.normalized_address) + '</span>' +
+         (p.building_label ? '<span style="font-size:14.5px;color:#4A4F58">' + esc(p.building_label) + '</span>' : '') +
          confChip(p.confidence) + '</div>';
-    h += '<div style="font-size:12px;color:#767B85;margin-top:4px">' + esc([p.city, p.postal_code].filter(Boolean).join(' \u00b7 ')) +
+    h += '<div class="prop-id-line">' + esc([p.city, p.postal_code].filter(Boolean).join(' \u00b7 ')) +
          ' \u00b7 qualified by ' + esc(p.qualified_by) +
          (p.qualified_by === 'inherited_site' ? ' (site events live on the primary building)' : '') + '</div>';
-    h += '<div style="font-size:12px;color:#767B85;margin-top:2px">first seen: ' + esc(p.raw_address_first_seen) + '</div>';
+    h += '<div class="prop-id-line">first seen: ' + esc(p.raw_address_first_seen) + '</div>';
     h += alertBanner(pid);
-    if (C.length) h += '<div style="margin-top:10px"><b style="font-size:13px">Customers</b><div style="font-size:13px;color:#3C4048">' +
-                       C.map(esc).join(' \u00b7 ') + '</div></div>';
+    if (C.length) h += '<div class="prop-sec"><b>Customers</b><div class="prop-body">' + C.map(esc).join(' \u00b7 ') + '</div></div>';
     Object.keys(bySrc).sort().forEach(function(st){
       var rows = bySrc[st];
-      h += '<div style="margin-top:10px"><b style="font-size:13px;text-transform:capitalize">' + esc(st) + 's</b> ' +
-           '<span style="font-size:12px;color:#767B85">(' + rows.length + ')</span><div style="font-size:13px;color:#3C4048">' +
-           rows.map(function(l){ return esc(l.source_reference || '\u2014'); }).join(' \u00b7 ') + '</div></div>';
+      var label = SRC_LABEL[st] || (st.charAt(0).toUpperCase() + st.slice(1) + 's');
+      h += '<div class="prop-sec"><b>' + esc(label) + '</b> <span class="cnt">(' + rows.length + ')</span>';
+      if (st === 'appointment'){
+        h += '<div class="prop-body">' + rows.length + ' Ember appointment' + (rows.length > 1 ? 's' : '') +
+             ' on file \u2014 see Ember records below.</div>';
+      } else {
+        var refs = fmtRefs(rows, '#');
+        h += '<div class="prop-body">' + (refs ? esc(refs) : rows.length + ' linked record' + (rows.length > 1 ? 's' : '')) + '</div>';
+      }
+      h += '</div>';
     });
     if (R.length){
-      h += '<div style="margin-top:10px"><b style="font-size:13px">Related buildings</b>' + R.map(function(r){
+      h += '<div class="prop-sec"><b>Related buildings</b>' + R.map(function(r){
         var other = r.property_a === pid ? r.property_b : r.property_a;
         var op = P.byId[other] || {};
-        return '<div style="font-size:13px;color:#3C4048;margin-top:2px"><a href="#" data-prop="' + esc(other) + '" class="propJump" ' +
-          'style="color:#9E2724;font-weight:600;text-decoration:none">' + esc(other) + '</a> \u00b7 ' +
+        return '<div class="prop-body"><a href="#" data-prop="' + esc(other) + '" class="prop-jump propJump">' + esc(other) + '</a> \u00b7 ' +
           esc(op.normalized_address || '') + (op.building_label ? ' (' + esc(op.building_label) + ')' : '') +
-          ' \u00b7 <span style="color:#767B85">' + esc(r.relationship_type) + ', ' + esc(r.status) + '</span></div>';
+          ' \u00b7 <span style="color:#5A5F6A">' + esc(r.relationship_type.replace(/_/g, ' ')) + ', ' + esc(r.status) + '</span></div>';
       }).join('') + '</div>';
     }
     if (E.length){
-      h += '<div style="margin-top:10px"><b style="font-size:13px">Ember records</b>' + E.map(function(e){
-        return '<div style="font-size:13px;color:#3C4048;margin-top:2px">' + esc(e.name || e.id) +
-          ' <span style="color:#767B85">(' + esc(e.status) + ')</span></div>';
+      h += '<div class="prop-sec"><b>Ember records</b>' + E.map(function(e){
+        return '<div class="prop-body">' + esc(e.name || e.id) + ' <span style="color:#5A5F6A">(' + esc(e.status) + ')</span></div>';
       }).join('') + '</div>';
     }
-    h += '<div style="font-size:11px;color:#B7B3AA;margin-top:12px">Frozen property layer \u00b7 read-only \u00b7 IDs are permanent and never renumbered</div>';
+    h += '<div class="prop-note">Frozen property layer \u00b7 read-only \u00b7 IDs are permanent and never renumbered</div>';
     h += '</div></div>';
     return h;
   }
 
   function list(){
     var rows = filtered();
-    var h = '<div style="max-width:860px;margin:0 auto;padding:10px 4px">';
-    h += '<div style="font-size:12px;color:#767B85;margin:2px 0 8px">' + rows.length + ' of ' + P.props.length +
+    var h = '<div class="prop-wrap">';
+    h += '<div class="prop-meta">' + rows.length + ' of ' + P.props.length +
          ' frozen properties \u00b7 P-0001\u2026P-0501 \u00b7 read-only</div>';
-    if (!rows.length) h += '<div style="color:#767B85;font-size:13px;padding:18px 0">No properties match.</div>';
+    if (!rows.length) h += '<div class="prop-center" style="padding:18px 0;margin:0;text-align:left">No properties match.</div>';
     rows.slice(0, 400).forEach(function(p){
-      var pid = p.property_id, nL = (P.links[pid] || []).length, nC = (P.custs[pid] || []).length;
-      h += '<div class="propRow" data-prop="' + esc(pid) + '" style="display:flex;gap:10px;align-items:center;padding:9px 10px;' +
-           'border:1px solid #E4E2DC;border-radius:9px;background:#fff;margin-bottom:6px;cursor:pointer">' +
-           pidChip(pid) +
-           '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
-           esc(p.normalized_address) + (p.building_label ? ' <span style="font-weight:400;color:#767B85">\u00b7 ' + esc(p.building_label) + '</span>' : '') +
-           '</div><div style="font-size:12px;color:#767B85">' + esc(p.city || '') + (nC ? ' \u00b7 ' + nC + ' customer' + (nC > 1 ? 's' : '') : '') +
+      var pid = p.property_id, nL = (P.links[pid] || []).length;
+      var nC = dedupeCustomers(P.custs[pid]).length;
+      h += '<div class="prop-row propRow" data-prop="' + esc(pid) + '">' +
+           '<span class="prop-pid">' + esc(pid) + '</span>' +
+           '<div style="flex:1;min-width:0"><div class="prop-title">' +
+           esc(p.normalized_address) + (p.building_label ? ' <span class="prop-lbl">\u00b7 ' + esc(p.building_label) + '</span>' : '') +
+           '</div><div class="prop-sub">' + esc(p.city || '') + (nC ? ' \u00b7 ' + nC + ' customer' + (nC > 1 ? 's' : '') : '') +
            (nL ? ' \u00b7 ' + nL + ' record' + (nL > 1 ? 's' : '') : '') + '</div></div>' +
-           (ALERTS[pid] ? '<span title="compliance alert" style="font-size:15px">\u26A0\uFE0F</span>' : '') +
+           (ALERTS[pid] ? '<span title="compliance alert" style="font-size:17px">\u26A0\uFE0F</span>' : '') +
            confChip(p.confidence) + '</div>';
     });
-    if (rows.length > 400) h += '<div style="color:#767B85;font-size:12px">Showing first 400 \u2014 narrow the search.</div>';
+    if (rows.length > 400) h += '<div class="prop-meta">Showing first 400 \u2014 narrow the search.</div>';
     h += '</div>';
     return h;
   }
@@ -5706,21 +5773,19 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   window.renderProperties = function(){
     var main = document.getElementById('main'); if (!main) return;
     if (!P.session){
-      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#767B85;font-size:14px;text-align:center;padding:30px 10px">' +
-        'Sign in (the same Google sign-in Team Chat uses) to load the frozen property layer.</div>';
+      main.innerHTML = '<div class="prop-center">Sign in (the same Google sign-in Team Chat uses) to load the frozen property layer.</div>';
       return;
     }
     if (!P.loaded && !P.loading && !P.err) load();
     if (P.err){
-      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#9E2724;font-size:14px;text-align:center;padding:30px 10px">' +
-        'Property layer failed to load: ' + esc(P.err) + ' <button id="propRetry" style="margin-left:8px;border:0;background:#EEECE6;' +
-        'padding:5px 10px;border-radius:8px;cursor:pointer;font-weight:600">Retry</button></div>';
+      main.innerHTML = '<div class="prop-center" style="color:#9E2724">Property layer failed to load: ' + esc(P.err) +
+        ' <button id="propRetry" class="prop-back" style="margin-left:8px">Retry</button></div>';
       var rb = document.getElementById('propRetry');
       if (rb) rb.addEventListener('click', function(){ P.err = null; load(); });
       return;
     }
     if (!P.loaded){
-      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#767B85;font-size:14px;text-align:center;padding:30px 10px">Loading the property layer\u2026</div>';
+      main.innerHTML = '<div class="prop-center">Loading the property layer\u2026</div>';
       return;
     }
     main.innerHTML = P.sel ? detail(P.sel) : list();
