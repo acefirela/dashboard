@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.32 — Outcome now has a colour you pick yourself: green / yellow / red, saved with the answer (e.g. "🟡 Follow up on 8/5") and used to tint the quote in the list and the panel banner (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.33 — Property Identity Integration: new Properties tab reads the FROZEN property layer (P-0001…P-0501) from Supabase — searchable P-numbers, per-property linked records, relationships, customers, Ember links, and compliance alerts. Read-only: the frozen layer is never regenerated, renumbered, or edited from the dashboard. (real version = CONFIG.VERSION, shown in the header badge) -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -908,7 +908,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.32'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.33'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -924,7 +924,7 @@ const TABS = [
 const QC_LABEL = { 10:'Emailed', 11:'Texted', 12:'Called' };
 const QC_ACTION = { 10:'Email', 11:'Text', 12:'Call' };
 /* UI tabs = the two sheet tabs + the computed Renewals radar */
-const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }];
+const UI_TABS = [...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }, { id:'properties', label:'Properties' }];
 const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
 
 /* =====================================================================
@@ -1850,6 +1850,8 @@ function renderAll(){
   }
   const xc = document.querySelector('[data-cnt="texts"]');
   if (xc) xc.textContent = computeThreads().reduce((s, t) => s + t.unread, 0);
+  const pc = document.querySelector('[data-cnt="properties"]');
+  if (pc) pc.textContent = (window.propAlertCount ? window.propAlertCount() : '');
   updateStale();
   renderSummary();
 
@@ -1908,6 +1910,18 @@ function renderAll(){
     return;
   }
 
+  /* ---- Properties (frozen layer, read-only — v0.33) ---- */
+  if (state.activeTab === 'properties'){
+    $('#sortSel').style.display = 'none';
+    $('#statusSel').style.display = 'none';
+    $('#dupeBanner').classList.remove('on');
+    const fb = $('#filterBar');
+    fb.innerHTML = '';
+    if (window.renderPropertiesToolbar) window.renderPropertiesToolbar(fb);
+    renderContent();
+    return;
+  }
+
   const tab = activeTabDef();
   const sel = $('#sortSel');
   sel.innerHTML = sortDefs(tab).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
@@ -1958,6 +1972,7 @@ function renderAll(){
 function renderContent(){
   if (state.activeTab === 'renewals'){ renderRenewals(); return; }
   if (state.activeTab === 'texts'){ renderTexts(); return; }
+  if (state.activeTab === 'properties'){ if (window.renderProperties) window.renderProperties(); else $('#main').innerHTML = ''; return; }
   renderList();
 }
 
@@ -5498,6 +5513,226 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   }, 500);
 })();
 /*TEAMCHAT_END*/
+</script>
+<script>
+/*PROPERTIES_START v0.33 — frozen property layer (read-only)
+  P-0001…P-0501 are PERMANENT. This module only reads: no insert, no update,
+  no renumbering, no normalization. New properties append past P-0501 through
+  the controlled freeze workflow, never from here. RLS: SELECT is granted to
+  the authenticated role only — sign-in (same Google session Team Chat uses)
+  is required before any property data loads. */
+(function(){
+  'use strict';
+  var SB_URL = 'https://uqikcjfshbvthkjgdwgr.supabase.co';
+  var SB_KEY = 'sb_publishable_3DnUFAIo4nC4goFO6ZdVXw_h_rggawn';
+  if (!(window.supabase && window.supabase.createClient)){ console.warn('Properties: supabase-js not loaded'); return; }
+  var sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+  /* Compliance alerts on frozen properties. Data-driven: add entries here. */
+  var ALERTS = {
+    'P-0137': [{ sev:'red', title:'Backup power failed \u2014 no retest on file',
+      body:'Emergency generator + UPS failed testing 09/13/2025 and were marked '+
+           '\u201ccomprehensive service\u2026 urgently needed\u201d (LAFD EBG #7995934, EL #7995983). '+
+           'FA #7994879 defects (smoke detector rm 2-205, Building 3 horn/strobe, elevator recalls) '+
+           'also show no retest. Verify a repair/retest WO exists for the Milken campus.' }]
+  };
+
+  var P = { loaded:false, loading:false, err:null, session:null,
+            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, sel:null, filter:'all' };
+
+  sb.auth.getSession().then(function(r){ P.session = r.data ? r.data.session : null; rerender(); });
+  sb.auth.onAuthStateChange(function(_e, sess){ P.session = sess; if (sess && !P.loaded) load(); rerender(); });
+
+  function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function rerender(){ if (window.state && window.state.activeTab === 'properties') renderProperties(); }
+  function grp(map, key, row){ (map[key] = map[key] || []).push(row); }
+
+  function load(){
+    if (P.loading || P.loaded) return;
+    P.loading = true; P.err = null; rerender();
+    Promise.all([
+      sb.from('properties').select('*').order('property_id').range(0, 999),
+      sb.from('record_property_links').select('property_id,source_type,source_reference,relationship_type,match_method').range(0, 4999),
+      sb.from('property_relationships').select('*').range(0, 999),
+      sb.from('property_customers').select('property_id,customer_name').range(0, 1999),
+      sb.from('property_external_ids').select('property_id,system,external_id,note').range(0, 999),
+      sb.from('ember_location_crosswalk').select('ember_location_uuid,ember_record_name,property_id,mapping_status').range(0, 999)
+    ]).then(function(rs){
+      var bad = rs.find(function(r){ return r.error; });
+      if (bad) throw bad.error;
+      P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {};
+      P.props.forEach(function(p){ P.byId[p.property_id] = p; });
+      (rs[1].data || []).forEach(function(l){ grp(P.links, l.property_id, l); });
+      (rs[2].data || []).forEach(function(r){ grp(P.rels, r.property_a, r); grp(P.rels, r.property_b, r); });
+      (rs[3].data || []).forEach(function(c){ grp(P.custs, c.property_id, c.customer_name); });
+      var xn = {}; (rs[5].data || []).forEach(function(x){ xn[x.external_id || x.ember_location_uuid] = x; });
+      (rs[4].data || []).forEach(function(e){
+        var cw = xn[e.external_id] || {};
+        grp(P.ember, e.property_id, { id:e.external_id, name:cw.ember_record_name || '', status:cw.mapping_status || '' });
+      });
+      P.loaded = true; P.loading = false; rerender();
+      if (window.renderAll && window.state && window.state.activeTab === 'properties') window.renderAll();
+    }).catch(function(e){
+      P.loading = false; P.err = (e && e.message) || String(e); rerender();
+    });
+  }
+
+  /* pure matcher — also matches bare numbers against the P-number (137 -> P-0137) */
+  function propMatch(p, q, custList){
+    if (!q) return true;
+    q = String(q).trim().toLowerCase();
+    if (!q) return true;
+    if (/^\d{1,4}$/.test(q)){
+      if (p.property_id.toLowerCase() === 'p-' + ('0000' + q).slice(-4)) return true;
+    }
+    var hay = (p.property_id + ' ' + p.normalized_address + ' ' + (p.building_label || '') + ' ' +
+               (p.city || '') + ' ' + (custList || []).join(' ')).toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+  window.__propMatch = propMatch; /* exposed for the logic harness */
+
+  var CONF_STYLE = { high:'background:#EAF4EE;color:#2E7D4F', probable:'background:#FDF6E3;color:#8A6D1A',
+                     ambiguous:'background:#FBEAEA;color:#9E2724', resolved_split:'background:#EAF0FB;color:#2C4E9E',
+                     multi_address_unsplit:'background:#F3EAFB;color:#6B2C9E' };
+  function confChip(c){ return '<span style="display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px;' +
+    (CONF_STYLE[c] || 'background:#EEECE6;color:#767B85') + '">' + esc(c) + '</span>'; }
+  function pidChip(id){ return '<span style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#9E2724">' + esc(id) + '</span>'; }
+
+  function filtered(){
+    var q = (window.state && window.state.search) || '';
+    return P.props.filter(function(p){
+      if (P.filter === 'multi' && !p.building_label) return false;
+      if (P.filter === 'alerts' && !ALERTS[p.property_id]) return false;
+      if (P.filter === 'ember' && !(P.ember[p.property_id] || []).length) return false;
+      return propMatch(p, q, P.custs[p.property_id]);
+    });
+  }
+
+  window.propAlertCount = function(){ return Object.keys(ALERTS).length; };
+
+  window.renderPropertiesToolbar = function(fb){
+    var defs = [
+      { id:'all',    label:'All',            n:P.props.length },
+      { id:'multi',  label:'Multi-building', n:P.props.filter(function(p){ return !!p.building_label; }).length },
+      { id:'alerts', label:'Alerts',         n:Object.keys(ALERTS).length },
+      { id:'ember',  label:'Ember-linked',   n:Object.keys(P.ember).length }
+    ];
+    defs.forEach(function(f){
+      var b = document.createElement('button');
+      b.className = 'fchip' + (P.filter === f.id ? ' active' : '');
+      b.setAttribute('aria-pressed', P.filter === f.id ? 'true' : 'false');
+      b.innerHTML = esc(f.label) + '<span class="n">' + f.n + '</span>';
+      b.addEventListener('click', function(){ P.filter = f.id; P.sel = null; if (window.renderAll) window.renderAll(); });
+      fb.appendChild(b);
+    });
+  };
+
+  function alertBanner(pid){
+    return (ALERTS[pid] || []).map(function(a){
+      return '<div style="border-left:4px solid #9E2724;background:#FBEAEA;padding:10px 12px;border-radius:6px;margin:8px 0">' +
+        '<div style="font-weight:700;color:#9E2724;font-size:13px">\u26A0 ' + esc(a.title) + '</div>' +
+        '<div style="font-size:13px;color:#3C4048;margin-top:3px">' + esc(a.body) + '</div></div>';
+    }).join('');
+  }
+
+  function detail(pid){
+    var p = P.byId[pid]; if (!p){ P.sel = null; return list(); }
+    var L = P.links[pid] || [], R = P.rels[pid] || [], C = P.custs[pid] || [], E = P.ember[pid] || [];
+    var bySrc = {}; L.forEach(function(l){ grp(bySrc, l.source_type, l); });
+    var h = '<div style="max-width:860px;margin:0 auto;padding:14px 4px">';
+    h += '<button id="propBack" style="border:0;background:#EEECE6;color:#3C4048;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer">\u2190 All properties</button>';
+    h += '<div style="margin-top:12px;padding:14px;border:1px solid #E4E2DC;border-radius:10px;background:#fff">';
+    h += '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' + pidChip(pid) +
+         '<span style="font-weight:700;font-size:16px">' + esc(p.normalized_address) + '</span>' +
+         (p.building_label ? '<span style="font-size:13px;color:#767B85">' + esc(p.building_label) + '</span>' : '') +
+         confChip(p.confidence) + '</div>';
+    h += '<div style="font-size:12px;color:#767B85;margin-top:4px">' + esc([p.city, p.postal_code].filter(Boolean).join(' \u00b7 ')) +
+         ' \u00b7 qualified by ' + esc(p.qualified_by) +
+         (p.qualified_by === 'inherited_site' ? ' (site events live on the primary building)' : '') + '</div>';
+    h += '<div style="font-size:12px;color:#767B85;margin-top:2px">first seen: ' + esc(p.raw_address_first_seen) + '</div>';
+    h += alertBanner(pid);
+    if (C.length) h += '<div style="margin-top:10px"><b style="font-size:13px">Customers</b><div style="font-size:13px;color:#3C4048">' +
+                       C.map(esc).join(' \u00b7 ') + '</div></div>';
+    Object.keys(bySrc).sort().forEach(function(st){
+      var rows = bySrc[st];
+      h += '<div style="margin-top:10px"><b style="font-size:13px;text-transform:capitalize">' + esc(st) + 's</b> ' +
+           '<span style="font-size:12px;color:#767B85">(' + rows.length + ')</span><div style="font-size:13px;color:#3C4048">' +
+           rows.map(function(l){ return esc(l.source_reference || '\u2014'); }).join(' \u00b7 ') + '</div></div>';
+    });
+    if (R.length){
+      h += '<div style="margin-top:10px"><b style="font-size:13px">Related buildings</b>' + R.map(function(r){
+        var other = r.property_a === pid ? r.property_b : r.property_a;
+        var op = P.byId[other] || {};
+        return '<div style="font-size:13px;color:#3C4048;margin-top:2px"><a href="#" data-prop="' + esc(other) + '" class="propJump" ' +
+          'style="color:#9E2724;font-weight:600;text-decoration:none">' + esc(other) + '</a> \u00b7 ' +
+          esc(op.normalized_address || '') + (op.building_label ? ' (' + esc(op.building_label) + ')' : '') +
+          ' \u00b7 <span style="color:#767B85">' + esc(r.relationship_type) + ', ' + esc(r.status) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    if (E.length){
+      h += '<div style="margin-top:10px"><b style="font-size:13px">Ember records</b>' + E.map(function(e){
+        return '<div style="font-size:13px;color:#3C4048;margin-top:2px">' + esc(e.name || e.id) +
+          ' <span style="color:#767B85">(' + esc(e.status) + ')</span></div>';
+      }).join('') + '</div>';
+    }
+    h += '<div style="font-size:11px;color:#B7B3AA;margin-top:12px">Frozen property layer \u00b7 read-only \u00b7 IDs are permanent and never renumbered</div>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function list(){
+    var rows = filtered();
+    var h = '<div style="max-width:860px;margin:0 auto;padding:10px 4px">';
+    h += '<div style="font-size:12px;color:#767B85;margin:2px 0 8px">' + rows.length + ' of ' + P.props.length +
+         ' frozen properties \u00b7 P-0001\u2026P-0501 \u00b7 read-only</div>';
+    if (!rows.length) h += '<div style="color:#767B85;font-size:13px;padding:18px 0">No properties match.</div>';
+    rows.slice(0, 400).forEach(function(p){
+      var pid = p.property_id, nL = (P.links[pid] || []).length, nC = (P.custs[pid] || []).length;
+      h += '<div class="propRow" data-prop="' + esc(pid) + '" style="display:flex;gap:10px;align-items:center;padding:9px 10px;' +
+           'border:1px solid #E4E2DC;border-radius:9px;background:#fff;margin-bottom:6px;cursor:pointer">' +
+           pidChip(pid) +
+           '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+           esc(p.normalized_address) + (p.building_label ? ' <span style="font-weight:400;color:#767B85">\u00b7 ' + esc(p.building_label) + '</span>' : '') +
+           '</div><div style="font-size:12px;color:#767B85">' + esc(p.city || '') + (nC ? ' \u00b7 ' + nC + ' customer' + (nC > 1 ? 's' : '') : '') +
+           (nL ? ' \u00b7 ' + nL + ' record' + (nL > 1 ? 's' : '') : '') + '</div></div>' +
+           (ALERTS[pid] ? '<span title="compliance alert" style="font-size:15px">\u26A0\uFE0F</span>' : '') +
+           confChip(p.confidence) + '</div>';
+    });
+    if (rows.length > 400) h += '<div style="color:#767B85;font-size:12px">Showing first 400 \u2014 narrow the search.</div>';
+    h += '</div>';
+    return h;
+  }
+
+  window.renderProperties = function(){
+    var main = document.getElementById('main'); if (!main) return;
+    if (!P.session){
+      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#767B85;font-size:14px;text-align:center;padding:30px 10px">' +
+        'Sign in (the same Google sign-in Team Chat uses) to load the frozen property layer.</div>';
+      return;
+    }
+    if (!P.loaded && !P.loading && !P.err) load();
+    if (P.err){
+      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#9E2724;font-size:14px;text-align:center;padding:30px 10px">' +
+        'Property layer failed to load: ' + esc(P.err) + ' <button id="propRetry" style="margin-left:8px;border:0;background:#EEECE6;' +
+        'padding:5px 10px;border-radius:8px;cursor:pointer;font-weight:600">Retry</button></div>';
+      var rb = document.getElementById('propRetry');
+      if (rb) rb.addEventListener('click', function(){ P.err = null; load(); });
+      return;
+    }
+    if (!P.loaded){
+      main.innerHTML = '<div style="max-width:860px;margin:20px auto;color:#767B85;font-size:14px;text-align:center;padding:30px 10px">Loading the property layer\u2026</div>';
+      return;
+    }
+    main.innerHTML = P.sel ? detail(P.sel) : list();
+    var back = document.getElementById('propBack');
+    if (back) back.addEventListener('click', function(){ P.sel = null; renderProperties(); });
+    Array.prototype.forEach.call(main.querySelectorAll('.propRow,[data-prop].propJump'), function(el){
+      el.addEventListener('click', function(ev){ ev.preventDefault(); P.sel = el.getAttribute('data-prop'); renderProperties();
+        try { window.scrollTo(0, 0); } catch(_e){} });
+    });
+  };
+})();
+/*PROPERTIES_END*/
 </script>
 </body>
 </html>
