@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.35 — Properties phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.36 — Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -908,7 +908,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.35'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.36'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -5591,6 +5591,24 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 
   var css = [
     '.prop-wrap{max-width:880px;margin:0 auto;padding:12px 6px;color:#22252B}',
+    /* v0.36 — wide-screen layout. Narrow screens keep the original single
+       column; a desktop monitor gets real use of the horizontal space instead
+       of one thin column stranded in the middle. */
+    '@media (min-width:1100px){.prop-wrap{max-width:1180px;padding:14px 18px}}',
+    '@media (min-width:1500px){.prop-wrap{max-width:1440px}}',
+    /* property list becomes a card grid */
+    '.prop-grid{display:grid;grid-template-columns:1fr;gap:9px}',
+    '@media (min-width:1100px){.prop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}}',
+    '@media (min-width:1500px){.prop-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+    '.prop-grid .prop-row{margin-bottom:0;height:100%;align-items:flex-start}',
+    /* detail: header full width, then two columns of sections */
+    '.prop-cols{display:grid;grid-template-columns:1fr;gap:0}',
+    '@media (min-width:1100px){.prop-cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 34px}',
+      '.prop-cols .prop-sec{margin-top:0;padding-top:0;border-top:0;margin-bottom:18px}',
+      '.prop-cols .prop-colhd{font-size:11.5px;font-weight:750;letter-spacing:.7px;text-transform:uppercase;color:#8A8F98;border-bottom:1px solid #ECEAE4;padding-bottom:6px;margin-bottom:12px}}',
+    '.prop-colhd{display:none}',
+    '@media (min-width:1100px){.prop-colhd{display:block}}',
+    '@media (min-width:1100px){.prop-card{padding:24px 26px}}',
     '.prop-meta{font-size:13.5px;color:#5A5F6A;margin:2px 0 10px}',
     '.prop-row{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid #D8D5CD;border-radius:10px;background:#FFFFFF;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(30,30,28,.06)}',
     '.prop-row:hover{border-color:#B9B4A8;box-shadow:0 2px 6px rgba(30,30,28,.10)}',
@@ -5861,6 +5879,11 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
          (p.qualified_by === 'inherited_site' ? ' (site events live on the primary building)' : '') + '</div>';
     h += '<div class="prop-id-line">first seen: ' + esc(p.raw_address_first_seen) + '</div>';
     h += alertBanner(pid);
+    /* v0.36: two-column body on a wide monitor. Left = who and what is on file
+       here; right = how this building relates to others and to Ember. Below
+       1100px the grid collapses and this reads exactly as it did before. */
+    h += '<div class="prop-cols">';
+    h += '<div><div class="prop-colhd">This property</div>';
     if (C.length) h += '<div class="prop-sec"><b>Customers</b><div class="prop-body">' + C.map(esc).join(' \u00b7 ') + '</div></div>';
     Object.keys(bySrc).sort().forEach(function(st){
       var rows = bySrc[st];
@@ -5875,6 +5898,9 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       }
       h += '</div>';
     });
+    h += '</div>';                                   /* end left column */
+    var hasRight = R.length || E.length;
+    h += '<div>' + (hasRight ? '<div class="prop-colhd">Connections</div>' : '');
     if (R.length){
       h += '<div class="prop-sec"><b>Related buildings</b>' + R.map(function(r){
         var other = r.property_a === pid ? r.property_b : r.property_a;
@@ -5889,6 +5915,9 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         return '<div class="prop-body">' + esc(e.name || e.id) + ' <span style="color:#5A5F6A">(' + esc(e.status) + ')</span></div>';
       }).join('') + '</div>';
     }
+    if (!hasRight) h += '<div class="prop-body" style="color:#8A8F98;font-size:13.5px">No related buildings or Ember records linked to this property.</div>';
+    h += '</div>';                                   /* end right column */
+    h += '</div>';                                   /* end .prop-cols */
     h += '<div class="prop-note">Frozen property layer \u00b7 read-only \u00b7 IDs are permanent and never renumbered</div>';
     h += '</div></div>';
     return h;
@@ -5900,6 +5929,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     h += '<div class="prop-meta">' + rows.length + ' of ' + P.props.length +
          ' frozen properties \u00b7 P-0001\u2026P-0501 \u00b7 read-only</div>';
     if (!rows.length) h += '<div class="prop-center" style="padding:18px 0;margin:0;text-align:left">No properties match.</div>';
+    h += '<div class="prop-grid">';
     rows.slice(0, 400).forEach(function(p){
       var pid = p.property_id, nL = (P.links[pid] || []).length;
       var nC = dedupeCustomers(P.custs[pid]).length;
@@ -5912,6 +5942,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
            (ALERTS[pid] ? '<span title="compliance alert" style="font-size:17px">\u26A0\uFE0F</span>' : '') +
            confChip(p.confidence) + '</div>';
     });
+    h += '</div>';
     if (rows.length > 400) h += '<div class="prop-meta">Showing first 400 \u2014 narrow the search.</div>';
     h += '</div>';
     return h;
