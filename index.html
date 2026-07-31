@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.34 — Properties tab readability pass: larger type, real contrast, deduped customers, quote/job references shown once with ×n counts, and Ember appointment dedupe-keys no longer rendered as digit soup (real version = CONFIG.VERSION, shown in the header badge) -->
+<!-- ACE Fire LA — Job Dashboard · v0.35 — Properties phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -908,7 +908,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.34'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.35'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -956,6 +956,10 @@ const rowByUid = uid => { for (const t of TABS){ const r = (state.data[t.id]||[]
 const rowByKey = (tabId, key) => (state.data[tabId] || []).find(r => r.key === key);
 const isDirty = r => r && Object.keys(r.edits).length > 0;
 const hasUnsaved = () => TABS.some(t => (state.data[t.id] || []).some(isDirty));
+/* v0.35: `const` does not attach to window, so expose it explicitly — the
+   Properties module checks this before refreshing the view when the layer
+   lands. Without this the guard would silently never fire. */
+window.hasUnsaved = hasUnsaved;
 const quoteNum = key => { const n = Number(String(key || '').replace(/[^\d]/g, '')); return Number.isFinite(n) ? n : 0; };
 const filledVal = v => { const t = String(v||'').trim(); return !!t && !/^not sent$/i.test(t) && t.toUpperCase() !== 'X'; };
 const isX = v => String(v||'').trim().toUpperCase() === 'X';
@@ -2039,13 +2043,14 @@ function renderList(){
           <span class="r-side">${rowSide(tab, r)}</span>
         </div>
         <div class="r-ttl">${esc(tab.id === 'quotes' ? r.cells[4] : r.cells[2])}</div>
-        <div class="r-meta">${rowMeta(tab, r)}</div>
+        <div class="r-meta">${propChipHtml(tab.id, r.key)}${rowMeta(tab, r)}</div>
       </div>
       <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
     b.addEventListener('click', () => openDrawer(r.uid));
     b.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openDrawer(r.uid); }
     });
+    wirePropChips(b);
     b.querySelectorAll('[data-act="qdraft"]').forEach(ch => {
       ch.addEventListener('click', e => { e.stopPropagation(); draftQuoteEmail(r, ch); });
       ch.addEventListener('keydown', e => e.stopPropagation());
@@ -2345,6 +2350,20 @@ function renderDrawer(){
 
   body.innerHTML = '';
 
+  /* v0.35: which frozen property this record belongs to. Hidden from Field
+     accounts, which have no Properties screen to open. */
+  const _pids = canSeeProperties() && window.propForRecord ? (window.propForRecord(tab.id, r.key) || []) : [];
+  if (_pids.length){
+    const pl = document.createElement('div');
+    pl.className = 'd-prop';
+    pl.innerHTML = '<span class="d-prop-lbl">Property</span>' +
+      _pids.map(id => `<button type="button" class="r-pchip" data-pchip="${esc(id)}" title="Open ${esc(id)}">${esc(id)}</button>`).join('') +
+      `<span class="d-prop-addr">${esc((window.propAddress && window.propAddress(_pids[0])) || '')}</span>` +
+      (_pids.length > 1 ? '<span class="d-prop-addr">· spans ' + _pids.length + ' buildings</span>' : '');
+    wirePropChips(pl);
+    body.appendChild(pl);
+  }
+
   /* outcome banner — closed quotes show their result before anything else (v0.27) */
   if (tab.id === 'quotes'){
     const oc = outcomeOf(r);
@@ -2543,6 +2562,47 @@ function renderDrawer(){
 
   syncFoot(r);
 }
+/* v0.35: shared tab switch so other modules (Properties) can navigate here. */
+window.__gotoTab = function(tabId){
+  /* Role gate: never navigate to a tab this account cannot see. visibleTabs()
+     hides Properties from Field accounts, and without this check a chip (or any
+     future caller) would walk straight past that restriction. */
+  if (!visibleTabs().some(t => t.id === tabId)) return false;
+  state.activeTab = tabId;
+  $$('.tab').forEach((x, i) => {
+    const on = (visibleTabs()[i] || {}).id === tabId;
+    x.classList.toggle('active', on);
+    x.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  renderAll();
+  return true;
+};
+/* Can this account reach the Properties screen at all? Chips are pointless — and
+   a data-exposure question — for accounts that cannot. */
+const canSeeProperties = () => visibleTabs().some(t => t.id === 'properties');
+
+/* v0.35: P-number chip for a record key. Empty until the property layer loads,
+   and empty for records that were never linked — both render as nothing. */
+function propChipHtml(tabId, key){
+  if (!canSeeProperties()) return '';
+  const ids = (window.propForRecord && window.propForRecord(tabId, key)) || [];
+  if (!ids.length) return '';
+  const extra = ids.length > 1 ? ' +' + (ids.length - 1) : '';
+  const tip = ids.length > 1
+    ? 'Spans ' + ids.length + ' buildings: ' + ids.join(', ') + ' — opens the first'
+    : 'Open ' + ids[0];
+  return `<button type="button" class="r-pchip" data-pchip="${esc(ids[0])}" title="${esc(tip)}">${esc(ids[0])}${extra}</button>`;
+}
+function wirePropChips(scope){
+  scope.querySelectorAll('[data-pchip]').forEach(ch => {
+    ch.addEventListener('click', e => {
+      e.stopPropagation();
+      if (window.propOpen) window.propOpen(ch.dataset.pchip);
+    });
+    ch.addEventListener('keydown', e => e.stopPropagation());
+  });
+}
+
 function switchToRecord(tabId, uid){
   if (!visibleTabs().some(t => t.id === tabId)){ openDrawer(uid); return; }
   state.activeTab = tabId;
@@ -5515,11 +5575,13 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 /*TEAMCHAT_END*/
 </script>
 <script>
-/*PROPERTIES_START v0.34 — frozen property layer (read-only)
+/*PROPERTIES_START v0.35 — frozen property layer (read-only)
   P-0001…P-0501 are PERMANENT. This module only reads: no insert, no update,
   no renumbering, no normalization. New properties append past P-0501 through
   the controlled freeze workflow, never from here. RLS: SELECT is granted to
-  the authenticated role only. v0.34 is a pure presentation pass. */
+  the authenticated role only. v0.35 adds a reverse index (record reference ->
+  property) so Quotes/Tracker rows can show their P-number, plus propOpen() so a
+  chip can jump straight here. Still read-only. */
 (function(){
   'use strict';
   var SB_URL = 'https://uqikcjfshbvthkjgdwgr.supabase.co';
@@ -5552,7 +5614,13 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '.prop-jump{color:#9E2724;font-weight:650;text-decoration:none}',
     '.prop-jump:hover{text-decoration:underline}',
     '.prop-note{font-size:12px;color:#A8A49B;margin-top:14px}',
-    '.prop-center{max-width:880px;margin:24px auto;font-size:15px;text-align:center;padding:30px 10px;color:#5A5F6A}'
+    '.prop-center{max-width:880px;margin:24px auto;font-size:15px;text-align:center;padding:30px 10px;color:#5A5F6A}',
+    /* v0.35 — P-number chip, used on Quotes/Tracker rows and in the drawer */
+    '.r-pchip{display:inline-flex;align-items:center;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;font-weight:700;letter-spacing:.2px;color:#9E2724;background:#FBEAEA;border:1px solid #F0D6D5;border-radius:7px;padding:2px 7px;cursor:pointer;line-height:1.55}',
+    '.r-pchip:hover{background:#F6DEDD;border-color:#E3BDBB}',
+    '.d-prop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;font-size:13.5px}',
+    '.d-prop-lbl{font-weight:650;color:#4A4F58}',
+    '.d-prop-addr{color:#5A5F6A}'
   ].join('\n');
   var tag = document.createElement('style'); tag.textContent = css; document.head.appendChild(tag);
 
@@ -5565,9 +5633,13 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   };
 
   var P = { loaded:false, loading:false, err:null, session:null,
-            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, sel:null, filter:'all' };
+            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, refIdx:{}, sel:null, filter:'all' };
 
-  sb.auth.getSession().then(function(r){ P.session = r.data ? r.data.session : null; rerender(); });
+  sb.auth.getSession().then(function(r){
+    P.session = r.data ? r.data.session : null;
+    if (P.session && !P.loaded) load();      /* v0.35: chips need this on every tab */
+    rerender();
+  });
   sb.auth.onAuthStateChange(function(_e, sess){ P.session = sess; if (sess && !P.loaded) load(); rerender(); });
 
   function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -5587,9 +5659,36 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     ]).then(function(rs){
       var bad = rs.find(function(r){ return r.error; });
       if (bad) throw bad.error;
+      /* The link query is capped at 5000 rows (currently ~1.4k). If it ever
+         fills exactly, results are silently truncated and chips would go
+         missing with no signal — so say so loudly instead. */
+      if ((rs[1].data || []).length >= 5000){
+        console.warn('Properties: record_property_links hit the 5000-row ceiling — property chips may be incomplete. Paginate this query.');
+        P.truncated = true;
+      }
       P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {};
       P.props.forEach(function(p){ P.byId[p.property_id] = p; });
-      (rs[1].data || []).forEach(function(l){ grp(P.links, l.property_id, l); });
+      P.refIdx = {};
+      (rs[1].data || []).forEach(function(l){
+        grp(P.links, l.property_id, l);
+        /* v0.35 reverse index, keyed "<source_type>:<normalised ref>".
+           Namespacing matters even though Quotes and Tracker key sets are
+           disjoint today: without it a future number living in both tabs would
+           hand each row the other's properties. Appointment ids are Ember dates
+           (e.g. "102026") and would collide with real row keys, so they are
+           excluded outright. */
+        var t = String(l.source_type || '');
+        if (t !== 'quote' && t !== 'accepted') return;
+        var k = normRef(l.source_reference);
+        if (!k) return;
+        var kk = t + ':' + k;
+        var arr = P.refIdx[kk] || (P.refIdx[kk] = []);
+        if (arr.indexOf(l.property_id) === -1) arr.push(l.property_id);
+      });
+      /* Deterministic order: the query has no ORDER BY, so without this the
+         "first" building of a multi-building site could vary between loads and
+         the chip would open a different property each time. */
+      Object.keys(P.refIdx).forEach(function(k){ P.refIdx[k].sort(); });
       (rs[2].data || []).forEach(function(r){ grp(P.rels, r.property_a, r); grp(P.rels, r.property_b, r); });
       (rs[3].data || []).forEach(function(c){ grp(P.custs, c.property_id, c.customer_name); });
       var xn = {}; (rs[5].data || []).forEach(function(x){ xn[x.external_id || x.ember_location_uuid] = x; });
@@ -5598,11 +5697,59 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         grp(P.ember, e.property_id, { id:e.external_id, name:cw.ember_record_name || '', status:cw.mapping_status || '' });
       });
       P.loaded = true; P.loading = false; rerender();
-      if (window.renderAll && window.state && window.state.activeTab === 'properties') window.renderAll();
+      /* v0.35: chips live on Quotes/Tracker too, so refresh the current view
+         when the layer arrives — but never stomp on a half-typed edit. */
+      var busy = (typeof window.hasUnsaved === 'function') && window.hasUnsaved();
+      if (window.renderAll && !busy) window.renderAll();
     }).catch(function(e){
       P.loading = false; P.err = (e && e.message) || String(e); rerender();
     });
   }
+
+  /* Reference keys are compared with leading zeros stripped: the links table
+     holds both "0003" and "998", while a sheet row key is whatever was typed.
+     Pure. */
+  function normRef(v){
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    return s.replace(/^0+(?=\d)/, '').toLowerCase();
+  }
+  window.__normRef = normRef;
+
+  /* Which source_type a dashboard tab's row key belongs to, in priority order.
+     Tracker's first column is quote_number — a tracker job IS an accepted quote
+     carrying the same number — so it resolves against accepted links first and
+     falls back to the originating quote link. Quotes never consult accepted. */
+  var TAB_SOURCES = { quotes:['quote'], tracker:['accepted','quote'] };
+
+  /* Which frozen properties a dashboard row belongs to. Returns [] until the
+     layer has loaded and [] for unlinked records, so callers can render nothing
+     without special-casing either state. */
+  window.propForRecord = function(tabId, key){
+    if (!P.loaded) return [];
+    var k = normRef(key);
+    if (!k) return [];
+    var types = TAB_SOURCES[tabId] || ['quote', 'accepted'];
+    for (var i = 0; i < types.length; i++){
+      var hit = P.refIdx[types[i] + ':' + k];
+      if (hit && hit.length) return hit;      /* first match wins — never a union */
+    }
+    return [];
+  };
+  window.propAddress = function(pid){
+    var p = P.byId[pid];
+    if (!p) return '';
+    return String(p.normalized_address || '') + (p.building_label ? ' \u2014 ' + p.building_label : '');
+  };
+  /* Open a property from anywhere (the row chips). Ignores unknown ids rather
+     than switching to an empty screen. */
+  window.propOpen = function(pid){
+    if (!P.loaded || !P.byId[pid]) return;
+    P.sel = pid;
+    P.filter = 'all';
+    if (window.__gotoTab) window.__gotoTab('properties');
+    else if (window.renderAll) window.renderAll();
+  };
 
   /* pure matcher — also matches bare numbers against the P-number (137 -> P-0137) */
   function propMatch(p, q, custList){
