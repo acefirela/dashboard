@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -298,6 +298,8 @@ main{max-width:none; margin:0 auto; padding:12px calc(16px + var(--sa-r)) calc(9
 .row.u-closed.sel{background:var(--red-bg)}
 .ren-dm{display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap}
 .r-nm{font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* v0.57 — compact what-is-this-job chip on Tracker rows */
+.r-brief{flex:none; font-size:11px; font-weight:700; letter-spacing:.25px; text-transform:uppercase; color:#4A5A6E; background:#EDF2F8; border:1px solid #D6E0EC; border-radius:7px; padding:1px 7px; white-space:nowrap}
 .r-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex:none; align-self:center}
 .r-ttl{color:var(--muted); font-size:12.5px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .r-meta{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; align-items:center}
@@ -971,7 +973,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.53'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.60'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -2062,6 +2064,10 @@ function renderAll(){
   renderContent();
 }
 function renderContent(){
+  /* v0.58 — every navigation path funnels through here; leaving the
+     Properties tab must also close any open property detail so its Back
+     entry doesn't go stale. No-op when nothing is selected. */
+  if (state.activeTab !== 'properties' && window.__propLeftTab) window.__propLeftTab();
   if (state.activeTab === 'renewals'){ renderRenewals(); return; }
   if (state.activeTab === 'texts'){ renderTexts(); return; }
   if (state.activeTab === 'properties'){ if (window.renderProperties) window.renderProperties(); else $('#main').innerHTML = ''; return; }
@@ -2094,6 +2100,37 @@ function emptyMsg(tab){
     return 'All clear here 🎉 — nothing matches this view.';
   return 'No rows in this tab yet.';
 }
+/* v0.57 — 2-3 word job brief for Tracker rows: system (via the same
+   classifier the property chips use) + work kind, from the title. */
+/*BRIEF_START*/
+function jobBrief(title){
+  var t = String(title || '');
+  if (!t) return '';
+  var KINDS = [
+    ['5-yr test',   /5[\s-]*(year|yr)/i],
+    ['annual',      /annual/i],
+    ['quarterly',   /quarterly/i],
+    ['monthly',     /monthly/i],
+    ['repair',      /repair/i],
+    ['install',     /install/i],
+    ['replace',     /replac/i],
+    ['retest',      /re[\s-]?test/i],
+    ['cert',        /certif/i],
+    ['inspection',  /inspect/i],
+    ['test',        /\btest/i],
+    ['service call',/service\s*call/i]
+  ];
+  var kind = '';
+  for (var i = 0; i < KINDS.length; i++){ if (KINDS[i][1].test(t)){ kind = KINDS[i][0]; break; } }
+  var sys = (typeof window !== 'undefined' && typeof window.__systemsFromText === 'function') ? window.__systemsFromText(t) : [];
+  var sysLabel = sys.length > 1 ? 'Multi-system' : (sys[0] || '');
+  if (sysLabel && kind) return sysLabel + ' ' + kind;
+  if (sysLabel) return sysLabel;
+  return kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : '';
+}
+/*BRIEF_END*/
+window.__jobBrief = jobBrief;
+
 function renderList(){
   const tab = activeTabDef();
   const rows = visibleRows(tab);
@@ -2122,11 +2159,13 @@ function renderList(){
     }
     b.className = 'row' + urgency + (state.drawerUid === r.uid && $('#drawer').classList.contains('on') ? ' sel' : '');
     b.setAttribute('aria-label', `Quote ${r.key}, ${r.cells[1]} — open details`);
+    const brief = tab.id === 'tracker' ? jobBrief(r.cells[2]) : '';
     b.innerHTML = `
       <div class="r-main">
         <div class="r-top">
           <span class="r-q">#${esc(r.key)}</span>
           <span class="r-nm">${esc(r.cells[1])}</span>
+          ${brief ? `<span class="r-brief">${esc(brief)}</span>` : ''}
           ${isDirty(r) ? '<span class="r-dot" title="Unsaved edits"></span>' : ''}
           <span class="r-side">${rowSide(tab, r)}</span>
         </div>
@@ -2265,6 +2304,62 @@ function invStatusBadge(v){
 /* =====================================================================
    Drawer
    ===================================================================== */
+/* ---- v0.57: back-button navigation ----------------------------------------
+   Without history management the hardware/browser back button always LEFT the
+   page, and since the Sheets token is memory-only that meant the sign-in gate
+   on return — experienced as being logged out. Every overlay and the property
+   detail now push one history entry on open; back closes the topmost surface.
+   A surface closed by its own UI consumes its entry (history stays aligned).
+   With nothing open, back exits normally. */
+const BackNav = window.BackNav = {
+  stack: [],
+  ignore: 0,
+  fromPop: false,
+  replacing: false,
+  pendingReplace: false,
+  open(tag, closeFn){
+    this.stack.push({ tag, closeFn });
+    if (this.pendingReplace){
+      /* v0.59 — a beginReplace() is in flight: reuse the outgoing surface's
+         history entry at the same depth. replaceState is synchronous, so no
+         traversal is queued and nothing can race. */
+      this.pendingReplace = false;
+      try { history.replaceState({ ace: this.stack.length }, ''); } catch(e){}
+    } else {
+      try { history.pushState({ ace: this.stack.length }, ''); } catch(e){}
+    }
+  },
+  closed(tag){                       // surface closed via its own X / overlay tap
+    if (this.fromPop) return;
+    const i = this.stack.map(s => s.tag).lastIndexOf(tag);
+    if (i === -1) return;
+    this.stack.splice(i, 1);
+    if (this.replacing) return;        // v0.59 — a transition owns this entry; no traversal is queued
+    this.ignore++;
+    try { history.back(); } catch(e){ this.ignore--; }
+  },
+  /* v0.59 — race-free surface swap. history.back() is a QUEUED async
+     traversal, so close-then-push races (the queued back can pop the new
+     entry, desyncing stack from history). beginReplace closes the old
+     surface without queuing anything and arms the next open() to reuse the
+     entry via replaceState. Call only when an open() follows synchronously. */
+  beginReplace(closeOldFn){
+    this.replacing = true;
+    try { if (closeOldFn) closeOldFn(); } catch(e){}
+    this.replacing = false;
+    this.pendingReplace = true;
+  }
+};
+window.addEventListener('popstate', () => {
+  if (BackNav.ignore > 0){ BackNav.ignore--; return; }
+  const top = BackNav.stack.pop();
+  if (top){
+    BackNav.fromPop = true;
+    try { top.closeFn(); } catch(e){}
+    BackNav.fromPop = false;
+  }
+});
+
 function openDrawer(uid){
   state.drawerUid = uid;
   const t = tabOfUid(uid);
@@ -2273,6 +2368,7 @@ function openDrawer(uid){
   $('#dSearch').value = '';
   $('#dSearchWrap').classList.remove('has');
   renderDrawer();
+  if (!$('#drawer').classList.contains('on')) BackNav.open('drawer', closeDrawer);
   $('#drawer').classList.add('on');
   $('#overlay').classList.add('on');
   document.body.classList.add('drawer-open');
@@ -2280,6 +2376,7 @@ function openDrawer(uid){
   renderContent();
 }
 function closeDrawer(){
+  BackNav.closed('drawer');
   $('#drawer').classList.remove('on');
   $('#overlay').classList.remove('on');
   document.body.classList.remove('drawer-open');
@@ -3465,12 +3562,14 @@ function openMailer(x, draft, source, type){
   } else {
     $('#mToneRow').style.display = 'none';
   }
+  if (!$('#mailWrap').classList.contains('on')) BackNav.open('mailer', closeMailer);
   $('#mailWrap').classList.add('on');
   $('#mailWrap').setAttribute('aria-hidden', 'false');
   syncSendBtn();
   if (!x.email) $('#mTo').focus();
 }
 function closeMailer(){
+  BackNav.closed('mailer');
   $('#mailWrap').classList.remove('on');
   $('#mailWrap').setAttribute('aria-hidden', 'true');
   mailCtx = null;
@@ -3629,12 +3728,14 @@ function openTexter(x, body, type){
     $('#sToneRow').style.display = 'none';
   }
   smsSegInfo();
+  if (!$('#smsWrap').classList.contains('on')) BackNav.open('texter', closeTexter);
   $('#smsWrap').classList.add('on');
   $('#smsWrap').setAttribute('aria-hidden', 'false');
   syncSmsBtn();
   if (!x.phone) $('#sTo').focus(); else $('#sBody').focus();
 }
 function closeTexter(){
+  BackNav.closed('texter');
   $('#smsWrap').classList.remove('on');
   $('#smsWrap').setAttribute('aria-hidden', 'true');
   smsCtx = null;
@@ -4215,12 +4316,14 @@ function openThread(key, meta){
   threadMeta = meta || null;
   threadKey = key;
   renderThread();
+  if (!$('#threadWrap').classList.contains('on')) BackNav.open('thread', closeThread);
   $('#threadWrap').classList.add('on');
   $('#threadWrap').setAttribute('aria-hidden', 'false');
   markThreadRead(key);
   $('#tReply').focus();
 }
 function closeThread(){
+  BackNav.closed('thread');
   $('#threadWrap').classList.remove('on');
   $('#threadWrap').setAttribute('aria-hidden', 'true');
   threadKey = null;
@@ -4375,8 +4478,18 @@ function logItemNode(a, opts = {}){
       const tab = (meta && TABS.find(t => t.id === meta.t)) || TABS.find(t => t.sheet === a[3]) || activeTabDef();
       const r = rowByKey(tab.id, key);
       if (!r){ toast(`#${key} not in ${tab.label} right now`, 'err'); return; }
-      closeHist();
-      switchToRecord(tab.id, r.uid);
+      /* v0.59/60 — swap panel for drawer at the same history depth (a queued
+         back() would race the push inside openDrawer). NESTED case from
+         review: with a property detail open underneath ([propsel, hist]),
+         switching main tabs here would fire leaveDetail() -> history.back()
+         BETWEEN beginReplace and the drawer's open, recreating the race. So
+         in that case we don't switch tabs at all: the drawer opens over the
+         property ([propsel, drawer]) and Back returns to the property. */
+      var propUnder = state.activeTab === 'properties' && window.__propHasDetail && window.__propHasDetail();
+      if (!$('#drawer').classList.contains('on')) BackNav.beginReplace(closeHist);
+      else closeHist();
+      if (propUnder) openDrawer(r.uid);
+      else switchToRecord(tab.id, r.uid);
     });
   }
   const btn = document.createElement('button');
@@ -4426,12 +4539,14 @@ async function undoEntry(a, after){
 
 /* ---- history panel ---- */
 function openHist(){
+  if (!$('#histWrap').classList.contains('on')) BackNav.open('hist', closeHist);
   $('#histWrap').classList.add('on');
   $('#histWrap').setAttribute('aria-hidden', 'false');
   renderHistBody();
   loadActivity().then(renderHistBody);   // refresh so teammates' latest edits show
 }
 function closeHist(){
+  BackNav.closed('hist');
   $('#histWrap').classList.remove('on');
   $('#histWrap').setAttribute('aria-hidden', 'true');
 }
@@ -5616,6 +5731,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
      archived ones are labelled and can be marked read. */
   var tcPop = null;
   function closeTcPop(){
+    if (tcPop && window.BackNav) window.BackNav.closed('tcpop');
     if (tcPop && tcPop.parentNode) tcPop.parentNode.removeChild(tcPop);
     tcPop = null;
     document.removeEventListener('click', onTcPopDoc, true);
@@ -5636,6 +5752,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (tcPop){ closeTcPop(); return; }
     var items = unreadThreads();
     if (!items.length) return;
+    if (window.BackNav) window.BackNav.open('tcpop', closeTcPop);
     var pop = document.createElement('div');
     pop.className = 'tc-pop';
     pop.setAttribute('role', 'menu');
@@ -5654,7 +5771,12 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
                       '<span class="tp-n">' + it.n + '</span>';
       if (it.hit){
         row.addEventListener('click', function(){
-          closeTcPop();
+          /* v0.59 — swap popover for drawer at the same history depth; a
+             plain close would queue a back() that races openDrawer's push */
+          var dr = document.getElementById('drawer');
+          var drOn = dr && dr.classList.contains('on');
+          if (!drOn && window.BackNav) window.BackNav.beginReplace(closeTcPop);
+          else closeTcPop();
           if (typeof window.openDrawer === 'function') window.openDrawer(it.hit.uid);
         });
       } else {
@@ -5857,6 +5979,20 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '.prop-card{margin-top:12px;padding:18px;border:1px solid #D8D5CD;border-radius:12px;background:#FFFFFF;box-shadow:0 1px 3px rgba(30,30,28,.07)}',
     '.prop-h1{font-weight:750;font-size:19px;color:#1E2126}',
     '.prop-id-line{font-size:13.5px;color:#4A4F58;margin-top:5px}',
+    /* v0.54 — phones: the card wraps instead of cramming one line. The id,
+       alert and chip form the top line; the title block drops to a full-width
+       second line and the address wraps rather than ellipsizing. The !important
+       is needed to beat the markup's inline flex:1. */
+    '@media (max-width:640px){.prop-row{flex-wrap:wrap;row-gap:7px}.prop-row > div{flex:1 1 100% !important;order:9}.prop-row .prop-chip{margin-left:auto}.prop-title{white-space:normal;line-height:1.35}}',
+    /* v0.54 — address-check section */
+    '.prop-rev{font-size:13.5px;margin:0 0 6px;line-height:1.4}',
+    '.rev-ok{color:#1E6B3C}',
+    '.rev-flag{color:#8A5A00}',
+    '.prop-rev .rev-who{color:#8A8F98;font-size:12.5px}',
+    '.rev-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}',
+    '.rev-btn{border:1px solid #C9D6C9;background:#EEF5EE;color:#1E6B3C;border-radius:9px;font:inherit;font-size:13.5px;font-weight:600;padding:7px 12px;cursor:pointer}',
+    '.rev-btn-flag{border-color:#E4D2AC;background:#FBF3DF;color:#8A5A00}',
+    '.rev-btn:disabled{opacity:.55;cursor:default}',
     '.prop-sec{margin-top:14px;padding-top:12px;border-top:1px solid #ECEAE4}',
     '.prop-sec b{font-size:14.5px;color:#1E2126}',
     '.prop-sec .cnt{font-size:13px;color:#767B85;font-weight:400}',
@@ -5888,7 +6024,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   };
 
   var P = { loaded:false, loading:false, err:null, session:null,
-            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, sysdb:{}, refIdx:{}, sel:null, filter:'all' };
+            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, sysdb:{}, reviews:{}, reviewsOk:false, refIdx:{}, sel:null, filter:'all' };
 
   sb.auth.getSession().then(function(r){
     P.session = r.data ? r.data.session : null;
@@ -5915,7 +6051,8 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       sb.from('property_customers').select('property_id,customer_name').range(0, 1999),
       sb.from('property_external_ids').select('property_id,system,external_id,note').range(0, 999),
       sb.from('ember_location_crosswalk').select('ember_location_uuid,ember_record_name,property_id,mapping_status').range(0, 999),
-      sb.from('property_systems').select('property_id,system').range(0, 3999)
+      sb.from('property_systems').select('property_id,system').range(0, 3999),
+      sb.from('property_reviews').select('property_id,verdict,note,reviewer,created_at').range(0, 1999)
     ]).then(function(rs){
       /* v0.49 — only the six core datasets are load-fatal. property_systems
          (rs[6]) is an optional enrichment: if the table is missing, its
@@ -5930,7 +6067,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         console.warn('Properties: record_property_links hit the 5000-row ceiling — property chips may be incomplete. Paginate this query.');
         P.truncated = true;
       }
-      P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {}; P.sysdb = {};
+      P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {}; P.sysdb = {}; P.reviews = {}; P.reviewsOk = false;
       P.props.forEach(function(p){ P.byId[p.property_id] = p; });
       P.refIdx = {};
       (rs[1].data || []).forEach(function(l){
@@ -5967,6 +6104,14 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       (rs[6].data || []).forEach(function(x){
         (P.sysdb[x.property_id] = P.sysdb[x.property_id] || {})[x.system] = 1;
       });
+      /* v0.54 — teammate address checks; optional dataset, isolated the same
+         way property_systems is: an error only hides the section. */
+      if (rs[7].error){
+        console.warn('Properties: property_reviews unavailable (' + ((rs[7].error && rs[7].error.message) || rs[7].error) + ') \u2014 address checks hidden.');
+      } else {
+        P.reviewsOk = true;   /* v0.55 — the section renders only when this dataset actually loaded */
+        (rs[7].data || []).forEach(function(v){ grp(P.reviews, v.property_id, v); });
+      }
       P.loaded = true; P.loading = false; rerender();
       /* v0.35: chips live on Quotes/Tracker too, so refresh the current view
          when the layer arrives — but never stomp on a half-typed edit. */
@@ -6022,8 +6167,46 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   };
   /* Open a property from anywhere (the row chips). Ignores unknown ids rather
      than switching to an empty screen. */
+  /* ---- v0.58: one owner for leaving the property detail -------------------
+     Every exit path (property Back button, filter chips, any main-tab
+     navigation) goes through leaveDetail(), which clears the selection AND
+     consumes the propsel history entry — no stale Back-button state can
+     survive a tab switch. The popstate closer is defensive: it no-ops when
+     nothing is selected and only re-renders when Properties is the active
+     tab, so even a hypothetical stale entry cannot repaint the wrong tab. */
+  function popCloseDetail(){
+    if (!P.sel) return;
+    P.sel = null;
+    if ((window.state || {}).activeTab === 'properties') renderProperties();
+  }
+  /*PLEAVE_START*/
+  function leaveDetail(rerender){
+    if (!P.sel) return;
+    P.sel = null;
+    if (window.BackNav) window.BackNav.closed('propsel');
+    if (rerender && typeof renderProperties === 'function') renderProperties();
+  }
+  /*PLEAVE_END*/
+  window.__propLeftTab = function(){ leaveDetail(false); };
+  window.__propHasDetail = function(){ return !!P.sel; };
+
   window.propOpen = function(pid){
     if (!P.loaded || !propAllowed() || !P.byId[pid]) return;
+    /* v0.58/59 — usually invoked from an open record drawer. When the
+       property detail is about to claim a fresh history entry, swap the
+       drawer's entry for it at the same depth (beginReplace) instead of
+       closing-then-pushing, which races the queued back() traversal. If the
+       detail is already on the stack, a plain close is safe: nothing pushes
+       after it. */
+    var wasOpen = !!P.sel;
+    try {
+      var dr = document.getElementById('drawer');
+      if (dr && dr.classList.contains('on') && typeof window.closeDrawer === 'function'){
+        if (!wasOpen && window.BackNav) window.BackNav.beginReplace(window.closeDrawer);
+        else window.closeDrawer();
+      }
+    } catch(e){}
+    if (!wasOpen && window.BackNav) window.BackNav.open('propsel', popCloseDetail);
     P.sel = pid;
     P.filter = 'all';
     if (window.__gotoTab) window.__gotoTab('properties');
@@ -6330,7 +6513,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       b.className = 'fchip' + (P.filter === f.id ? ' active' : '');
       b.setAttribute('aria-pressed', P.filter === f.id ? 'true' : 'false');
       b.innerHTML = esc(f.label) + '<span class="n">' + f.n + '</span>';
-      b.addEventListener('click', function(){ P.filter = f.id; P.sel = null; if (window.renderAll) window.renderAll(); });
+      b.addEventListener('click', function(){ P.filter = f.id; leaveDetail(false); if (window.renderAll) window.renderAll(); });
       fb.appendChild(b);
     });
   };
@@ -6370,6 +6553,29 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
                         '<div class="prop-body"><div class="prop-sys" style="margin-top:2px">' +
                         SY.map(function(x){ return '<span class="prop-syschip">' + esc(x) + '</span>'; }).join('') +
                         '</div></div></div>';
+    /* v0.54/55 — address check: the frozen grade stays read-only, but any
+       signed-in teammate with Properties access (Field accounts never see
+       this layer) can confirm the grouping or flag a problem right here.
+       Verdicts are insert-only in Supabase with the reviewer pinned to the
+       signed-in email; confirmed/flagged outcomes are folded into the frozen
+       grades periodically through the controlled freeze workflow. */
+    if (P.reviewsOk){
+    var RV = P.reviews[pid] || [];
+    h += '<div class="prop-sec"><b>Address check</b>' +
+         (p.confidence === 'ambiguous' ? ' <span class="cnt">(this one needs a look)</span>' : '') +
+         '<div class="prop-body">';
+    RV.forEach(function(v){
+      h += '<div class="prop-rev ' + (v.verdict === 'confirm' ? 'rev-ok' : 'rev-flag') + '">' +
+           (v.verdict === 'confirm' ? '\u2713 confirmed' : '\u26A0 flagged') +
+           (v.note ? ': ' + esc(v.note) : '') +
+           ' <span class="rev-who">\u2014 ' + esc(String(v.reviewer || '').split('@')[0]) +
+           ' \u00b7 ' + esc(String(v.created_at || '').slice(0, 10)) + '</span></div>';
+    });
+    if (!RV.length) h += '<div class="prop-meta" style="margin:0 0 8px">No checks yet \u2014 if this address and its records look right (or wrong), say so below.</div>';
+    h += '<div class="rev-actions"><button id="propConfirmBtn" class="rev-btn" type="button">\u2713 Confirm address</button>' +
+         '<button id="propFlagBtn" class="rev-btn rev-btn-flag" type="button">\u26A0 Flag a problem</button></div>' +
+         '</div></div>';
+    }
     Object.keys(bySrc).sort().forEach(function(st){
       var rows = bySrc[st];
       var label = SRC_LABEL[st] || (st.charAt(0).toUpperCase() + st.slice(1) + 's');
@@ -6479,6 +6685,24 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     return h;
   }
 
+  function sendReview(pid, verdict, note, btn){
+    if (!pid || !P.session) return;
+    var email = (P.session.user && P.session.user.email) || '';
+    if (btn) btn.disabled = true;
+    sb.from('property_reviews').insert({ property_id: pid, verdict: verdict, note: note, reviewer: email })
+      .select().then(function(res){
+        if (btn) btn.disabled = false;
+        if (res.error){
+          if (typeof window.toast === 'function') window.toast('Could not save the check: ' + (res.error.message || 'error'));
+          return;
+        }
+        var row = (res.data && res.data[0]) || { property_id: pid, verdict: verdict, note: note, reviewer: email, created_at: new Date().toISOString() };
+        grp(P.reviews, pid, row);
+        if (typeof window.toast === 'function') window.toast(verdict === 'confirm' ? 'Address confirmed \u2014 thanks!' : 'Flag saved \u2014 it goes into the next freeze review.');
+        renderProperties();
+      });
+  }
+
   window.renderProperties = function(){
     var main = document.getElementById('main'); if (!main) return;
     if (!propAllowed()){
@@ -6503,9 +6727,22 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     }
     main.innerHTML = P.sel ? detail(P.sel) : list();
     var back = document.getElementById('propBack');
-    if (back) back.addEventListener('click', function(){ P.sel = null; renderProperties(); });
+    if (back) back.addEventListener('click', function(){ leaveDetail(true); });
+    var cb = document.getElementById('propConfirmBtn');
+    if (cb) cb.addEventListener('click', function(){ sendReview(P.sel, 'confirm', null, cb); });
+    var fb2 = document.getElementById('propFlagBtn');
+    if (fb2) fb2.addEventListener('click', function(){
+      var note = window.prompt('What looks wrong? (wrong grouping, address typo, duplicate\u2026)', '');
+      if (note === null) return;
+      sendReview(P.sel, 'flag', note.trim() || null, fb2);
+    });
     Array.prototype.forEach.call(main.querySelectorAll('.propRow,[data-prop].propJump'), function(el){
-      el.addEventListener('click', function(ev){ ev.preventDefault(); P.sel = el.getAttribute('data-prop'); renderProperties();
+      el.addEventListener('click', function(ev){ ev.preventDefault();
+        var wasOpen = !!P.sel;
+        P.sel = el.getAttribute('data-prop'); renderProperties();
+        /* v0.57 — one history entry per list->detail transition; property-to-
+           property jumps reuse it, so back always returns to the list. */
+        if (!wasOpen && window.BackNav) window.BackNav.open('propsel', popCloseDetail);
         try { window.scrollTo(0, 0); } catch(_e){} });
     });
     /* v0.38: jump from the triage list straight to the record that needs a
