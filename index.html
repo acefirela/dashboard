@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -971,7 +971,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.47'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.48'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -5779,7 +5779,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   };
 
   var P = { loaded:false, loading:false, err:null, session:null,
-            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, refIdx:{}, sel:null, filter:'all' };
+            props:[], byId:{}, links:{}, rels:{}, custs:{}, ember:{}, sysdb:{}, refIdx:{}, sel:null, filter:'all' };
 
   sb.auth.getSession().then(function(r){
     P.session = r.data ? r.data.session : null;
@@ -5805,7 +5805,8 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       sb.from('property_relationships').select('*').range(0, 999),
       sb.from('property_customers').select('property_id,customer_name').range(0, 1999),
       sb.from('property_external_ids').select('property_id,system,external_id,note').range(0, 999),
-      sb.from('ember_location_crosswalk').select('ember_location_uuid,ember_record_name,property_id,mapping_status').range(0, 999)
+      sb.from('ember_location_crosswalk').select('ember_location_uuid,ember_record_name,property_id,mapping_status').range(0, 999),
+      sb.from('property_systems').select('property_id,system').range(0, 3999)
     ]).then(function(rs){
       var bad = rs.find(function(r){ return r.error; });
       if (bad) throw bad.error;
@@ -5816,7 +5817,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         console.warn('Properties: record_property_links hit the 5000-row ceiling — property chips may be incomplete. Paginate this query.');
         P.truncated = true;
       }
-      P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {};
+      P.props = rs[0].data || []; P.byId = {}; P.links = {}; P.rels = {}; P.custs = {}; P.ember = {}; P.sysdb = {};
       P.props.forEach(function(p){ P.byId[p.property_id] = p; });
       P.refIdx = {};
       (rs[1].data || []).forEach(function(l){
@@ -5845,6 +5846,12 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       (rs[4].data || []).forEach(function(e){
         var cw = xn[e.external_id] || {};
         grp(P.ember, e.property_id, { id:e.external_id, name:cw.ember_record_name || '', status:cw.mapping_status || '' });
+      });
+      /* v0.48 — persistent system layer: precomputed server-side from linked
+         titles + Ember appointment systems, additive across refreshes, so it
+         holds evidence whose source rows have long left the workbook. */
+      (rs[6].data || []).forEach(function(x){
+        (P.sysdb[x.property_id] = P.sysdb[x.property_id] || {})[x.system] = 1;
       });
       P.loaded = true; P.loading = false; rerender();
       /* v0.35: chips live on Quotes/Tracker too, so refresh the current view
@@ -6019,9 +6026,14 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   /* Ordered by SYS_DEFS so chips read the same on every property. */
   window.propSystems = function(pid){
     if (!P.loaded || !propAllowed()) return [];
-    var set = sysIdx()[pid];
-    if (!set) return [];
-    return SYS_DEFS.map(function(d){ return d[0]; }).filter(function(n){ return set[n]; });
+    var set = {}, k;
+    var live = sysIdx()[pid]; if (live) for (k in live) set[k] = 1;   /* rows in the browser right now */
+    var db = P.sysdb[pid];    if (db)   for (k in db)   set[k] = 1;   /* persistent, precomputed history */
+    var out = SYS_DEFS.map(function(d){ return d[0]; }).filter(function(n){ return set[n]; });
+    /* a future seed backfill may add names outside today's canon — show them
+       after the canonical order rather than silently dropping them */
+    var extra = Object.keys(set).filter(function(n){ return out.indexOf(n) === -1; }).sort();
+    return extra.length ? out.concat(extra) : out;
   };
   function sysChips(pid){
     var sys = window.propSystems(pid);
@@ -6225,7 +6237,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     h += '<div><div class="prop-colhd">This property</div>';
     if (C.length) h += '<div class="prop-sec"><b>Customers</b><div class="prop-body">' + C.map(esc).join(' \u00b7 ') + '</div></div>';
     var SY = window.propSystems(pid);
-    if (SY.length) h += '<div class="prop-sec"><b>Systems</b> <span class="cnt">(read from linked job titles)</span>' +
+    if (SY.length) h += '<div class="prop-sec"><b>Systems</b> <span class="cnt">(from linked job history and Ember)</span>' +
                         '<div class="prop-body"><div class="prop-sys" style="margin-top:2px">' +
                         SY.map(function(x){ return '<span class="prop-syschip">' + esc(x) + '</span>'; }).join('') +
                         '</div></div></div>';
