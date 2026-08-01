@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -971,7 +971,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.44'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.47'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -996,6 +996,7 @@ const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'))
 const state = {
   token:null, email:'', activeTab:'quotes',
   data:{}, headers:{}, dupes:{}, archive:[], qarchive:[], customers:{},
+  rolesResolved:false,   // v0.46 — stays false until the Roles roster has actually been read (cache or fresh); the property layer fails closed on it
   activity:[], activityLoaded:false,
   emailActions:null,   // null = not fetched yet; loaded once per session on first drawer that needs it
   emailRefCounts:{},   // 'q:142' / 'j:318' -> matched-email count, for the list-row indicator
@@ -1227,6 +1228,10 @@ async function onSignedIn(){
   buildTabBar();
   if (hydrateCache()){
     computeRole();
+    /* v0.47 — the cached roster shapes the UI instantly but does NOT resolve
+       authorization: someone demoted to Field since their last visit must not
+       have the property layer opened by yesterday's roster. loadAll() runs
+       immediately after this and resolves from the fresh Roles read. */
     applyRoleUI();
     renderAll();
   } else {
@@ -1411,6 +1416,7 @@ async function loadAllRun(showToast){
     }
 
     // team roles — optional "Roles" tab: A=email, B=role (Admin / Back office / Field)
+    let rolesAuthoritative = false;
     try {
       const ro = await api(`/values/${encodeURIComponent(`'${CONFIG.ROLES_SHEET}'!A2:B`)}`);
       state.roles = {};
@@ -1418,8 +1424,20 @@ async function loadAllRun(showToast){
         const k = low(row[0]);
         if (k) state.roles[k] = String(row[1] || '').trim();
       });
-    } catch(e){ /* keep the roles we already have (cache / last load) — a transient read failure must not change anyone's access */ }
+      rolesAuthoritative = true;                                 // the tab answered — an empty roster is an answer too
+    } catch(e){ /* keep the roles we already have (cache / last load) — a transient read failure must not change anyone's access */
+      /* v0.47 — a MISSING tab is also an authoritative answer: legacy
+         open-roster deployments have no Roles sheet by design, and Google
+         reports that as 400 "Unable to parse range". Anything else — network
+         down, auth, quota — is NOT an answer, so authorization stays
+         unresolved and the property layer stays closed. */
+      if (/unable to parse range/i.test((e && e.message) || '')) rolesAuthoritative = true;
+    }
     computeRole();
+    if (rolesAuthoritative && !state.rolesResolved){
+      state.rolesResolved = true;                                // only a fresh Roles response (or its confirmed absence) opens the property layer
+      if (window.__propRolesReady) window.__propRolesReady();
+    }
     applyRoleUI();
 
     state.lastLoad = Date.now();
@@ -5721,6 +5739,10 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '.prop-pid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:14.5px;color:#9E2724;letter-spacing:.2px}',
     '.prop-title{font-weight:650;font-size:15.5px;color:#1E2126;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.prop-sub{font-size:13px;color:#5A5F6A;margin-top:2px}',
+    /* v0.45 — system-type chips (Sprinkler / Alarm / Backflow / ...) derived
+       from linked job titles; shown on list cards and in the detail view. */
+    '.prop-sys{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}',
+    '.prop-syschip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#2C4A6E;background:#E7EEF6;border:1px solid #D2DEEC;border-radius:7px;padding:1px 7px;white-space:nowrap}',
     '.prop-lbl{font-weight:400;color:#5A5F6A}',
     '.prop-chip{display:inline-block;font-size:12px;font-weight:650;padding:2px 9px;border-radius:9px;white-space:nowrap}',
     '.prop-card{margin-top:12px;padding:18px;border:1px solid #D8D5CD;border-radius:12px;background:#FFFFFF;box-shadow:0 1px 3px rgba(30,30,28,.07)}',
@@ -5764,7 +5786,10 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (P.session && !P.loaded && propAllowed()) load();   /* chips need this on every tab */
     rerender();
   });
-  sb.auth.onAuthStateChange(function(_e, sess){ P.session = sess; if (sess && !P.loaded) load(); rerender(); });
+  sb.auth.onAuthStateChange(function(_e, sess){ P.session = sess; if (sess && !P.loaded && propAllowed()) load(); rerender(); });
+  /* v0.46 — called by the dashboard the moment the roster is resolved; this is
+     what starts the (now-delayed) property load for non-Field accounts. */
+  window.__propRolesReady = function(){ if (P.session && !P.loaded && propAllowed()) load(); rerender(); };
 
   function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function rerender(){ if (window.state && window.state.activeTab === 'properties') renderProperties(); }
@@ -5869,6 +5894,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     return [];
   };
   window.propAddress = function(pid){
+    if (!propAllowed()) return '';
     var p = P.byId[pid];
     if (!p) return '';
     return String(p.normalized_address || '') + (p.building_label ? ' \u2014 ' + p.building_label : '');
@@ -5884,7 +5910,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   };
 
   /* pure matcher — also matches bare numbers against the P-number (137 -> P-0137) */
-  function propMatch(p, q, custList){
+  function propMatch(p, q, custList, sysList){
     if (!q) return true;
     q = String(q).trim().toLowerCase();
     if (!q) return true;
@@ -5892,7 +5918,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       if (p.property_id.toLowerCase() === 'p-' + ('0000' + q).slice(-4)) return true;
     }
     var hay = (p.property_id + ' ' + p.normalized_address + ' ' + (p.building_label || '') + ' ' +
-               (p.city || '') + ' ' + (custList || []).join(' ')).toLowerCase();
+               (p.city || '') + ' ' + (custList || []).join(' ') + ' ' + (sysList || []).join(' ')).toLowerCase();
     return hay.indexOf(q) !== -1;
   }
   window.__propMatch = propMatch;
@@ -5931,6 +5957,78 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   }
   window.__dedupeCustomers = dedupeCustomers;
 
+  /* ---- v0.45: system types, derived --------------------------------------
+     The frozen layer stores no system field, but every linked quote/tracker
+     title names the work ("Annual Fire Alarm Reg-4 Test at ...", "5-year fire
+     sprinkler certification ..."). Classify those titles into ACE's service
+     lines and pin the result on the property. Derived and read-only: nothing
+     is written anywhere, and a property whose titles name no system simply
+     shows no chips rather than a guess. */
+  /*SYSCLS_START*/
+  var SYS_DEFS = [
+    ['Sprinkler',    /sprink/i],
+    ['Alarm',        /\balarm|central\s*station/i],
+    ['Backflow',     /back[\s-]?flow|double[\s-]?check\s*(valve|assembly|detector|device)|\bdcda\b|\brpda\b/i],
+    ['Hydrant',      /hydrant/i],
+    ['Fire pump',    /fire[\s-]?pump/i],
+    ['Standpipe',    /stand[\s-]?pipe/i],
+    ['Extinguisher', /extinguisher/i]
+  ];
+  function systemsFromText(t){
+    var s = String(t == null ? '' : t);
+    if (!s) return [];
+    var out = [];
+    for (var i = 0; i < SYS_DEFS.length; i++) if (SYS_DEFS[i][1].test(s)) out.push(SYS_DEFS[i][0]);
+    return out;
+  }
+  /*SYSCLS_END*/
+  window.__systemsFromText = systemsFromText;
+
+  /* pid -> system set, memoised per data load: one pass over the rows the
+     dashboard already holds — active Quotes (title col E) and Tracker (col C)
+     PLUS Archive (paid jobs, Tracker-shaped) and Quotes Archive (expired
+     quotes, Quotes-shaped). Archived work is most of the evidence: a replay
+     against the frozen snapshot found 290 properties whose system types exist
+     ONLY in historical titles, so without the archives the chips would vanish
+     as jobs get paid. Archive rows carry no .key — the quote number is col A.
+     Recomputed when the sheets reload or the property layer arrives; never
+     rebuilt within a render. */
+  var _sysIdx = null, _sysStamp = '';
+  function sysIdx(){
+    var st = window.state || {};
+    var q = (st.data && st.data.quotes) || [], tr = (st.data && st.data.tracker) || [];
+    var qa = st.qarchive || [], ar = st.archive || [];
+    var stamp = String(st.lastLoad || 0) + ':' + q.length + ':' + tr.length + ':' + qa.length + ':' + ar.length + ':' + (P.loaded ? 1 : 0);
+    if (_sysIdx && _sysStamp === stamp) return _sysIdx;
+    var idx = {};
+    [[q, 'quotes', 4], [tr, 'tracker', 2], [qa, 'quotes', 4], [ar, 'tracker', 2]].forEach(function(trio){
+      trio[0].forEach(function(r){
+        var key = r && (r.key || (r.cells && r.cells[0]));
+        if (!key) return;
+        var sys = systemsFromText(r.cells && r.cells[trio[2]]);
+        if (!sys.length) return;
+        (window.propForRecord(trio[1], key) || []).forEach(function(pid){
+          var set = idx[pid] || (idx[pid] = {});
+          sys.forEach(function(x){ set[x] = 1; });
+        });
+      });
+    });
+    _sysStamp = stamp; _sysIdx = idx;
+    return idx;
+  }
+  /* Ordered by SYS_DEFS so chips read the same on every property. */
+  window.propSystems = function(pid){
+    if (!P.loaded || !propAllowed()) return [];
+    var set = sysIdx()[pid];
+    if (!set) return [];
+    return SYS_DEFS.map(function(d){ return d[0]; }).filter(function(n){ return set[n]; });
+  };
+  function sysChips(pid){
+    var sys = window.propSystems(pid);
+    if (!sys.length) return '';
+    return '<div class="prop-sys">' + sys.map(function(x){ return '<span class="prop-syschip">' + esc(x) + '</span>'; }).join('') + '</div>';
+  }
+
   var CONF_STYLE = { high:'background:#E3F1E8;color:#1F6B41', probable:'background:#FBF1D4;color:#7A5E0E',
                      ambiguous:'background:#F9E2E2;color:#8F1F1C', resolved_split:'background:#E2EAF9;color:#1F3F8F',
                      multi_address_unsplit:'background:#EFE2F9;color:#5B1F8F' };
@@ -5946,7 +6044,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       if (P.filter === 'multi' && !p.building_label) return false;
       if (P.filter === 'alerts' && !ALERTS[p.property_id]) return false;
       if (P.filter === 'ember' && !(P.ember[p.property_id] || []).length) return false;
-      return propMatch(p, q, P.custs[p.property_id]);
+      return propMatch(p, q, P.custs[p.property_id], window.propSystems(p.property_id));
     });
   }
 
@@ -5959,6 +6057,12 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
      Phase 2 of role enforcement and is tracked separately. */
   function propAllowed(){
     try {
+      /* v0.46 — fail closed until the Roles roster has been read. state.role
+         boots as Back office, so a saved Supabase session used to fetch all
+         six property datasets before the Roles tab could say "Field" — hiding
+         the tab afterwards was too late, the data had already reached the
+         browser. Nothing property-shaped moves until this flag is true. */
+      if (!window.state || window.state.rolesResolved !== true) return false;
       if (typeof window.visibleTabs !== 'function') return false;
       return window.visibleTabs().some(function(t){ return t.id === 'properties'; });
     } catch (e){ return false; }
@@ -6072,6 +6176,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   window.propAlertCount = function(){ return Object.keys(ALERTS).length; };
 
   window.renderPropertiesToolbar = function(fb){
+    if (!propAllowed()) return;
     var defs = [
       { id:'all',    label:'All',            n:P.props.length },
       { id:'multi',  label:'Multi-building', n:P.props.filter(function(p){ return !!p.building_label; }).length },
@@ -6119,6 +6224,11 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     h += '<div class="prop-cols">';
     h += '<div><div class="prop-colhd">This property</div>';
     if (C.length) h += '<div class="prop-sec"><b>Customers</b><div class="prop-body">' + C.map(esc).join(' \u00b7 ') + '</div></div>';
+    var SY = window.propSystems(pid);
+    if (SY.length) h += '<div class="prop-sec"><b>Systems</b> <span class="cnt">(read from linked job titles)</span>' +
+                        '<div class="prop-body"><div class="prop-sys" style="margin-top:2px">' +
+                        SY.map(function(x){ return '<span class="prop-syschip">' + esc(x) + '</span>'; }).join('') +
+                        '</div></div></div>';
     Object.keys(bySrc).sort().forEach(function(st){
       var rows = bySrc[st];
       var label = SRC_LABEL[st] || (st.charAt(0).toUpperCase() + st.slice(1) + 's');
@@ -6218,7 +6328,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
            '<div style="flex:1;min-width:0"><div class="prop-title">' +
            esc(p.normalized_address) + (p.building_label ? ' <span class="prop-lbl">\u00b7 ' + esc(p.building_label) + '</span>' : '') +
            '</div><div class="prop-sub">' + esc(p.city || '') + (nC ? ' \u00b7 ' + nC + ' customer' + (nC > 1 ? 's' : '') : '') +
-           (nL ? ' \u00b7 ' + nL + ' record' + (nL > 1 ? 's' : '') : '') + '</div></div>' +
+           (nL ? ' \u00b7 ' + nL + ' record' + (nL > 1 ? 's' : '') : '') + '</div>' + sysChips(pid) + '</div>' +
            (ALERTS[pid] ? '<span title="compliance alert" style="font-size:17px">\u26A0\uFE0F</span>' : '') +
            confChip(p.confidence) + '</div>';
     });
