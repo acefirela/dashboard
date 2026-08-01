@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -971,7 +971,7 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VERSION: '0.49'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.53'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -4694,6 +4694,22 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '#teamChatSec .tc-send button{border:0;border-radius:8px;background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:9px 14px;cursor:pointer}' +
     '#teamChatSec .tc-send button:disabled{opacity:.5}' +
     '#teamChatSec .tc-mention{color:var(--blue-dk);font-weight:700}' +
+    /* v0.51 — the unread pill lives in the dark attention bar, so it gets its
+       own scale instead of borrowing .stat from the stats grid */
+    '.tc-pill{border:1px solid #475061;border-radius:999px;background:#2A3242;color:#DDE0E6;font:inherit;font-size:13px;font-weight:600;padding:5px 12px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}' +
+    '.tc-pill b{color:#fff}' +
+    '.tc-pill .tc-at{color:#F0C94F;font-weight:700}' +
+    '.tc-pop{position:fixed;z-index:160;width:min(340px, calc(100vw - 20px - var(--sa-l) - var(--sa-r)));max-height:min(420px, 70vh);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(20,24,32,.28);padding:6px}' +
+    '.tc-pop .tp-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:none;font:inherit;padding:9px 10px;border-radius:9px;cursor:pointer}' +
+    '.tc-pop .tp-row:hover{background:var(--paper)}' +
+    '.tc-pop .tp-main{flex:1;min-width:0}' +
+    '.tc-pop .tp-title{font-size:13.5px;font-weight:700;color:var(--ink2)}' +
+    '.tc-pop .tp-title .tp-arch{font-weight:600;color:var(--muted);font-size:12px;margin-left:5px}' +
+    '.tc-pop .tp-snip{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.tc-pop .tp-n{flex:none;font-size:12px;font-weight:700;background:var(--blue-bg);color:var(--blue-dk);border:1px solid #CBD9EC;border-radius:999px;padding:2px 8px}' +
+    '.tc-pop .tp-mark{flex:none;border:1px solid var(--line2);background:var(--paper);border-radius:8px;font:inherit;font-size:12px;color:var(--ink2);padding:4px 8px;cursor:pointer}' +
+    '.tc-pop .tp-foot{display:flex;justify-content:flex-end;padding:7px 8px 4px;border-top:1px solid var(--line)}' +
+    '.tc-pop .tp-all{border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--blue-dk);cursor:pointer}' +
     '#teamChatSec .tc-note{color:var(--muted);font-size:12.5px;margin-top:4px}' +
     '#teamChatSec .tc-att-img{display:block;margin-top:5px}' +
     '#teamChatSec .tc-att-img img{display:block;max-width:230px;max-height:180px;border-radius:8px;border:1px solid var(--line)}' +
@@ -5592,6 +5608,103 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       if (typeof window.renderContent === 'function'){ try{ window.renderContent(); }catch(e){} }
     }
   }
+  /* ---- v0.51: unread popover -------------------------------------------
+     The old pill click opened the first unread thread it could find in the
+     active tabs and did NOTHING when the record had been archived — the
+     common case, since chats go quiet after jobs are paid. This list makes
+     every unread thread reachable: active records open their drawer,
+     archived ones are labelled and can be marked read. */
+  var tcPop = null;
+  function closeTcPop(){
+    if (tcPop && tcPop.parentNode) tcPop.parentNode.removeChild(tcPop);
+    tcPop = null;
+    document.removeEventListener('click', onTcPopDoc, true);
+    document.removeEventListener('keydown', onTcPopKey, true);
+    window.removeEventListener('scroll', closeTcPop, true);
+  }
+  function onTcPopDoc(ev){ if (tcPop && !tcPop.contains(ev.target)) closeTcPop(); }
+  function onTcPopKey(ev){ if (ev.key === 'Escape') closeTcPop(); }
+  function unreadThreads(){
+    var latest = {};
+    TC.recent.forEach(function(m){ if (!latest[m.record_id]) latest[m.record_id] = m; }); /* recent is newest-first */
+    return Object.keys(TC.unread).filter(function(k){ return TC.unread[k] > 0; }).map(function(k){
+      var m = latest[k] || {};
+      return { key:k, n:TC.unread[k], m:m, hit:findByKey(k, m.record_type === 'job' ? 'tracker' : 'quotes'), at:m.created_at || '' };
+    }).sort(function(a, b){ return a.at < b.at ? 1 : -1; });
+  }
+  function toggleTcPop(anchor){
+    if (tcPop){ closeTcPop(); return; }
+    var items = unreadThreads();
+    if (!items.length) return;
+    var pop = document.createElement('div');
+    pop.className = 'tc-pop';
+    pop.setAttribute('role', 'menu');
+    items.forEach(function(it){
+      /* v0.52 — archived rows hold a Mark-read <button>, so the row itself
+         must not be a button (nested interactive controls are invalid HTML
+         and confuse keyboards/screen readers). Active rows stay buttons. */
+      var row = document.createElement(it.hit ? 'button' : 'div');
+      if (it.hit) row.type = 'button';
+      row.className = 'tp-row';
+      var kind = it.m.record_type === 'job' ? 'Job' : 'Quote';
+      var snip = String(it.m.text || (it.m.sender_name ? 'Attachment' : '')).replace(/\s+/g, ' ');
+      row.innerHTML = '<span class="tp-main"><span class="tp-title">' + kind + ' ' + esc(it.key) +
+                      (it.hit ? '' : '<span class="tp-arch">(archived)</span>') + '</span>' +
+                      '<span class="tp-snip">' + esc((it.m.sender_name ? it.m.sender_name + ': ' : '') + snip) + '</span></span>' +
+                      '<span class="tp-n">' + it.n + '</span>';
+      if (it.hit){
+        row.addEventListener('click', function(){
+          closeTcPop();
+          if (typeof window.openDrawer === 'function') window.openDrawer(it.hit.uid);
+        });
+      } else {
+        var mk = document.createElement('button');
+        mk.type = 'button'; mk.className = 'tp-mark'; mk.textContent = 'Mark read';
+        mk.addEventListener('click', function(ev){ ev.stopPropagation(); markRead(it.key, true); closeTcPop(); });
+        row.appendChild(mk);
+        row.addEventListener('click', function(){
+          if (typeof window.toast === 'function') window.toast('This record is archived \u2014 its thread lives with the archived job. You can mark it read here.');
+        });
+      }
+      pop.appendChild(row);
+    });
+    var foot = document.createElement('div');
+    foot.className = 'tp-foot';
+    var all = document.createElement('button');
+    all.type = 'button'; all.className = 'tp-all'; all.textContent = 'Mark all read';
+    all.addEventListener('click', function(){ unreadThreads().forEach(function(it){ markRead(it.key, true); }); closeTcPop(); });
+    foot.appendChild(all);
+    pop.appendChild(foot);
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    var saL = 10, saR = 10, saT = 10, saB = 12;
+    var w = pop.offsetWidth;
+    var left = Math.min(Math.max(r.left, saL), window.innerWidth - w - saR);
+    pop.style.left = left + 'px';
+    /* v0.52 — contain vertically: fit below the pill when there's room
+       (capping height to the room that exists), otherwise flip above with
+       the same cap. The popover never extends past the viewport. */
+    var spaceBelow = window.innerHeight - r.bottom - 8 - saB;
+    var spaceAbove = r.top - 8 - saT;
+    var ph = pop.offsetHeight;
+    /* v0.53 — the cap is the real nonnegative space on the chosen side, with
+       no imposed minimum: a floor larger than the space that exists would
+       push the popover past the boundary it's meant to respect. In a tiny
+       viewport the list just gets short and scrolls. */
+    if (ph <= spaceBelow || spaceBelow >= spaceAbove){
+      pop.style.maxHeight = Math.max(0, spaceBelow) + 'px';
+      pop.style.top = (r.bottom + 8) + 'px';
+    } else {
+      var h = Math.min(ph, Math.max(0, spaceAbove));
+      pop.style.maxHeight = h + 'px';
+      pop.style.top = Math.max(saT, r.top - 8 - h) + 'px';
+    }
+    tcPop = pop;
+    document.addEventListener('click', onTcPopDoc, true);
+    document.addEventListener('keydown', onTcPopKey, true);
+    window.addEventListener('scroll', closeTcPop, true);
+  }
+
   var tcSumHooked = false;
   function hookSummary(){
     if (tcSumHooked || typeof window.renderSummary !== 'function') return;
@@ -5605,14 +5718,10 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
           var bar = document.querySelector('#summary .attn');
           if (bar){
             var b = document.createElement('button');
-            b.type = 'button'; b.className = 'stat';
-            b.style.cssText = 'background:var(--blue-bg);color:var(--blue-dk);border:1px solid #CBD9EC';
-            b.innerHTML = '<b>' + tot + '</b> team message' + (tot === 1 ? '' : 's') + (TC.mentionUnread ? ' \u00b7 ' + TC.mentionUnread + ' @you' : '');
-            b.addEventListener('click', function(){
-              var m = TC.recent.find(function(x){ return TC.unread[x.record_id]; });
-              var hit = m && findByKey(m.record_id, m.record_type === 'job' ? 'tracker' : 'quotes');
-              if (hit && typeof window.openDrawer === 'function') window.openDrawer(hit.uid);
-            });
+            b.type = 'button'; b.className = 'tc-pill';
+            b.innerHTML = '<span aria-hidden="true">\uD83D\uDCAC</span><b>' + tot + '</b> team message' + (tot === 1 ? '' : 's') +
+                          (TC.mentionUnread ? ' <span class="tc-at">' + TC.mentionUnread + ' @you</span>' : '');
+            b.addEventListener('click', function(ev){ ev.stopPropagation(); toggleTcPop(b); });
             bar.appendChild(b);
           }
         }
@@ -6049,7 +6158,22 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   var CONF_STYLE = { high:'background:#E3F1E8;color:#1F6B41', probable:'background:#FBF1D4;color:#7A5E0E',
                      ambiguous:'background:#F9E2E2;color:#8F1F1C', resolved_split:'background:#E2EAF9;color:#1F3F8F',
                      multi_address_unsplit:'background:#EFE2F9;color:#5B1F8F' };
-  function confChip(c){ return '<span class="prop-chip" style="' + (CONF_STYLE[c] || 'background:#EAE7DF;color:#5A5F6A') + '">' + esc(c) + '</span>'; }
+  /* v0.50 — the raw freeze values are internal codes; the team sees plain
+     language. Labels map 1:1 to the stored value (unchanged in the data) and
+     the title attribute explains the grade on hover / long-press. */
+  var CONF_LABEL = { high:'address verified', probable:'address probable', ambiguous:'needs review',
+                     resolved_split:'split property', multi_address_unsplit:'multi-building' };
+  var CONF_TITLE = {
+    high:'Address confidence from the property freeze: matched cleanly across every source \u2014 safe to trust as one property.',
+    probable:'Address confidence from the property freeze: matched with minor variations (spelling, missing zip, unit formats) \u2014 almost certainly correct.',
+    ambiguous:'Address confidence from the property freeze: conflicting evidence \u2014 this grouping could be wrong and deserves a look.',
+    resolved_split:'This record originally covered several addresses and was split into separate properties during the freeze.',
+    multi_address_unsplit:'One record still covering multiple buildings (campus-style); not yet split into separate properties.'
+  };
+  function confChip(c){
+    return '<span class="prop-chip" style="' + (CONF_STYLE[c] || 'background:#EAE7DF;color:#5A5F6A') + '" title="' +
+           esc(CONF_TITLE[c] || 'Address confidence grade from the property freeze.') + '">' + esc(CONF_LABEL[c] || c) + '</span>';
+  }
 
   var SRC_LABEL = { quote:'Quotes', accepted:'Accepted jobs', tracker:'Tracker jobs', job:'Jobs',
                     invoice:'Invoices', receipt:'Receipts', appointment:'Ember appointments',
