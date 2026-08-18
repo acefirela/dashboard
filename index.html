@@ -985,6 +985,8 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .call-stat{margin-top:10px;padding:10px 12px;border-radius:9px;font-size:13px;line-height:1.45;background:var(--line,#eef1f5)}
 .call-stat.ok{background:#e8f5ec;color:#1c6b38}
 .call-stat.err{background:#fdecec;color:#9a2020}
+#callWrap .call-stat{display:block;min-height:46px}
+#callWrap .call-stat:empty{background:transparent;padding:0}
 </style>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -1015,7 +1017,7 @@ const CONFIG = {
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
   VOICE_URL: 'https://script.google.com/macros/s/AKfycbwoG_qWFwuJBUguIwSrG0TkZELKtYrw5NKfwQ3SgnGqNECFBlGxVBP8MSztxTCe8PqnwQ/exec',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '0.79'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.80'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -3864,7 +3866,26 @@ function logEmail(person, fromAlias, to, subject, replyTo){
    voice_staff precisely because this file's Supabase queries run in a browser
    and RLS filters rows, not columns. */
 const VOICE_CALLER_ID = '(310) 945-2367';
+var CALL_AGAIN_MS   = 2500;   // success -> offer "Call again" once the message has been read
+var CALL_UNKNOWN_MS = 8000;   // unreadable reply -> long enough for the phone to ring first
+var callAgainTimer  = null;
 let callCtx = null;
+
+/* v0.80 — the success path used to leave the Call button disabled forever with a
+   normal-looking label, so reusing the modal was a silent no-op: no call, no
+   error, no log row (defect B, 18 Aug field test). The button now comes back as
+   an explicit "Call again" after a beat, and stays locked during the beat so a
+   double-tap cannot race a live bridge. */
+function armCallAgain(ms){
+  if (callAgainTimer) clearTimeout(callAgainTimer);
+  callAgainTimer = setTimeout(() => {
+    const b = $('#cGo');
+    if (b){ b.disabled = false; b.textContent = '\uD83D\uDCDE Call again'; }
+  }, ms);
+}
+function clearCallAgain(){
+  if (callAgainTimer){ clearTimeout(callAgainTimer); callAgainTimer = null; }
+}
 
 const voiceOn = () => !!String(CONFIG.VOICE_URL || '').trim() && canContact();
 const digitsOf = v => String(v || '').replace(/\D/g, '');
@@ -3885,8 +3906,9 @@ function openCaller(x){
   $('#cWho').textContent = callCtx.name ? String(callCtx.name).split(',')[0].trim() : 'a number';
   $('#cNote').textContent = 'Your phone rings first from ' + VOICE_CALLER_ID +
     '. Press 1 to connect, then we dial them \u2014 they see the ACE number, never yours.';
+  clearCallAgain();
   const st = $('#cStat');
-  st.style.display = 'none';
+  st.style.display = 'block';   // v0.80: space is reserved (see CSS) so appearing text no longer shifts the close control
   st.className = 'call-stat';
   st.textContent = '';
   $('#cGo').disabled = false;
@@ -3897,6 +3919,7 @@ function openCaller(x){
   if (!callCtx.phone) $('#cTo').focus();
 }
 function closeCaller(){
+  clearCallAgain();
   $('#callWrap').classList.remove('on');
   $('#callWrap').setAttribute('aria-hidden', 'true');
   callCtx = null;
@@ -3923,6 +3946,7 @@ async function placeCall(isRetry){
   const d = callableDigits($('#cTo').value);
   if (!d) return;
   const btn = $('#cGo'), st = $('#cStat');
+  clearCallAgain();
   btn.disabled = true;
   btn.textContent = 'Calling\u2026';
   st.style.display = 'block';
@@ -3937,7 +3961,22 @@ async function placeCall(isRetry){
     const txt = await r.text();
     let j = null;
     try { j = JSON.parse(txt); }
-    catch(e){ throw new Error('The Voice service returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
+    catch(parseErr){
+      if (/accounts\.google\.com|ServiceLogin|Sign in/i.test(txt))
+        throw new Error('The Voice service returned a Google login page \u2014 the deployment\u2019s "Who has access" must be set to Anyone');
+      /* Not a login page: Apps Script runs the call FIRST, then serves the body
+         via a redirect \u2014 so transient Google HTML here can arrive after the
+         call was already placed (defect A: a 70-second connected, stamped call
+         showed a red failure). Unknown outcome must not read as failure,
+         because "failed" is an instruction to redial a client who is about to
+         pick up. */
+      st.className = 'call-stat';
+      st.textContent = 'The reply was unreadable, but the call may still be going through \u2014 wait for your phone to ring before trying again.';
+      btn.textContent = '\uD83D\uDCDE Call';
+      armCallAgain(CALL_UNKNOWN_MS);
+      console.warn('Voice: unparseable service reply', String(txt).slice(0, 200));
+      return;
+    }
     if (!j || !j.success){
       /* The Voice service answers HTTP 200 with success:false, so the status-code
          retry the Sheets and Gmail wrappers use (r.status === 401) can never fire
@@ -3955,6 +3994,7 @@ async function placeCall(isRetry){
       '. The Call column updates once their line picks up.';
     btn.textContent = '\uD83D\uDCDE Call';
     logCallActivity(d);
+    armCallAgain(CALL_AGAIN_MS);
   } catch(e){
     st.className = 'call-stat err';
     st.textContent = String(e.message || e);
