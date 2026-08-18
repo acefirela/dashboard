@@ -1015,7 +1015,7 @@ const CONFIG = {
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
   VOICE_URL: '',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '0.76'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.77'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -3928,7 +3928,7 @@ async function placeCall(){
   try {
     const r = await fetch(String(CONFIG.VOICE_URL).trim(), {
       method:'POST',
-      body: JSON.stringify({ action:'call', token: state.token, to: d,
+      body: JSON.stringify({ svc:'voice', action:'call', token: state.token, to: d,
         name: callCtx && callCtx.name ? callCtx.name : '', refKey: callCtx && callCtx.srcKey ? callCtx.srcKey : '' })
     });
     const txt = await r.text();
