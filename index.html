@@ -1014,8 +1014,8 @@ const CONFIG = {
   PRIORITIES_URL: 'https://script.google.com/macros/s/AKfycbzNaLCZRmc-2L8y9D4WwkMa4A9hxlsFcNIFZQJQ4_GPAbdhX_2rptzCHHTnZ-v9W-Tk/exec', // ACE Priorities Service — manual-refresh endpoint for the Today's Priorities bar
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
-  VOICE_URL: '',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '0.77'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VOICE_URL: 'https://script.google.com/macros/s/AKfycbwoG_qWFwuJBUguIwSrG0TkZELKtYrw5NKfwQ3SgnGqNECFBlGxVBP8MSztxTCe8PqnwQ/exec',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
+  VERSION: '0.79'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -3859,7 +3859,10 @@ function logEmail(person, fromAlias, to, subject, replyTo){
    pinned to the ACE line. Personal numbers are never exposed in either
    direction, and callbacks land on the ACE number where Retell answers.
    The dashboard never holds Twilio credentials — it POSTs a Google token and
-   the service authorizes against team_members.voice_enabled. */
+   the service authorizes against voice_staff.voice_enabled, with roster
+   membership checked separately against team_members. Handsets live in
+   voice_staff precisely because this file's Supabase queries run in a browser
+   and RLS filters rows, not columns. */
 const VOICE_CALLER_ID = '(310) 945-2367';
 let callCtx = null;
 
@@ -3916,7 +3919,7 @@ function buildKeypad(){
 }
 buildKeypad();
 
-async function placeCall(){
+async function placeCall(isRetry){
   const d = callableDigits($('#cTo').value);
   if (!d) return;
   const btn = $('#cGo'), st = $('#cStat');
@@ -3935,7 +3938,17 @@ async function placeCall(){
     let j = null;
     try { j = JSON.parse(txt); }
     catch(e){ throw new Error('The Voice service returned a page instead of data \u2014 check the web app is deployed with access set to "Anyone"'); }
-    if (!j || !j.success) throw new Error((j && j.error) || 'Call failed');
+    if (!j || !j.success){
+      /* The Voice service answers HTTP 200 with success:false, so the status-code
+         retry the Sheets and Gmail wrappers use (r.status === 401) can never fire
+         here. A Google access token lasts about an hour and this dashboard is left
+         open all day, so the first Call of the afternoon would otherwise be the one
+         feature that fails with "sign in again" while everything else silently
+         refreshed itself. Retry exactly once, and only for an auth failure. */
+      const authStale = /not signed in|session expired/i.test(String((j && j.error) || ''));
+      if (authStale && isRetry !== true && await silentToken(state.email)) return placeCall(true);
+      throw new Error((j && j.error) || 'Call failed');
+    }
     st.className = 'call-stat ok';
     st.textContent = 'Your phone is ringing from ' + VOICE_CALLER_ID +
       '. Answer and press 1, then we dial ' + fmtUsPhone(d) +
