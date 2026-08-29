@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.85 — the empty-directory rule moves from loadTeamPhones() to adoptTeamPhones_(), which is where the replacement actually happens. v0.84 checked it at response time, and in the Supabase-first race that check runs before hydrateCache(), so state.teamPhones is still {} and a zero-row read sees nothing to protect; {} is truthy, so it parked as pendingTeamPhones and then overwrote the good cached map that hydration restored moments later -- re-arming the guarded call in precisely the ordering the pending mechanism was added to handle. Enforced at the adoption boundary, the rule holds whichever of cache, Google identity and Supabase identity lands first, and a zero-row result is now discarded outright so it cannot ambush a later bind. A non-empty read still replaces wholesale, so a removed teammate stops being named. Plus v0.84 — three fixes from review of v0.83. The pending staff directory is now adopted AFTER hydrateCache(), not before: adoptTeamPhones_() calls saveCache(), and before hydration state.lastLoad is 0, so the v0.83 ordering wrote a ts:0 cache over the good one and hydrateCache() then deleted it as stale -- destroying the instant-paint cache in the very race v0.83 added the bind to fix. adoptTeamPhones_() also now declines to persist until a real load has happened. Second, a successful ZERO-row directory read no longer replaces a known-good map: the view returns [] both for an empty roster and for an is_team_member() miss, so accepting it would blank the map and re-arm the guarded call -- the same reasoning that keeps the map through sign-out. A non-empty result still replaces wholesale, so a removed teammate does stop being named. Third, the drawer resolves dPhone before the Call block, so a blank quote phone with a good Customers number now offers Call as well as Text. Plus v0.83 — closes five gaps found in review of v0.82. The v0.82 guard checked the number a dialog was OPENED with, but #cTo and #sTo are editable, so placeCall() and the #sSend handler now re-check the field contents at the actual send boundary. Quote cards no longer pre-strip a staff number to '' before openCaller/openTexter -- that left a blank recipient and destroyed the named refusal -- they pass the raw number and let the guard explain whose it is. Call and Text visibility now agree: both appear whenever a number exists and both refuse by name, because a staff number in a quote row is bad data that should be surfaced, not hidden. Drawer Quote Text passes its already-resolved dPhone instead of re-reading the quote row and discarding a legitimate Customers fallback, and drawer Call does the same. The cached directory is adopted only once the Supabase and Google emails are both known and equal, with a pending hand-off from onSignedIn() to close the startup race; an already-cached map stays in force meanwhile so the guard is never disarmed. Plus v0.82 — the staff-handset map is now a customer-contact safety guard, not only a Texts label. Review of v0.81 was right: naming Ernesto's thread fixed the caption but left the cause, a Customers row for Judy Mickens carrying his handset. Renewals took the Customers phone first, quote cards trusted column D, and the drawer took quote-phone-or-Customers-phone, none checking the roster, so a renewal addressed to Judy could dial or text Ernesto. customerPhone() now gates every customer destination and returns '' meaning KEEP LOOKING, so a customer with a bad directory row is still reached on the real number from a quote row rather than losing their buttons. openCaller/openTexter refuse as a last line of defence when a customer name is present, naming the teammate so the bad row can be found; the free-dial pad passes no name and still works. The cached map is bound to the Google account that fetched it, and is deliberately NOT cleared on Supabase sign-out -- an empty map re-arms the exact call this guard prevents. Plus v0.81 — teammates are named in the Texts tab. The call-notification system texts a staff handset before transferring a caller, so those threads were sitting in the list as bare phone numbers — and worse, one of them (Ernesto's 818 571-7045) was being labelled with a client name a stale Customers row happened to carry. A new team-gated Supabase view, public.team_phone_directory, projects ONLY display_name + a 10-digit key out of voice_staff (which stays deny-all to the browser: RLS on, zero policies), so the dashboard can name a handset without ever seeing an email, a voice flag or a raw E.164 string. Threads on a staff handset now show the teammate's name, a violet “Team” badge and a violet left rail in the list and in the thread header; any customer-directory match on a staff number is discarded as the mis-match it is, which also keeps contact preferences and email threading — both customer-scoped — from firing on a teammate. The map is cached like state.roles, so labels are correct on first paint and a failed read keeps the last good map rather than silently reverting everyone to digits; with no Supabase session at all the tab behaves exactly as v0.80 did. The thread's ✎ Name button hides on team threads, since a roster name always wins and the button would otherwise be a no-op. Plus v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -333,6 +333,13 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 .b-green{background:var(--green-bg); color:var(--green)}
 .b-blue{background:var(--blue-bg); color:var(--blue)}
 .b-gray{background:#EFEEEA; color:var(--ink2)}
+/* v0.81 — staff handsets in the Texts tab. The roster notification texts
+   ("incoming call, transferring to you now") go to teammates, not clients,
+   so those threads get the person's name, a violet Team badge and a violet
+   left rail — distinguishable at a glance from a customer conversation. */
+.b-team{background:#F0EDFA; color:#5B45A8}
+.row.team-th{box-shadow:inset 3px 0 0 #7C63C8}
+.row.team-th .r-nm{color:#4A3792}
 .empty{padding:48px 20px; text-align:center; color:var(--muted); font-size:14px}
 
 /* skeleton loading */
@@ -945,6 +952,7 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
     <div class="m-head">
       <span id="tName">Conversation</span>
       <span class="badge b-gray" id="tPhone"></span>
+      <span class="badge b-team" id="tTeam" style="display:none" title="ACE team member — not a client">👤 Team</span>
       <button class="ghost" id="tNameBtn" style="display:none;padding:3px 10px;min-height:26px;font-size:12px;margin-left:2px" title="Name this client">✎ Name</button>
       <button class="ghost" id="tDoneBtn" style="padding:3px 10px;min-height:26px;font-size:12px;margin-left:auto" title="Mark this conversation handled">✓ Done</button>
       <button class="icon-btn" id="tClose" aria-label="Close">✕</button>
@@ -1017,7 +1025,7 @@ const CONFIG = {
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
   VOICE_URL: 'https://script.google.com/macros/s/AKfycbwoG_qWFwuJBUguIwSrG0TkZELKtYrw5NKfwQ3SgnGqNECFBlGxVBP8MSztxTCe8PqnwQ/exec',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '0.80'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.85'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1058,6 +1066,7 @@ const state = {
   trackerStatus:'',
   smsMode:null, smsHour:9, smsOut:[], smsIn:[], textsFilter:'open', emailLog:[],
   prefs:{}, threadDone:{}, renStatus:{}, replyGroups:[], roles:{}, role:'back', viewAs:null,
+  teamPhones:{}, teamPhonesFor:'',   // v0.81/0.82 — 10-digit handset -> teammate name (team-gated Supabase view), bound to the Google account it was fetched under
   renBucket:'d30',
   prios:{ items:[], generated:'', source:'', loading:false },
   handoff:{ rows:null, loading:false, sel:0, err:'' },   // v0.72 — Handoff Feed rows (lazy; null = never fetched)
@@ -1182,11 +1191,12 @@ function saveCache(){
       archive: state.archive.map(r => r.cells),
       qarchive: state.qarchive.map(r => r.cells),
       customers: state.customers,
-      prefs: state.prefs, threadDone: state.threadDone, renStatus: state.renStatus, replyGroups: state.replyGroups, roles: state.roles, emailRefCounts: state.emailRefCounts,
+      prefs: state.prefs, threadDone: state.threadDone, renStatus: state.renStatus, replyGroups: state.replyGroups, roles: state.roles, teamPhones: state.teamPhones, teamPhonesFor: state.teamPhonesFor, emailRefCounts: state.emailRefCounts,
       data: Object.fromEntries(TABS.map(t => [t.id, (state.data[t.id]||[]).map(r => r.cells)]))
     }));
   } catch(e){}
 }
+window.saveCache = saveCache;   // v0.81 — the TeamChat module persists state.teamPhones through the normal cache
 function hydrateCache(){
   try {
     const p = JSON.parse(localStorage.getItem('acefire_cache_v1') || 'null');
@@ -1214,6 +1224,16 @@ function hydrateCache(){
     });
     state.replyGroups = p.replyGroups || [];
     state.roles = p.roles || {};
+    /* v0.82 — the cached map is bound to the Google account it was fetched
+       under. A different signed-in user gets an empty map and refetches,
+       rather than inheriting the previous account's directory.
+       NOT cleared on Supabase sign-out: as of v0.82 this map is a contact
+       safety guard, so an empty map re-enables the Judy -> Ernesto call it
+       exists to prevent. Losing the chat session must not quietly re-arm a
+       known-dangerous path; it refreshes on the next sign-in. */
+    state.teamPhonesFor = String(p.teamPhonesFor || '').trim().toLowerCase();
+    state.teamPhones = (state.teamPhonesFor && state.teamPhonesFor === String(state.email || '').trim().toLowerCase())
+      ? (p.teamPhones || {}) : {};
     state.lastLoad = p.ts || 0;
     return true;
   } catch(e){ return false; }
@@ -1282,7 +1302,16 @@ async function onSignedIn(){
   em.textContent = state.email.split('@')[0];
   em.title = state.email;
   buildTabBar();
-  if (hydrateCache()){
+  const hadCache = hydrateCache();
+  /* v0.84 — adopt the pending staff directory AFTER hydrateCache(), never
+     before. adoptTeamPhones_() calls saveCache(), and until hydrateCache()
+     runs state.lastLoad is 0 and state.data is empty, so an early adopt wrote
+     a ts:0 cache over the good one -- which hydrateCache() then deleted as
+     stale. The v0.83 ordering therefore destroyed the instant-paint cache in
+     exactly the Supabase-first race it was added to fix. Safety was never
+     affected (the adopted map lives in memory), but the reload cost was real. */
+  try { if (typeof window.__teamPhonesBind === 'function') window.__teamPhonesBind(); } catch(e){}
+  if (hadCache){
     computeRole();
     /* v0.47 — the cached roster shapes the UI instantly but does NOT resolve
        authorization: someone demoted to Field since their last visit must not
@@ -2278,6 +2307,10 @@ function renderList(){
     b.querySelectorAll('[data-act="qcall"]').forEach(ch => {
       ch.addEventListener('click', e => {
         e.stopPropagation();
+        /* v0.83 — pass the RAW number. v0.82 stripped it to '' first, so the
+           modal opened with a blank destination and openCaller could no longer
+           say whose number it was. A quote row is a single candidate with no
+           fallback to search, so the useful outcome is the named refusal. */
         openCaller({ phone:(r.cells[3]||'').trim(), name:r.cells[1], srcKey:r.key, _quoteRow:r });
       });
       ch.addEventListener('keydown', e => e.stopPropagation());
@@ -2318,6 +2351,12 @@ function rowMeta(tab, r){
     parts.push(fuTag(r, 10, '✉'), fuTag(r, 11, '💬'), fuTag(r, 12, '📞'));
     if (canContact() && !prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qdraft" title="Draft & send a follow-up email">✉ Draft</button>');
     if (canContact() && (r.cells[3]||'').trim() && !prefNoText(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qtext" title="Draft & send a follow-up text">💬 Text</button>');
+    /* v0.83 — visibility gated on a number EXISTING, not on it being safe.
+       v0.82 hid Call when the quote carried a staff number, which quietly hid
+       the bad data too; Text was still shown, so the two disagreed. Both now
+       appear and both refuse by name, which is what gets the Customers row
+       actually fixed. Do-not-contact prefs still hide buttons -- that is a
+       stated preference, not a data error. */
     if (voiceOn() && (r.cells[3]||'').trim() && !prefNoContact(r.cells[1])) parts.push('<button type="button" class="fu draft" data-act="qcall" title="Call from the ACE line \u2014 your phone rings first">📞 Call</button>');
     if (r.cells[15]) parts.push(`<span class="badge b-blue">${esc(r.cells[15])}${r.cells[14] ? ' · ' + esc(r.cells[14]) : ''}</span>`);
     return parts.filter(Boolean).join('');
@@ -2672,24 +2711,31 @@ function renderDrawer(){
   const email = tab.id === 'quotes' ? (r.cells[2]||'').trim() : '';
   const phone = tab.id === 'quotes' ? (r.cells[3]||'').trim() : '';
   const link  = tab.id === 'quotes' ? (r.cells[5]||'').trim() : '';
-  if (phone){
+  /* v0.84 — dPhone is resolved BEFORE the Call block so Call and Text agree on
+     what a reachable customer number is. Previously Call was gated on the raw
+     quote phone alone, so a blank column D with a good Customers number showed
+     Text but no Call. */
+  const dPhone = customerPhone(phone) || customerPhone((state.customers[normName(r.cells[1])] || {}).phone) || '';
+  if (dPhone || phone){
     /* v0.75 — never fall back to tel:. A tel: link dials from the personal
        handset and shows the client that personal number, which is the exact
        thing this feature exists to stop. With voice off, the number is text. */
     if (voiceOn()) acts.insertAdjacentHTML('beforeend', `<button type="button" class="act-btn" data-act="drawcall">📞 Call</button>`);
     const dq = state.drawerUid && rowByUid(state.drawerUid);
     const cb = acts.querySelector('[data-act="drawcall"]');
+    /* Call uses the same resolved number Text does; falls back to the raw
+       number so a staff handset still produces the named refusal rather than
+       an empty modal. */
     if (cb) cb.addEventListener('click', () => openCaller({
-      phone, name: dq ? dq.cells[1] : '', srcKey: dq ? dq.key : '',
+      phone: dPhone || phone, name: dq ? dq.cells[1] : '', srcKey: dq ? dq.key : '',
       _quoteRow: (dq && dq.uid.indexOf('quotes:') === 0) ? dq : null }));
   }
-  const dPhone = phone || (state.customers[normName(r.cells[1])] || {}).phone || '';
   if (canContact() && dPhone && !prefNoText(r.cells[1])){
     const tb = document.createElement('button');
     tb.className = 'act-btn';
     tb.textContent = '💬 Text';
     tb.addEventListener('click', () => {
-      if (tab.id === 'quotes') draftQuoteText(r);
+      if (tab.id === 'quotes') draftQuoteText(r, dPhone);   // v0.83 — keep the resolved fallback instead of re-reading the quote row
       else openTexter({ phone:dPhone, name:r.cells[1], srcKey:r.key },
         `Hi ${String(r.cells[1]||'').split(',')[0].trim() || 'there'}, this is ACE Fire LA regarding job #${r.key}${r.cells[2] ? ' — ' + r.cells[2] : ''}. Call or text us at ${CONFIG.COMPANY_PHONE} with any questions.`, 'job');
     });
@@ -3404,13 +3450,17 @@ function computeRenewals(){
     // contact info: Customers directory first, then newest live quote, then archived quotes
     let email = '', phone = '';
     const hit = state.customers[nm];
-    if (hit){ email = hit.email || ''; phone = hit.phone || ''; }
+    /* v0.82 — customerPhone() drops a staff handset here, which leaves phone
+       blank and lets the quote scan below find the customer's real number.
+       Blanking without the fallthrough would silently strip contact buttons
+       from a reachable customer. */
+    if (hit){ email = hit.email || ''; phone = customerPhone(hit.phone); }
     const contactScan = rows => {
       for (let i = rows.length - 1; i >= 0; i--){
         const q = rows[i];
         if (normName(q.cells[1]) !== nm) continue;
         if (!email && (q.cells[2]||'').includes('@')) email = q.cells[2].trim();
-        if (!phone && (q.cells[3]||'').trim()) phone = q.cells[3].trim();
+        if (!phone && customerPhone(q.cells[3])) phone = customerPhone(q.cells[3]);
         if (email && phone) break;
       }
     };
@@ -3901,7 +3951,14 @@ function callableDigits(v){
 }
 
 function openCaller(x){
-  callCtx = x || {};
+  x = x || {};
+  /* v0.82 last line of defence. Every customer-addressed call site passes a
+     name; the free-dial pad (#btnDial) passes nothing, so calling a teammate
+     on purpose still works. If a name IS present and the number belongs to
+     staff, the directory row is wrong -- refuse and say whose number it is. */
+  const sn = x.name ? staffNameForPhone(x.phone) : '';
+  if (sn){ blockedStaffContact(sn, x.name, 'call'); return; }
+  callCtx = x;
   $('#cTo').value = callCtx.phone ? fmtUsPhone(callCtx.phone) : '';
   $('#cWho').textContent = callCtx.name ? String(callCtx.name).split(',')[0].trim() : 'a number';
   $('#cNote').textContent = 'Your phone rings first from ' + VOICE_CALLER_ID +
@@ -3945,6 +4002,13 @@ buildKeypad();
 async function placeCall(isRetry){
   const d = callableDigits($('#cTo').value);
   if (!d) return;
+  /* v0.83 — THE last line of defence. v0.82 checked the number openCaller was
+     opened WITH; #cTo is editable, so the number actually dialled could be
+     anything by the time this runs. Re-check what is in the field, not what
+     was passed in. Gated on callCtx.name so the free-dial pad -- which has no
+     customer context -- can still reach a teammate on purpose. */
+  const sn0 = (callCtx && callCtx.name) ? staffNameForPhone(d) : '';
+  if (sn0){ blockedStaffContact(sn0, callCtx.name, 'call'); return; }
   const btn = $('#cGo'), st = $('#cStat');
   clearCallAgain();
   btn.disabled = true;
@@ -4071,7 +4135,17 @@ function smsSegInfo(){
   const seg = t.length <= per ? (t.length ? 1 : 0) : Math.ceil(t.length / perC);
   $('#sCount').textContent = t.length + ' chars \u00b7 ' + seg + ' segment' + (seg === 1 ? '' : 's') + (ucs ? ' (unicode)' : '');
 }
+/* Shared refusal. Names the teammate so the wrong Customers row can actually
+   be found and fixed, rather than leaving a button that silently does nothing. */
+function blockedStaffContact(staffName, customerName, verb){
+  toast('That number belongs to ' + staffName + ', not ' +
+        (String(customerName || '').split(',')[0].trim() || 'this customer') +
+        ' \u2014 fix the Customers row before you ' + verb + '.', 'err');
+}
 function openTexter(x, body, type){
+  x = x || {};
+  const sn = x.name ? staffNameForPhone(x.phone) : '';
+  if (sn){ blockedStaffContact(sn, x.name, 'text'); return; }
   smsCtx = x;
   smsType = type || 'quote';
   $('#sTo').value = x.phone || '';
@@ -4117,6 +4191,12 @@ $('#sCopy').addEventListener('click', async () => {
 $('#sSend').addEventListener('click', async () => {
   const to = $('#sTo').value.trim(), body = $('#sBody').value.trim(), person = autoSenderName();
   const btn = $('#sSend');
+  /* v0.83 — same reasoning as placeCall: #sTo is editable and this handler is
+     the point of no return (queueSmsRow appends straight to SMS Outbox).
+     The Texts-tab reply path does NOT come through here, and team threads
+     carry an empty name anyway, so replying to a teammate still works. */
+  const sn0 = (smsCtx && smsCtx.name) ? staffNameForPhone(to) : '';
+  if (sn0){ blockedStaffContact(sn0, smsCtx.name, 'text'); return; }
   btn.disabled = true;
   btn.textContent = 'Queuing\u2026';
   try {
@@ -4386,8 +4466,14 @@ $('#sUndoLink').addEventListener('click', () => {
   syncSmsBtn();
 });
 
-function draftQuoteText(r){
-  openTexter({ phone:(r.cells[3]||'').trim(), name:r.cells[1], srcKey:r.key, _quoteRow:r }, smsQuoteTemplate(r), 'quote');
+/* v0.83 — phoneOverride lets the drawer hand in the number it already
+   resolved (quote phone, else the Customers phone) instead of this function
+   going back to the quote row and throwing that fallback away. Falls back to
+   the raw quote phone so a bad number still produces the named refusal
+   rather than a blank recipient. */
+function draftQuoteText(r, phoneOverride){
+  const p = String(phoneOverride || (r.cells[3] || '')).trim();
+  openTexter({ phone:p, name:r.cells[1], srcKey:r.key, _quoteRow:r }, smsQuoteTemplate(r), 'quote');
 }
 
 /* ---- Texts tab: conversations threaded from SMS Outbox + SMS Inbox ---- */
@@ -4420,6 +4506,32 @@ function phoneNameMap(){
   (state.qarchive || []).forEach(r => add(r.cells[3], r.cells[1]));
   return map;
 }
+/* v0.81 — is this 10-digit key a teammate's handset? Returns their display
+   name, or '' for a client. Reads the cached map, so it is safe to call on
+   every render and works before (and without) a Supabase session. */
+function teamNameOf(key){
+  return (state.teamPhones || {})[key] || '';
+}
+/* v0.82 — a staff handset must never be used as a CUSTOMER destination.
+   v0.81 stopped a teammate's thread from wearing a client's name in the Texts
+   tab, but the underlying Customers row is still wrong: Judy Mickens' record
+   carries Ernesto's handset. Every outbound path that reads a customer phone
+   -- renewals, quote cards, the drawer -- would happily address a message to
+   Judy and send it to Ernesto. These two helpers are the single place that
+   decides whether a number is a legitimate customer destination. */
+function staffNameForPhone(raw){
+  const k = phoneKey(raw);
+  return k.length === 10 ? teamNameOf(k) : '';
+}
+/* Returns the number if it is safe to contact as a customer, '' otherwise.
+   Callers treat '' as "keep looking" -- NOT as "no phone exists" -- so a
+   customer with a bad directory row still gets reached on their real number
+   from a quote row. */
+function customerPhone(raw){
+  const v = String(raw == null ? '' : raw).trim();
+  if (!v) return '';
+  return staffNameForPhone(v) ? '' : v;
+}
 function computeThreads(){
   const th = {};
   const touch = k => th[k] || (th[k] = { key:k, name:'', msgs:[], unread:0 });
@@ -4450,7 +4562,15 @@ function computeThreads(){
     t.msgs.sort((a, b) => a.ts - b.ts);
     t.last = t.msgs[t.msgs.length - 1];
     t.phone = fmtPhone(t.key);
-    if (!t.name) t.name = pn[t.key] || '';
+    t.team = teamNameOf(t.key);
+    /* A staff handset is not a customer, so ANY customer-directory match on it
+       is a mis-match — 8185717045 (Ernesto) was rendering as a client name
+       picked up from a stale directory row. Clearing t.name also keeps the
+       number out of prefNoText() and emailsForCustomer(), which are
+       customer-scoped lookups that should never fire on a teammate. */
+    if (t.team) t.name = '';
+    else if (!t.name) t.name = pn[t.key] || '';
+    t.label = t.team || t.name || t.phone;
     const ds = state.threadDone[t.key];
     t.done = !!(ds && ds.done && t.last && t.last.ts <= ds.ts);   // any newer message reopens the thread automatically
     return t;
@@ -4466,7 +4586,7 @@ function renderTexts(){
   else if (tf === 'done') items = items.filter(t => t.done);
   const q = srchQ(state.search);
   if (q) items = items.filter(t =>
-    srchHit(t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' '), q));
+    srchHit(t.label + ' ' + t.name + ' ' + t.phone + ' ' + t.msgs.map(m => m.body).join(' '), q));
   const rq = renderReminderQueue();
   if (rq) main.appendChild(rq);
   const list = document.createElement('div');
@@ -4479,21 +4599,22 @@ function renderTexts(){
   }
   items.forEach(t => {
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'row' + (t.team ? ' team-th' : '');
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
-    row.setAttribute('aria-label', `Conversation with ${t.name || t.phone}${t.unread ? ', ' + t.unread + ' unread' : ''}`);
+    row.setAttribute('aria-label', `${t.team ? 'Team messages with ' : 'Conversation with '}${t.label}${t.unread ? ', ' + t.unread + ' unread' : ''}`);
     const lastTxt = t.last ? (t.last.dir === 'in' ? '\u21a9 ' : '\u2192 ') + t.last.body : '';
     row.innerHTML = `
       <div class="r-main">
         <div class="r-top">
-          <span class="r-nm">${esc(t.name || t.phone)}</span>
+          <span class="r-nm">${esc(t.label)}</span>
+          ${t.team ? '<span class="badge b-team" title="ACE team member \u2014 not a client">\uD83D\uDC64 Team</span>' : ''}
           ${t.unread ? `<span class="badge b-red">${t.unread} new</span>` : ''}
           <span class="r-side"><span class="badge b-gray">${esc(t.last ? shortWhen(t.last.ts, t.last.time) : '')}</span></span>
         </div>
         <div class="r-ttl"${t.unread ? ' style="font-weight:600"' : ''}>${esc(lastTxt.slice(0, 120))}</div>
         <div class="r-meta">
-          ${t.name ? `<span class="badge b-gray">${esc(t.phone)}</span>` : ''}
+          ${t.label !== t.phone ? `<span class="badge b-gray">${esc(t.phone)}</span>` : ''}
           <span class="badge b-gray">${t.msgs.length} message${t.msgs.length === 1 ? '' : 's'}</span>
           ${t.done ? '<span class="badge b-green">Done</span>' : ''}
           <button type="button" class="fu ${t.done ? '' : 'draft'}" data-act="tdone">${t.done ? '↺ Reopen' : '✓ Done'}</button>
@@ -4697,9 +4818,13 @@ function renderThread(){
   $('#tSend').disabled = !can;
   $('#tReply').placeholder = blocked ? 'Contact preference: no texts for this customer'
     : can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
-  $('#tName').textContent = t.name || t.phone;
-  $('#tPhone').textContent = t.name ? t.phone : '';
-  $('#tNameBtn').style.display = t.name ? 'none' : '';
+  $('#tName').textContent = t.label;
+  $('#tPhone').textContent = t.label !== t.phone ? t.phone : '';
+  /* v0.81 — the Name button writes a CLIENT name onto the thread's sheet rows.
+     A teammate's name comes from the roster and always wins, so leaving the
+     button live here would be a control that visibly does nothing. */
+  $('#tNameBtn').style.display = (t.name || t.team) ? 'none' : '';
+  $('#tTeam').style.display = t.team ? '' : 'none';
   const tdb = $('#tDoneBtn');
   tdb.style.display = (threadKey && threadKey.length === 10) ? '' : 'none';
   tdb.textContent = t.done ? '↺ Reopen' : '✓ Done';
@@ -5252,6 +5377,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     if (TC.session){ afterSignIn(); } else { TC.me = null; renderSection(); }
   }
   function afterSignIn(){
+    loadTeamPhones();   // v0.81 — independent of the chat roster path; the Texts tab uses it whether or not this user has chat access
     loadRoster().then(function(){
       var email = String((TC.session.user || {}).email || '').toLowerCase();
       TC.me = null;
@@ -5281,6 +5407,80 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
   }
 
   /* ---------- data ---------- */
+  /* v0.81 — staff handsets for the Texts tab. voice_staff itself stays
+     deny-all to the browser (RLS on, no policies); public.team_phone_directory
+     is a name-only projection gated by is_team_member(), so a non-roster
+     session simply gets zero rows. A successful NON-EMPTY read replaces the
+     map wholesale, so a removed teammate stops being named. A read that comes
+     back empty does NOT (see adoptTeamPhones_): the view returns [] both for
+     an empty roster and for an is_team_member() miss, and this map is a
+     contact safety guard, so the two are not safe to treat alike. A failed
+     read leaves the cached map alone, exactly as a failed Roles read leaves
+     state.roles alone. */
+  /* v0.83 — the map is authorised by the SUPABASE identity but bound to the
+     GOOGLE one, so those two must be shown to be the same person before the
+     stamp means anything. They can also resolve in either order: TeamChat
+     calls initSession() at load while Google Identity is still async, so a
+     persisted Supabase session can deliver the directory before state.email
+     exists. Holding it as pending and re-adopting from onSignedIn() closes
+     that race, and any already-cached map (bound to a matching Google email)
+     stays in force meanwhile, so the contact guard is never disarmed. */
+  var pendingTeamPhones = null;
+  function adoptTeamPhones_(map){
+    if (map) pendingTeamPhones = map;
+    if (!pendingTeamPhones || !window.state) return false;
+    /* v0.85 — the empty-directory rule lives HERE, at the moment of
+       replacement, not where the response arrives. v0.84 checked it in
+       loadTeamPhones(), which is wrong in the Supabase-first race: at response
+       time state.teamPhones is still {} because hydrateCache() has not run, so
+       a zero-row read saw nothing to protect, was parked as pending ({} is
+       truthy), and then replaced the good cached map that hydration restored
+       moments later -- re-arming the Judy -> Ernesto call in exactly the
+       ordering this pending mechanism exists to handle.
+       Checked here, the rule holds whichever of cache, Google identity and
+       Supabase identity finishes first: an empty directory can never replace a
+       non-empty known-good one. A non-empty result still replaces wholesale,
+       so a teammate removed from the roster does stop being named. */
+    var have = Object.keys(window.state.teamPhones || {}).length;
+    if (!Object.keys(pendingTeamPhones).length && have){
+      console.warn('TeamChat: empty staff directory would replace ' + have +
+                   ' known handsets; keeping the last known safety map');
+      pendingTeamPhones = null;   // discard it so it cannot ambush a later bind
+      return false;
+    }
+    var g = String(window.state.email || '').trim().toLowerCase();
+    var sup = (TC.session && TC.session.user) ? String(TC.session.user.email || '').trim().toLowerCase() : '';
+    if (!g || !sup || g !== sup) return false;   // not proven same person yet -- keep waiting, keep the cached map
+    window.state.teamPhones = pendingTeamPhones;
+    window.state.teamPhonesFor = g;
+    pendingTeamPhones = null;
+    /* Only persist once a real load has happened. saveCache() stamps
+       ts: state.lastLoad, and a ts of 0 is what hydrateCache() treats as a
+       stale cache and deletes -- so writing here before any load would poison
+       the entry rather than update it. loadAll() saves shortly after. */
+    if (window.state.lastLoad && typeof window.saveCache === 'function') window.saveCache();
+    if (typeof window.renderAll === 'function') window.renderAll();
+    return true;
+  }
+  window.__teamPhonesBind = function(){ return adoptTeamPhones_(null); };
+  function loadTeamPhones(){
+    return sb.from('team_phone_directory').select('display_name,phone_key')
+      .then(function(res){
+        if (res.error) throw res.error;
+        var map = {};
+        (res.data || []).forEach(function(r){
+          var k = String(r.phone_key || '').replace(/\D/g, '').slice(-10);
+          var nm = String(r.display_name || '').trim();
+          if (k.length === 10 && nm) map[k] = nm;
+        });
+        /* Build and hand off. adoptTeamPhones_ owns identity matching, the
+           empty-directory rule, the save and the repaint, because it also runs
+           later from onSignedIn() when Google identity arrives second -- so
+           every rule has to be enforced there to hold in both orderings. */
+        adoptTeamPhones_(map);
+      })
+      .catch(function(e){ console.warn('TeamChat team phones', e); });
+  }
   function loadRoster(){
     return sb.from('team_members').select('email,display_name,role').eq('active', true).order('display_name')
       .then(function(res){ if (res.error) throw res.error; TC.roster = (res.data || []).map(function(m){ m.email = String(m.email || '').toLowerCase(); m.role = m.role || 'back_office'; return m; }); TC.rosterErr = false; })
