@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v0.94 — two review fixes on v0.93 before its first deploy (v0.93 never shipped). The missed-call template is now pure GSM-7: the v0.93 wording carried an em dash and curly apostrophes, which force UCS-2 encoding and drop the per-segment limit from 160 to 70/67 characters — the ~167-character apology billed as THREE segments; the reworded ASCII version says the same thing in ~132 characters and ONE segment (smsSegInfo in the composer confirms it live). And the two compose action chips now render BEFORE the Open/Unread/Done/All filter chips: the filter bar scrolls horizontally on phones, so appending the actions last could park \u260E Missed call off-screen at 360-412px — the exact discoverability problem the blue styling was added to solve. Plus v0.93 — the compose chips look like actions, and missed calls get a one-tap template. The \uFF0B New text chip was styled as just another filter chip and got missed in the field; compose chips now carry .fchip.act — solid --blue with white text, the same action color as Send — so they read as buttons, not filters. A second chip, \u260E Missed call, opens the same guarded free composer pre-filled with the missed-call apology template (sorry-we-missed-you wording pointing at CONFIG.COMPANY_PHONE, the 818 clients actually dialed — the caller-ID mismatch this whole feature exists to soften), queued as type 'missed-call' so reports can tell apologies from ordinary manual sends. openManualText(body, type) is generalized under the hood; the chip click handlers wrap it in arrow functions so a click event can never be mistaken for a template body. Everything else — the fail-closed staff-directory gate, literal-text queueing, identity stamp — is unchanged from v0.92 and applies to both chips. Plus v0.92 — review fixes on v0.91 before its first deploy (v0.91 never shipped). The manual staff-number guard now FAILS CLOSED: staffNameForPhone() reads state.teamPhones, which is {} until a Supabase-bound directory read or an identity-bound cache hydration, so on a device that never did the Team Chat opt-in a manual send to a teammate's handset would have sailed through the v0.91 check. teamPhonesReady() — non-empty map AND teamPhonesFor equal to the signed-in Google email — now gates manual sends at the send boundary; until the roster is proven loaded and bound to this identity, free compose refuses with instructions rather than guessing. Reply/quote/renewal paths keep their v0.83 behavior; the umbrella fix remains server-side rejection in the SMS Outbox consumer, tracked as the next Apps Script work. Second, outbound queueing gets the same literal-text protection the inbound poller got: SMS Outbox is operational data read by the Twilio automation, and valueInputOption=USER_ENTERED lets Sheets parse a body of '=1+1' as a formula or coerce a '+1...' destination to a number — sheetText_() apostrophe-guards to, name and body (guarding '=', '+', '-', '@', with the empty-string charAt/indexOf lesson from InboundSms.gs baked in), while the timestamp column keeps USER_ENTERED parsing that downstream consumers were built against. Third, markThreadRead() is no longer fire-and-forget: a failed batchUpdate rolls the local read flags back to unread and says so, instead of showing messages as read that the sheet still has unread. Plus v0.91 — the Texts tab gets free compose and threads open at the newest message. openThread() rendered (and scrolled) #tBody while #threadWrap was still display:none, so the scroll was a no-op and every thread opened at the OLDEST bubble — after a send, with the modal already visible, the very same line worked, which is why sending looked fine while opening did not; the scroll now runs a frame after the wrap turns visible, landing on the first unread bubble when one exists (inbound bubbles carry an .unread class for exactly this) and the newest message otherwise. A ＋ New text chip on the Texts filter bar opens the existing full composer with an empty, editable To — the plumbing was already there for quote/renewal flows; what is new is the entry point and the guard: smsCtx.manual makes the staff-handset check apply at the send boundary even with NO customer name attached, because the v0.83 teammate exemption is for reply threads and must not leak into free compose — a manual send to a staff number is refused by name with its own wording, since 'fix the Customers row' is advice for a different mistake. Manual sends queue with type 'manual' through the same SMS Outbox append and identity stamp. The Texts empty-state now mentions the button and says client replies arrive within about a minute (the InboundSms.gs poller), not five. Plus v0.90 — the deep link survives sign-in, and the sign-in gate says what it is doing. The Google Sheets access token is memory-only BY DESIGN and stays that way: it carries the spreadsheets scope (every sheet the user can reach) and gmail.send, so it must never sit in storage -- a v0.89 build that persisted it was rejected in review and never deployed; the lasting fix is a Sheets relay behind the Supabase JWT, which is the next piece of work. What changes here: the gate shows "Reconnecting as <email>" while the silent attempt runs and a plain explanation when it fails, and the Sign in button passes the account hint it was omitting. silentToken() is single-flight with per-attempt bookkeeping, so an overlapping api() 401 retry shares the one attempt and a stale 8 s timeout can only clear itself (before, an overlap could strand the api() caller forever); a click during a pending attempt supersedes it so a blocked popup produces a visible error instead of nothing; a click before GIS has loaded says so instead of throwing; a token that arrives while the app is already showing is kept without re-running onSignedIn(). The deep-link poller no longer dies 120 s after parse: it runs until the link resolves (30 min hard cap), the gate shows "After you sign in, this link will open (213) 820-6568", and the link is not burnt by a mid-session re-gate. Team Chat and Properties share ONE Supabase client (window.__sb). ?debug=1 (or localStorage acefire_debug=1) logs breadcrumbs at silentToken, the api() 401 branch, Supabase session transitions, every tryDeepLink early return and poller teardown -- values only, never a token. The in-drawer Team Chat sign-in is a once-per-device opt-in for chat, not a second gate; its wording now says so. Plus v0.88 — the ?phone= deep link (the on-call SMS from Retell/n8n) now resolves only after loadAll() has finished, never against the localStorage snapshot or the half-populated state that exists between the first batchGet and the Roles read: state.freshLoads / state.loadErrors are session-only counters loadAllRun() bumps on success / failure, and tryDeepLink() waits on them. The Texts-thread fallback for an SMS-only number is gated by the same visibleTabs() predicate that hides the Texts tab, and additionally by state.rolesResolved, so a Field account (or an unresolved role) can never be shown a customer conversation through a link; it gets a plain no-record message instead. A staff handset supplied as the caller is never treated as a customer: the deep link gives the team-phone map a bounded 3 s grace to arrive on a first sign-in (TC.phonesSettled marks the directory read as finished, session or not), then names the teammate for Field users or opens their Team thread for the office. If the fresh load fails, cached rows are still searched, but the no-match message says the data did not load rather than pretending there is no record. Badge bumped past the unbadged v0.86/v0.87 deep-link work. Plus v0.85 — the empty-directory rule moves from loadTeamPhones() to adoptTeamPhones_(), which is where the replacement actually happens. v0.84 checked it at response time, and in the Supabase-first race that check runs before hydrateCache(), so state.teamPhones is still {} and a zero-row read sees nothing to protect; {} is truthy, so it parked as pendingTeamPhones and then overwrote the good cached map that hydration restored moments later -- re-arming the guarded call in precisely the ordering the pending mechanism was added to handle. Enforced at the adoption boundary, the rule holds whichever of cache, Google identity and Supabase identity lands first, and a zero-row result is now discarded outright so it cannot ambush a later bind. A non-empty read still replaces wholesale, so a removed teammate stops being named. Plus v0.84 — three fixes from review of v0.83. The pending staff directory is now adopted AFTER hydrateCache(), not before: adoptTeamPhones_() calls saveCache(), and before hydration state.lastLoad is 0, so the v0.83 ordering wrote a ts:0 cache over the good one and hydrateCache() then deleted it as stale -- destroying the instant-paint cache in the very race v0.83 added the bind to fix. adoptTeamPhones_() also now declines to persist until a real load has happened. Second, a successful ZERO-row directory read no longer replaces a known-good map: the view returns [] both for an empty roster and for an is_team_member() miss, so accepting it would blank the map and re-arm the guarded call -- the same reasoning that keeps the map through sign-out. A non-empty result still replaces wholesale, so a removed teammate does stop being named. Third, the drawer resolves dPhone before the Call block, so a blank quote phone with a good Customers number now offers Call as well as Text. Plus v0.83 — closes five gaps found in review of v0.82. The v0.82 guard checked the number a dialog was OPENED with, but #cTo and #sTo are editable, so placeCall() and the #sSend handler now re-check the field contents at the actual send boundary. Quote cards no longer pre-strip a staff number to '' before openCaller/openTexter -- that left a blank recipient and destroyed the named refusal -- they pass the raw number and let the guard explain whose it is. Call and Text visibility now agree: both appear whenever a number exists and both refuse by name, because a staff number in a quote row is bad data that should be surfaced, not hidden. Drawer Quote Text passes its already-resolved dPhone instead of re-reading the quote row and discarding a legitimate Customers fallback, and drawer Call does the same. The cached directory is adopted only once the Supabase and Google emails are both known and equal, with a pending hand-off from onSignedIn() to close the startup race; an already-cached map stays in force meanwhile so the guard is never disarmed. Plus v0.82 — the staff-handset map is now a customer-contact safety guard, not only a Texts label. Review of v0.81 was right: naming Ernesto's thread fixed the caption but left the cause, a Customers row for Judy Mickens carrying his handset. Renewals took the Customers phone first, quote cards trusted column D, and the drawer took quote-phone-or-Customers-phone, none checking the roster, so a renewal addressed to Judy could dial or text Ernesto. customerPhone() now gates every customer destination and returns '' meaning KEEP LOOKING, so a customer with a bad directory row is still reached on the real number from a quote row rather than losing their buttons. openCaller/openTexter refuse as a last line of defence when a customer name is present, naming the teammate so the bad row can be found; the free-dial pad passes no name and still works. The cached map is bound to the Google account that fetched it, and is deliberately NOT cleared on Supabase sign-out -- an empty map re-arms the exact call this guard prevents. Plus v0.81 — teammates are named in the Texts tab. The call-notification system texts a staff handset before transferring a caller, so those threads were sitting in the list as bare phone numbers — and worse, one of them (Ernesto's 818 571-7045) was being labelled with a client name a stale Customers row happened to carry. A new team-gated Supabase view, public.team_phone_directory, projects ONLY display_name + a 10-digit key out of voice_staff (which stays deny-all to the browser: RLS on, zero policies), so the dashboard can name a handset without ever seeing an email, a voice flag or a raw E.164 string. Threads on a staff handset now show the teammate's name, a violet “Team” badge and a violet left rail in the list and in the thread header; any customer-directory match on a staff number is discarded as the mis-match it is, which also keeps contact preferences and email threading — both customer-scoped — from firing on a teammate. The map is cached like state.roles, so labels are correct on first paint and a failed read keeps the last good map rather than silently reverting everyone to digits; with no Supabase session at all the tab behaves exactly as v0.80 did. The thread's ✎ Name button hides on team threads, since a roster name always wins and the button would otherwise be a no-op. Plus v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v0.99 — one review fix on v0.98 before its first deploy (v0.98 never shipped). A request id that is not found in the Outbox no longer counts as proof the text was not queued — a delayed write can land after the lookup. Uncertain outcomes now stay Status unknown: Check again only looks the id up, and the only way to resend is Send anyway (thread strip) or Send again (composer), each behind a confirm that the user has checked the SMS Outbox tab; found still resolves to sent. Only a definite rejection (4xx, nothing written) is Not sent with a plain Retry. Plus v0.98 — two review fixes on v0.97 before its first deploy (v0.97 never shipped). Uncertain sends are no longer guessed at: every dashboard text carries a request id in SMS Outbox column M (falls back to 12 columns if the grid is narrower), api() errors carry their HTTP status, and a failure with no response or a 5xx is resolved by looking the id up — found means it went through, absent means Not sent with a Retry that re-checks and reuses the id, and an impossible lookup means Not confirmed with Check again instead of Retry. Uncertain thread replies always stay in the strip, never back in the box. The composer applies the same rule (Send again on an unconfirmed text checks first), and on success closes only if it still shows exactly what was sent, so edits made while queueing stay open. Plus v0.97 — two review fixes on v0.96 before its first deploy (v0.96 never shipped). Send context is now passed explicitly: queueSmsRow / logSmsActivity take ctx + type from their caller instead of reading the smsCtx / smsType globals, the thread reply path never touches those globals, and the composer snapshots its context at click time — a reply finishing while a quote composer was open used to overwrite that composer's customer / ref / type and switch off its staff-number check. The composer also refuses a second identical send while one is queueing, and on success closes only the composer the send came from. A failed thread reply is never lost: it returns to the box or draft when empty, otherwise it is kept above the reply box with Retry / Edit / Discard. Plus v0.96 — four review fixes on v0.95 before its first deploy (v0.95 never shipped). Sending: one send in flight per conversation (stepping away and back re-enabled Send mid-request with the same text still in the box, so a second click queued the SMS twice) and the text now leaves the box on submit, so a finishing send can never wipe a newer reply; on failure it is put back only into an empty box or empty draft. The instant-paint cache is now bound to the Google account that wrote it and refused for any other or unknown account. Reminder Skip/Restore requires the purpose key to match when the row has one (the hourly refresh can reuse the row for another reminder to the same phone) and the status to still be PREVIEW/SKIPPED. Plus v0.95 — Texts: step between conversations without closing. An open conversation gets a Prev / Next strip (with "3 of 25") and the ← → keys walk the same list it was opened from, filter and search included; the list is snapshotted at open so reading a thread under Unread cannot make Prev skip. The arrows step only when they mean nothing else (no modifier, not in an input, reply box empty). Unsent reply text is now kept per conversation, so a half-typed message can never ride along to the next client; a send that finishes after a step clears only its own draft. The drawer ignores the arrows while a conversation sits on top of it, and the jump-to-first-unread scroll is measured against the message pane. Plus v0.94 — two review fixes on v0.93 before its first deploy (v0.93 never shipped). The missed-call template is now pure GSM-7: the v0.93 wording carried an em dash and curly apostrophes, which force UCS-2 encoding and drop the per-segment limit from 160 to 70/67 characters — the ~167-character apology billed as THREE segments; the reworded ASCII version says the same thing in ~132 characters and ONE segment (smsSegInfo in the composer confirms it live). And the two compose action chips now render BEFORE the Open/Unread/Done/All filter chips: the filter bar scrolls horizontally on phones, so appending the actions last could park \u260E Missed call off-screen at 360-412px — the exact discoverability problem the blue styling was added to solve. Plus v0.93 — the compose chips look like actions, and missed calls get a one-tap template. The \uFF0B New text chip was styled as just another filter chip and got missed in the field; compose chips now carry .fchip.act — solid --blue with white text, the same action color as Send — so they read as buttons, not filters. A second chip, \u260E Missed call, opens the same guarded free composer pre-filled with the missed-call apology template (sorry-we-missed-you wording pointing at CONFIG.COMPANY_PHONE, the 818 clients actually dialed — the caller-ID mismatch this whole feature exists to soften), queued as type 'missed-call' so reports can tell apologies from ordinary manual sends. openManualText(body, type) is generalized under the hood; the chip click handlers wrap it in arrow functions so a click event can never be mistaken for a template body. Everything else — the fail-closed staff-directory gate, literal-text queueing, identity stamp — is unchanged from v0.92 and applies to both chips. Plus v0.92 — review fixes on v0.91 before its first deploy (v0.91 never shipped). The manual staff-number guard now FAILS CLOSED: staffNameForPhone() reads state.teamPhones, which is {} until a Supabase-bound directory read or an identity-bound cache hydration, so on a device that never did the Team Chat opt-in a manual send to a teammate's handset would have sailed through the v0.91 check. teamPhonesReady() — non-empty map AND teamPhonesFor equal to the signed-in Google email — now gates manual sends at the send boundary; until the roster is proven loaded and bound to this identity, free compose refuses with instructions rather than guessing. Reply/quote/renewal paths keep their v0.83 behavior; the umbrella fix remains server-side rejection in the SMS Outbox consumer, tracked as the next Apps Script work. Second, outbound queueing gets the same literal-text protection the inbound poller got: SMS Outbox is operational data read by the Twilio automation, and valueInputOption=USER_ENTERED lets Sheets parse a body of '=1+1' as a formula or coerce a '+1...' destination to a number — sheetText_() apostrophe-guards to, name and body (guarding '=', '+', '-', '@', with the empty-string charAt/indexOf lesson from InboundSms.gs baked in), while the timestamp column keeps USER_ENTERED parsing that downstream consumers were built against. Third, markThreadRead() is no longer fire-and-forget: a failed batchUpdate rolls the local read flags back to unread and says so, instead of showing messages as read that the sheet still has unread. Plus v0.91 — the Texts tab gets free compose and threads open at the newest message. openThread() rendered (and scrolled) #tBody while #threadWrap was still display:none, so the scroll was a no-op and every thread opened at the OLDEST bubble — after a send, with the modal already visible, the very same line worked, which is why sending looked fine while opening did not; the scroll now runs a frame after the wrap turns visible, landing on the first unread bubble when one exists (inbound bubbles carry an .unread class for exactly this) and the newest message otherwise. A ＋ New text chip on the Texts filter bar opens the existing full composer with an empty, editable To — the plumbing was already there for quote/renewal flows; what is new is the entry point and the guard: smsCtx.manual makes the staff-handset check apply at the send boundary even with NO customer name attached, because the v0.83 teammate exemption is for reply threads and must not leak into free compose — a manual send to a staff number is refused by name with its own wording, since 'fix the Customers row' is advice for a different mistake. Manual sends queue with type 'manual' through the same SMS Outbox append and identity stamp. The Texts empty-state now mentions the button and says client replies arrive within about a minute (the InboundSms.gs poller), not five. Plus v0.90 — the deep link survives sign-in, and the sign-in gate says what it is doing. The Google Sheets access token is memory-only BY DESIGN and stays that way: it carries the spreadsheets scope (every sheet the user can reach) and gmail.send, so it must never sit in storage -- a v0.89 build that persisted it was rejected in review and never deployed; the lasting fix is a Sheets relay behind the Supabase JWT, which is the next piece of work. What changes here: the gate shows "Reconnecting as <email>" while the silent attempt runs and a plain explanation when it fails, and the Sign in button passes the account hint it was omitting. silentToken() is single-flight with per-attempt bookkeeping, so an overlapping api() 401 retry shares the one attempt and a stale 8 s timeout can only clear itself (before, an overlap could strand the api() caller forever); a click during a pending attempt supersedes it so a blocked popup produces a visible error instead of nothing; a click before GIS has loaded says so instead of throwing; a token that arrives while the app is already showing is kept without re-running onSignedIn(). The deep-link poller no longer dies 120 s after parse: it runs until the link resolves (30 min hard cap), the gate shows "After you sign in, this link will open (213) 820-6568", and the link is not burnt by a mid-session re-gate. Team Chat and Properties share ONE Supabase client (window.__sb). ?debug=1 (or localStorage acefire_debug=1) logs breadcrumbs at silentToken, the api() 401 branch, Supabase session transitions, every tryDeepLink early return and poller teardown -- values only, never a token. The in-drawer Team Chat sign-in is a once-per-device opt-in for chat, not a second gate; its wording now says so. Plus v0.88 — the ?phone= deep link (the on-call SMS from Retell/n8n) now resolves only after loadAll() has finished, never against the localStorage snapshot or the half-populated state that exists between the first batchGet and the Roles read: state.freshLoads / state.loadErrors are session-only counters loadAllRun() bumps on success / failure, and tryDeepLink() waits on them. The Texts-thread fallback for an SMS-only number is gated by the same visibleTabs() predicate that hides the Texts tab, and additionally by state.rolesResolved, so a Field account (or an unresolved role) can never be shown a customer conversation through a link; it gets a plain no-record message instead. A staff handset supplied as the caller is never treated as a customer: the deep link gives the team-phone map a bounded 3 s grace to arrive on a first sign-in (TC.phonesSettled marks the directory read as finished, session or not), then names the teammate for Field users or opens their Team thread for the office. If the fresh load fails, cached rows are still searched, but the no-match message says the data did not load rather than pretending there is no record. Badge bumped past the unbadged v0.86/v0.87 deep-link work. Plus v0.85 — the empty-directory rule moves from loadTeamPhones() to adoptTeamPhones_(), which is where the replacement actually happens. v0.84 checked it at response time, and in the Supabase-first race that check runs before hydrateCache(), so state.teamPhones is still {} and a zero-row read sees nothing to protect; {} is truthy, so it parked as pendingTeamPhones and then overwrote the good cached map that hydration restored moments later -- re-arming the guarded call in precisely the ordering the pending mechanism was added to handle. Enforced at the adoption boundary, the rule holds whichever of cache, Google identity and Supabase identity lands first, and a zero-row result is now discarded outright so it cannot ambush a later bind. A non-empty read still replaces wholesale, so a removed teammate stops being named. Plus v0.84 — three fixes from review of v0.83. The pending staff directory is now adopted AFTER hydrateCache(), not before: adoptTeamPhones_() calls saveCache(), and before hydration state.lastLoad is 0, so the v0.83 ordering wrote a ts:0 cache over the good one and hydrateCache() then deleted it as stale -- destroying the instant-paint cache in the very race v0.83 added the bind to fix. adoptTeamPhones_() also now declines to persist until a real load has happened. Second, a successful ZERO-row directory read no longer replaces a known-good map: the view returns [] both for an empty roster and for an is_team_member() miss, so accepting it would blank the map and re-arm the guarded call -- the same reasoning that keeps the map through sign-out. A non-empty result still replaces wholesale, so a removed teammate does stop being named. Third, the drawer resolves dPhone before the Call block, so a blank quote phone with a good Customers number now offers Call as well as Text. Plus v0.83 — closes five gaps found in review of v0.82. The v0.82 guard checked the number a dialog was OPENED with, but #cTo and #sTo are editable, so placeCall() and the #sSend handler now re-check the field contents at the actual send boundary. Quote cards no longer pre-strip a staff number to '' before openCaller/openTexter -- that left a blank recipient and destroyed the named refusal -- they pass the raw number and let the guard explain whose it is. Call and Text visibility now agree: both appear whenever a number exists and both refuse by name, because a staff number in a quote row is bad data that should be surfaced, not hidden. Drawer Quote Text passes its already-resolved dPhone instead of re-reading the quote row and discarding a legitimate Customers fallback, and drawer Call does the same. The cached directory is adopted only once the Supabase and Google emails are both known and equal, with a pending hand-off from onSignedIn() to close the startup race; an already-cached map stays in force meanwhile so the guard is never disarmed. Plus v0.82 — the staff-handset map is now a customer-contact safety guard, not only a Texts label. Review of v0.81 was right: naming Ernesto's thread fixed the caption but left the cause, a Customers row for Judy Mickens carrying his handset. Renewals took the Customers phone first, quote cards trusted column D, and the drawer took quote-phone-or-Customers-phone, none checking the roster, so a renewal addressed to Judy could dial or text Ernesto. customerPhone() now gates every customer destination and returns '' meaning KEEP LOOKING, so a customer with a bad directory row is still reached on the real number from a quote row rather than losing their buttons. openCaller/openTexter refuse as a last line of defence when a customer name is present, naming the teammate so the bad row can be found; the free-dial pad passes no name and still works. The cached map is bound to the Google account that fetched it, and is deliberately NOT cleared on Supabase sign-out -- an empty map re-arms the exact call this guard prevents. Plus v0.81 — teammates are named in the Texts tab. The call-notification system texts a staff handset before transferring a caller, so those threads were sitting in the list as bare phone numbers — and worse, one of them (Ernesto's 818 571-7045) was being labelled with a client name a stale Customers row happened to carry. A new team-gated Supabase view, public.team_phone_directory, projects ONLY display_name + a 10-digit key out of voice_staff (which stays deny-all to the browser: RLS on, zero policies), so the dashboard can name a handset without ever seeing an email, a voice flag or a raw E.164 string. Threads on a staff handset now show the teammate's name, a violet “Team” badge and a violet left rail in the list and in the thread header; any customer-directory match on a staff number is discarded as the mis-match it is, which also keeps contact preferences and email threading — both customer-scoped — from firing on a teammate. The map is cached like state.roles, so labels are correct on first paint and a failed read keeps the last good map rather than silently reverting everyone to digits; with no Supabase session at all the tab behaves exactly as v0.80 did. The thread's ✎ Name button hides on team threads, since a roster name always wins and the button would otherwise be a no-op. Plus v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -657,6 +657,30 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
 }
 .bub .bt{display:block; font-size:10.5px; opacity:.68; margin-top:3px}
 .t-day{align-self:center; font-size:11px; color:var(--muted); margin:4px 0; letter-spacing:.04em}
+/* v0.95 — prev/next strip: step through the Texts list without closing the conversation */
+.t-nav{display:flex; align-items:center; gap:8px; padding:6px 12px; border-bottom:1px solid var(--line); background:#FAFAF8}
+.t-nav[hidden]{display:none}
+.t-nav .icon-btn{width:auto; height:32px; padding:0 12px; font-size:13px; font-weight:600; flex:none; white-space:nowrap}
+.t-pos{flex:1; min-width:0; text-align:center; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.t-pos .t-kbd{margin-left:6px; opacity:.8}
+@media (hover:none){ .t-pos .t-kbd{display:none} }
+/* v0.97 — replies that failed while the box already held newer text: kept here with Retry / Edit / Discard */
+.t-failed{display:flex; flex-direction:column; gap:6px; padding:8px 12px; border-top:1px solid #EFD2D1; background:var(--red-bg)}
+.t-failed[hidden]{display:none}
+.t-fail{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--red-dk); min-width:0}
+.t-fail-txt{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.t-fail button{
+  appearance:none; flex:none; border:1px solid #EFD2D1; background:var(--card); color:var(--red-dk);
+  border-radius:7px; padding:3px 10px; min-height:28px; font-size:12px; font-weight:600; cursor:pointer;
+}
+.t-fail button:hover{border-color:var(--red-dk)}
+.t-fail button:disabled{opacity:.45; cursor:default}
+@media (max-width:640px){
+  .t-nav{padding:6px calc(12px + var(--sa-r)) 6px calc(12px + var(--sa-l))}
+  .t-nav .icon-btn{height:38px}
+  .t-failed{padding:8px calc(12px + var(--sa-r)) 8px calc(12px + var(--sa-l))}
+  .t-fail button{min-height:34px}
+}
 .t-foot{display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:#FAFAF8; align-items:flex-end}
 .t-foot textarea{
   flex:1; padding:9px 11px; border:1px solid var(--line2); border-radius:8px;
@@ -960,7 +984,13 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
       <button class="ghost" id="tDoneBtn" style="padding:3px 10px;min-height:26px;font-size:12px;margin-left:auto" title="Mark this conversation handled">✓ Done</button>
       <button class="icon-btn" id="tClose" aria-label="Close">✕</button>
     </div>
+    <div class="t-nav" id="tNav" hidden>
+      <button class="icon-btn" id="tPrev" type="button" aria-label="Previous conversation">‹ Prev</button>
+      <span class="t-pos" id="tPos" aria-live="polite"></span>
+      <button class="icon-btn" id="tNext" type="button" aria-label="Next conversation">Next ›</button>
+    </div>
     <div class="t-body" id="tBody"></div>
+    <div class="t-failed" id="tFailed" hidden></div>
     <div class="t-foot">
       <textarea id="tReply" rows="1" placeholder="Type a text message…" aria-label="Reply message"></textarea>
       <button class="m-send" id="tSend">Send</button>
@@ -1028,7 +1058,7 @@ const CONFIG = {
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
   VOICE_URL: 'https://script.google.com/macros/s/AKfycbwoG_qWFwuJBUguIwSrG0TkZELKtYrw5NKfwQ3SgnGqNECFBlGxVBP8MSztxTCe8PqnwQ/exec',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '0.94'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '0.99'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1190,6 +1220,7 @@ function logActivityAppend(entry){
 function saveCache(){
   try {
     localStorage.setItem('acefire_cache_v1', JSON.stringify({
+      owner: String(state.email || '').trim().toLowerCase(),   // v0.96 — whose data this is; hydrateCache() refuses anyone else
       ts: state.lastLoad, headers: state.headers, options: state.options,
       suggest: state.suggest, dupes: state.dupes,
       archive: state.archive.map(r => r.cells),
@@ -1207,6 +1238,14 @@ function hydrateCache(){
     if (!p || !p.data) return false;
     /* customer data shouldn't linger on shared computers — stale caches are discarded */
     if (!p.ts || Date.now() - p.ts > 4 * 3600 * 1000){ localStorage.removeItem('acefire_cache_v1'); return false; }
+    /* v0.96 — the cache belongs to the Google account that loaded it. A
+       different account signing in on this browser (or an unknown identity,
+       when userinfo failed) must never be painted the previous account's
+       quotes, customers or roles, even for the moment before the fresh load —
+       and must not get them at all if that load fails. Caches written before
+       v0.96 have no owner and are discarded once (one normal, uncached load). */
+    const me = String(state.email || '').trim().toLowerCase();
+    if (!me || !p.owner || p.owner !== me){ localStorage.removeItem('acefire_cache_v1'); return false; }
     TABS.forEach(t => {
       state.data[t.id] = (p.data[t.id] || []).map((cells, j) =>
         ({ uid: t.id + ':' + j, key: String(cells[0]||'').trim(), sheetRow: j + 2, cells, edits:{}, saving:false }));
@@ -1398,12 +1437,16 @@ async function api(path, opts = {}, retry = true){
     $('#gate').style.display = 'flex';
     $('#app').style.display = 'none';
     closeDrawer();
-    throw new Error('auth');
+    const ae = new Error('auth');
+    ae.status = 401;   // v0.98 — a rejected request: definitely not written
+    throw ae;
   }
   if (!r.ok){
     let msg = 'API error ' + r.status;
     try { msg = (await r.json()).error?.message || msg; } catch(e){}
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = r.status;   // v0.98 — lets writers tell "rejected" (4xx) from "outcome unknown" (5xx / no response)
+    throw err;
   }
   return r.json();
 }
@@ -2607,6 +2650,9 @@ $('#dPrev').addEventListener('click', () => stepDrawer(-1));
 $('#dNext').addEventListener('click', () => stepDrawer(1));
 document.addEventListener('keydown', e => {
   if (!$('#drawer').classList.contains('on')) return;
+  /* v0.95 — a conversation opened FROM the drawer sits on top of it and now owns
+     the arrow keys (prev/next conversation); the drawer behind must not step too. */
+  if ($('#threadWrap').classList.contains('on')) return;
   const typing = /input|textarea|select/i.test(document.activeElement?.tagName || '');
   if (e.key === 'Escape'){ typing ? document.activeElement.blur() : closeDrawer(); }
   if (typing) return;
@@ -4285,9 +4331,19 @@ $('#sCopy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('#sBody').value); toast('Text copied', 'ok'); }
   catch(e){ toast('Copy failed', 'err'); }
 });
+/* v0.97 — composer sends in flight, keyed by number + text: the composer can be
+   closed (Esc / backdrop) mid-request and reopened on the same quote, which
+   re-enables Send with the same text and could queue it twice. */
+const texterSending = new Set();
+/* v0.98/v0.99 — number + text -> request id of an attempt whose outcome is
+   unknown. Sending the same text again looks that id up first: if it landed it
+   is reported as sent; if not, it resends only after an explicit confirm that
+   the user checked the SMS Outbox (same id). */
+const texterReq = {};
 $('#sSend').addEventListener('click', async () => {
   const to = $('#sTo').value.trim(), body = $('#sBody').value.trim(), person = autoSenderName();
   const btn = $('#sSend');
+  const ctx = smsCtx, type = smsType;   // v0.97 — this send's context, fixed at click time
   /* v0.83 — same reasoning as placeCall: #sTo is editable and this handler is
      the point of no return (queueSmsRow appends straight to SMS Outbox).
      The Texts-tab reply path does NOT come through here, and team threads
@@ -4296,47 +4352,154 @@ $('#sSend').addEventListener('click', async () => {
      staffNameForPhone() returns '' for EVERY number, so the v0.91 check would
      pass a teammate's handset straight through on a device that never loaded
      the roster. No verified roster, no free compose. */
-  if (smsCtx && smsCtx.manual && !teamPhonesReady()){
+  if (ctx && ctx.manual && !teamPhonesReady()){
     toast('Can\u2019t verify this number against the staff directory yet \u2014 open Team Chat once on this device (or give it a moment to load), then send.', 'err');
     return;
   }
-  const sn0 = (smsCtx && (smsCtx.name || smsCtx.manual)) ? staffNameForPhone(to) : '';   /* v0.91 — manual compose is guarded too */
+  const sn0 = (ctx && (ctx.name || ctx.manual)) ? staffNameForPhone(to) : '';   /* v0.91 — manual compose is guarded too */
   if (sn0){
-    if (smsCtx.manual) toast('That number belongs to ' + sn0 + ' \u2014 teammates are reached from their Team thread, not free compose.', 'err');
-    else blockedStaffContact(sn0, smsCtx.name, 'text');
+    if (ctx.manual) toast('That number belongs to ' + sn0 + ' \u2014 teammates are reached from their Team thread, not free compose.', 'err');
+    else blockedStaffContact(sn0, ctx.name, 'text');
     return;
   }
+  const sendId = phoneKey(to) + '|' + body;
+  if (texterSending.has(sendId)){ toast('That text is already being queued \u2014 give it a moment.', 'err'); return; }
+  const pend = texterReq[sendId];
+  if (pend){
+    /* an earlier attempt at this exact text has an unknown outcome: if it has
+       since landed, report it; otherwise resend only on an explicit go-ahead */
+    if (texterSending.has(sendId)) return;
+    texterSending.add(sendId);           // no second lookup / confirm from a double click
+    let row;
+    try { row = await lookupOutboxReq(pend); } finally { texterSending.delete(sendId); }
+    if (row > 0){
+      delete texterReq[sendId];
+      toast('That text did go through — nothing was sent twice', 'ok');
+      logSmsActivity(person, to, ctx, type);
+      watchSmsStatus(outboxRange(row), to);
+      if (smsCtx === ctx && $('#sTo').value.trim() === to && $('#sBody').value.trim() === body) closeTexter();
+      return;
+    }
+    if (!confirm(RESEND_CONFIRM)) return;
+    delete texterReq[sendId];
+  }
+  texterSending.add(sendId);
   btn.disabled = true;
-  btn.textContent = 'Queuing\u2026';
+  btn.textContent = 'Queuing…';
+  const reqId = pend || newSmsReqId();   // same id on a confirmed resend, so Apps Script can still pair them
   try {
-    const range = await queueSmsRow(person, to, body);
-    toast('Queued \u2014 Twilio sends in a few seconds', 'ok');
-    logSmsActivity(person, to);
-    watchSmsStatus(range, to);
-    closeTexter();
+    const res = await queueSmsConfirmed(person, to, body, ctx, type, reqId);
+    if (res.state === 'queued'){
+      delete texterReq[sendId];
+      toast(res.recovered ? 'The connection dropped, but the text was queued — nothing sent twice' : 'Queued — Twilio sends in a few seconds', 'ok');
+      logSmsActivity(person, to, ctx, type);
+      watchSmsStatus(res.range, to);
+      /* v0.98 (review of v0.97) — close only the composer this send came from,
+         and only if it still shows what was sent: edits made while queueing
+         stay open instead of being discarded with the composer. */
+      if (smsCtx === ctx){
+        if ($('#sTo').value.trim() === to && $('#sBody').value.trim() === body) closeTexter();
+        else toast('Your original text was queued — the edits you made are still open', 'ok');
+      }
+    } else if (res.state === 'failed'){
+      delete texterReq[sendId];
+      toast('Not queued' + sendErrWhy(res.error) + ' — nothing was sent; you can try again', 'err');
+    } else {
+      texterReq[sendId] = reqId;
+      toast('Status unknown' + sendErrWhy(res.error) + ' — this text may or may not have been queued. Check the SMS Outbox tab before sending it again.', 'err');
+    }
   } catch(e){ toast(e.message || 'Queue failed', 'err'); }
   finally {
+    texterSending.delete(sendId);
     btn.textContent = 'Send text';
     btn.disabled = false;
     syncSmsBtn();
   }
 });
-async function queueSmsRow(person, to, body){
-  if (!canContact()) throw new Error('Sending texts is turned off for field accounts');
-  const name = smsCtx ? (smsCtx.name || '') : '';
-  const key = smsCtx ? (smsCtx.srcKey || '') : '';
-  const res = await api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!A:L`)}:append?valueInputOption=USER_ENTERED`, {
-    method:'POST',
-    body: JSON.stringify({ values:[[
-      new Date().toLocaleString(), person || state.email.split('@')[0], sheetText_(to), sheetText_(name), key, smsType, sheetText_(body),
-      'QUEUED', '', '', '', ''
-    ]] })
+/* v0.97 (review of v0.96) — ctx and type are passed in by each caller, never
+   read from the smsCtx / smsType globals. Those globals belong to whichever
+   composer is OPEN, and a send that completes later must not read (or reset)
+   them: a thread reply finishing while a quote composer was open used to
+   overwrite the quote's customer / ref / type and switch off its staff-number
+   guard. Both callers snapshot their context at click time. */
+async function queueSmsRow(person, to, body, ctx, type, reqId){
+  if (!canContact()){
+    const ce = new Error('Sending texts is turned off for field accounts');
+    ce.status = 403;   // refused before any request: definitely not written
+    throw ce;
+  }
+  const name = ctx ? (ctx.name || '') : '';
+  const key = ctx ? (ctx.srcKey || '') : '';
+  const smsType = type || 'quote';
+  const row = [
+    new Date().toLocaleString(), person || state.email.split('@')[0], sheetText_(to), sheetText_(name), key, smsType, sheetText_(body),
+    'QUEUED', '', '', '', ''
+  ];
+  /* v0.98 — column M carries this send's request id, so an append whose
+     response was lost can be looked up instead of guessed at (and so Apps
+     Script can de-duplicate on it). A 12-column grid rejects the 13th value
+     with a 400 — nothing written — so fall back to 12 values for the session. */
+  const useReq = !!reqId && outboxReqCol;
+  const append = vals => api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!A:${vals.length > 12 ? 'M' : 'L'}`)}:append?valueInputOption=USER_ENTERED`, {
+    method:'POST', body: JSON.stringify({ values:[vals] })
   });
+  let res;
+  try {
+    res = await append(useReq ? row.concat([reqId]) : row);
+  } catch(e){
+    if (useReq && e.status === 400 && /grid|range|column/i.test(e.message || '')){
+      outboxReqCol = false;
+      res = await append(row);
+    } else {
+      e.withReqId = useReq;
+      throw e;
+    }
+  }
   return res.updates ? res.updates.updatedRange : '';
 }
-function logSmsActivity(person, to){
-  const key = smsCtx ? (smsCtx.srcKey || '') : '';
-  const qr = (smsType === 'quote' && smsCtx) ? smsCtx._quoteRow : null;
+/* ---- v0.98 (review of v0.97) — sends whose outcome is uncertain ----
+   A Sheets append can succeed and still fail on the way back (dropped
+   connection, 5xx after the write). Every dashboard send carries a request id
+   (column M) so such an outcome can be looked up rather than guessed at.
+   v0.99 (review of v0.98) — an id that is NOT found proves nothing: a delayed
+   write can still land after the lookup. So "absent" never becomes "not sent"
+   and never unlocks an automatic retry. Found = it went through; anything else
+   stays "status unknown", and the only way to send it again is an explicit
+   Send anyway after the user has checked the SMS Outbox tab themselves. A
+   definite rejection (4xx: nothing was written) is the only outcome treated as
+   not sent. */
+let outboxReqCol = true;   // false once the Outbox proves to be only 12 columns wide
+function newSmsReqId(){ return 'dash-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+function sendUncertain(e){ const st = e && e.status; return !st || st >= 500 || st === 408; }
+async function findOutboxReq(reqId){
+  const r = await api(`/values/${encodeURIComponent(`'${SMS_OUTBOX_SHEET}'!M:M`)}`);
+  const i = (r.values || []).findIndex(v => String((v && v[0]) || '').trim() === reqId);
+  return i < 0 ? 0 : i + 1;   // 1-based sheet row, 0 = not there (yet)
+}
+function outboxRange(row){ return `'${SMS_OUTBOX_SHEET}'!A${row}:M${row}`; }
+/* Look an earlier uncertain attempt up. -> sheet row (> 0) if it landed, 0 if not seen (yet), -1 if it can't be checked */
+async function lookupOutboxReq(reqId){
+  if (!reqId || !outboxReqCol) return -1;
+  try { return await findOutboxReq(reqId); } catch(e){ return -1; }
+}
+/* One append, never repeated here. -> { state:'queued', range, recovered } | { state:'failed', error } (definitely not written) | { state:'unknown', error } */
+async function queueSmsConfirmed(person, to, body, ctx, type, reqId){
+  try {
+    return { state:'queued', range: await queueSmsRow(person, to, body, ctx, type, reqId), recovered:false };
+  } catch(e){
+    if (!sendUncertain(e)) return { state:'failed', error:e };
+    if (!e.withReqId) return { state:'unknown', error:e };
+    await new Promise(r => setTimeout(r, 1500));   // a write that did land is usually readable by now
+    const row = await lookupOutboxReq(reqId);
+    return row > 0 ? { state:'queued', range: outboxRange(row), recovered:true } : { state:'unknown', error:e };
+  }
+}
+const RESEND_CONFIRM = 'We couldn’t confirm whether this text went through, and it isn’t in the SMS Outbox yet — a delayed write can still show up there.\n\nOpen the SMS Outbox tab and look for it first. Only continue if it is NOT there; otherwise the client gets it twice.\n\nSend it anyway?';
+function sendErrWhy(e){ return (e && e.message && e.message !== 'auth') ? ' (' + e.message + ')' : ''; }
+function logSmsActivity(person, to, ctx, type){
+  const smsType = type || 'quote';
+  const key = ctx ? (ctx.srcKey || '') : '';
+  const qr = (smsType === 'quote' && ctx) ? ctx._quoteRow : null;
   if (qr){
     commitEdits(TABS[0], qr, { 11: todayMD() }, 'Text sent (Dashboard)').then(() => {
       renderContent(); renderSummary();
@@ -4726,6 +4889,10 @@ function renderTexts(){
     main.appendChild(list);
     return;
   }
+  /* v0.95 — the list order as shown (filter + search applied), snapshotted per
+     render and handed to openThread so Prev/Next and the arrow keys walk the
+     same list the user clicked from. */
+  const navKeys = items.map(x => x.key);
   items.forEach(t => {
     const row = document.createElement('div');
     row.className = 'row' + (t.team ? ' team-th' : '');
@@ -4750,8 +4917,8 @@ function renderTexts(){
         </div>
       </div>
       <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`;
-    row.addEventListener('click', () => openThread(t.key));
-    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openThread(t.key); } });
+    row.addEventListener('click', () => openThread(t.key, null, navKeys));
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openThread(t.key, null, navKeys); } });
     const db = row.querySelector('[data-act="tdone"]');
     if (db){
       db.addEventListener('click', e => { e.stopPropagation(); markThreadDone(t, !t.done, db); });
@@ -4868,9 +5035,16 @@ async function setReminderSkip(x, skip, btn){
     /* verify the row hasn't shifted since load — the hourly refresh rewrites preview rows */
     const chk = await api(`/values/${encodeURIComponent(`'SMS Outbox'!A${x.sheetRow}:L${x.sheetRow}`)}`);
     const v = (chk.values && chk.values[0]) || [];
-    const samePurpose = x.purpose && String(v[11] || '') === x.purpose;
+    /* v0.96 — when the row carries a purpose key it is the identity: the hourly
+       refresh can put a DIFFERENT reminder for the same phone in this row, and
+       the old purpose-OR-phone test would then skip the new one. The phone
+       match is only the fallback for rows without a key. The status must also
+       still be the one the button was offered for (PREVIEW to skip, SKIPPED to
+       restore), so a row that has since sent is never relabelled. */
+    const samePurpose = String(v[11] || '') === x.purpose;
     const sameTo = phoneKey(v[2]) === phoneKey(x.to) && String(v[5] || '').trim() === 'appt_reminder';
-    if (!(samePurpose || sameTo)) throw new Error('The queue just refreshed — reloading');
+    const sameStatus = String(v[7] || '').trim().toUpperCase() === (skip ? 'PREVIEW' : 'SKIPPED');
+    if (!(x.purpose ? samePurpose : sameTo) || !sameStatus) throw new Error('The queue just refreshed — reloading');
     await api('/values:batchUpdate', {
       method:'POST',
       body: JSON.stringify({ valueInputOption:'USER_ENTERED',
@@ -4922,11 +5096,28 @@ function currentThread(){
   if (!t && threadMeta) t = { key:'', name:threadMeta.name || '', msgs:[], unread:0, phone:threadMeta.phone || '' };
   return t;
 }
-function openThread(key, meta){
+/* v0.95 — Prev / Next between conversations without closing the view.
+   threadNav is the ordered key list of the Texts list the thread was opened
+   from (renderTexts passes it); opened from anywhere else (drawer, quote card,
+   Team Chat) it stays null and the strip is hidden. Snapshotting the list —
+   rather than recomputing it on each step — keeps the order stable while
+   reading changes it: under the Unread filter, opening a thread marks it read
+   and drops it from the live list, which would otherwise make Prev skip.
+   threadDrafts keeps unsent reply text per conversation: the reply box used to
+   carry its text across threads, which with one-tap stepping becomes a real
+   risk of sending client A's message to client B. */
+let threadNav = null;
+const threadDrafts = {};
+function openThread(key, meta, nav){
+  const wasOpen = $('#threadWrap').classList.contains('on');
+  if (wasOpen && threadKey !== null) threadDrafts[threadKey || ''] = $('#tReply').value;
+  const stepFocus = wasOpen ? document.activeElement : null;
+  threadNav = (Array.isArray(nav) && nav.includes(key)) ? nav.slice() : null;
   threadMeta = meta || null;
   threadKey = key;
+  $('#tReply').value = threadDrafts[key || ''] || '';
   renderThread();
-  if (!$('#threadWrap').classList.contains('on')) BackNav.open('thread', closeThread);
+  if (!wasOpen) BackNav.open('thread', closeThread);
   $('#threadWrap').classList.add('on');
   $('#threadWrap').setAttribute('aria-hidden', 'false');
   /* v0.91 — renderThread() already scrolls #tBody, but at open time the wrap
@@ -4940,25 +5131,64 @@ function openThread(key, meta){
     const tb = $('#tBody');
     if (!tb) return;
     const u = tb.querySelector('.bub.unread');
-    if (u) tb.scrollTop = Math.max(0, u.offsetTop - 56);
+    /* v0.95 — measured against #tBody itself: the old offsetTop - 56 assumed
+       the header was the only thing above the body, which the Prev/Next strip
+       no longer makes true. */
+    if (u) tb.scrollTop = Math.max(0, u.getBoundingClientRect().top - tb.getBoundingClientRect().top + tb.scrollTop - 12);
     else tb.scrollTop = tb.scrollHeight;
   });
   markThreadRead(key);
-  $('#tReply').focus();
+  /* v0.95 — stepping with the Prev/Next buttons keeps focus on the button, so
+     repeated clicks / Enter keep working and a phone keyboard doesn't pop up on
+     every step. A fresh open, or a step from the reply box, focuses the reply. */
+  const navBtn = stepFocus && (stepFocus === $('#tPrev') || stepFocus === $('#tNext'));
+  if (!navBtn) $('#tReply').focus();
 }
 function closeThread(){
+  if ($('#threadWrap').classList.contains('on') && threadKey !== null) threadDrafts[threadKey || ''] = $('#tReply').value;
   BackNav.closed('thread');
   $('#threadWrap').classList.remove('on');
   $('#threadWrap').setAttribute('aria-hidden', 'true');
   threadKey = null;
+  threadNav = null;
+}
+function stepThread(dir){
+  if (!threadNav || !$('#threadWrap').classList.contains('on')) return;
+  const i = threadNav.indexOf(threadKey);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= threadNav.length) return;
+  openThread(threadNav[j], null, threadNav);
+}
+function renderThreadNav(){
+  const bar = $('#tNav');
+  const n = threadNav ? threadNav.length : 0;
+  const i = n ? threadNav.indexOf(threadKey) : -1;
+  if (n < 2 || i < 0){ bar.hidden = true; return; }
+  bar.hidden = false;
+  const prev = i > 0 ? threadNav[i - 1] : null;
+  const next = i < n - 1 ? threadNav[i + 1] : null;
+  const all = computeThreads();
+  const lbl = k => { const x = all.find(t => t.key === k); return x ? x.label : fmtPhone(k); };
+  $('#tPos').innerHTML = `${i + 1} of ${n}<span class="t-kbd">· ← → keys</span>`;
+  const pb = $('#tPrev'), nb = $('#tNext');
+  pb.disabled = !prev;
+  nb.disabled = !next;
+  pb.title = prev ? 'Previous: ' + lbl(prev) + ' (←)' : 'This is the first conversation';
+  nb.title = next ? 'Next: ' + lbl(next) + ' (→)' : 'This is the last conversation';
+  pb.setAttribute('aria-label', prev ? 'Previous conversation: ' + lbl(prev) : 'No previous conversation');
+  nb.setAttribute('aria-label', next ? 'Next conversation: ' + lbl(next) : 'No next conversation');
 }
 function renderThread(){
   const t = currentThread();
   if (!t) return;
+  renderThreadNav();
+  renderThreadFailed();
   const blocked = !!(t.name && prefNoText(t.name));
   const can = !!threadKey && threadKey.length === 10 && !blocked;
+  const sending = !!threadKey && threadSending.has(threadKey);   // v0.96 — a send for THIS conversation is in flight
   $('#tReply').disabled = !can;
-  $('#tSend').disabled = !can;
+  $('#tSend').disabled = !can || sending;
+  $('#tSend').textContent = sending ? 'Sending\u2026' : 'Send';
   $('#tReply').placeholder = blocked ? 'Contact preference: no texts for this customer'
     : can ? 'Type a text message\u2026' : 'No mobile number on file \u2014 add one to the quote or Customers tab';
   $('#tName').textContent = t.label;
@@ -5059,35 +5289,198 @@ $('#threadWrap').addEventListener('click', e => { if (e.target === $('#threadWra
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('#threadWrap').classList.contains('on')) closeThread();
 });
+/* v0.95 — Prev / Next: buttons, plus ← → on the keyboard. The arrows step only
+   when they can't mean anything else: never with a modifier or mid-IME
+   composition, never in an input/select, and in the reply box only while it is
+   EMPTY — once there is text, ← → move the cursor as usual (use the buttons). */
+$('#tPrev').addEventListener('click', () => stepThread(-1));
+$('#tNext').addEventListener('click', () => stepThread(1));
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (!threadNav || !$('#threadWrap').classList.contains('on')) return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing || e.defaultPrevented) return;
+  if (['#mailWrap', '#smsWrap', '#callWrap', '#histWrap'].some(s => { const w = $(s); return w && w.classList.contains('on'); })) return;
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest('input, select, [contenteditable=""], [contenteditable="true"]')) return;
+  if (ae && ae.tagName === 'TEXTAREA' && (ae !== $('#tReply') || ae.value !== '')) return;
+  e.preventDefault();
+  stepThread(e.key === 'ArrowLeft' ? -1 : 1);
+});
 $('#tReply').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('#tSend').click(); }
 });
-$('#tSend').addEventListener('click', async () => {
-  const body = $('#tReply').value.trim();
-  if (!body || !threadKey || threadKey.length !== 10) return;
+/* v0.96 (review of v0.95) — one send in flight per conversation, and the text
+   leaves the reply box the moment it is submitted.
+   (1) Stepping away and back re-ran renderThread(), which re-enabled Send while
+   the first Sheets append was still pending, with the same text still in the
+   box: a second click queued the SMS twice. threadSending now holds every
+   conversation with a request in flight; renderThread() and this handler both
+   honour it.
+   (2) Clearing the box only on success meant a completion could wipe a NEWER
+   reply typed after stepping back. Clearing on submit removes the race.
+   v0.97 (review of v0.96) — (3) the reply's context is passed explicitly to
+   queueSmsRow / logSmsActivity; this path no longer touches smsCtx / smsType
+   at all, so it can't disturb a quote composer opened while it was pending.
+   (4) a failed send is never dropped: it goes back into the reply box (or the
+   conversation's draft) when that is empty, and otherwise into threadFailed,
+   shown above the reply box with Retry / Edit / Discard, so newer text is
+   never overwritten AND the failed message is never lost. */
+/* v0.98/v0.99 (reviews of v0.97/v0.98) — a reply whose append outcome is
+   uncertain is never labelled "Not sent" and is never retried automatically.
+   Found by request id -> it went through. Otherwise it is held above the reply
+   box as "Status unknown" with Check again (looks the id up) and Send anyway
+   (only after the user has checked the SMS Outbox tab; confirms first, still
+   looks the id up once more, reuses the same id). Only a definite rejection
+   (4xx) is "Not sent", and only that gets a plain Retry. */
+const threadSending = new Set();
+const threadFailed = {};            // key -> [{ id, raw, reqId, state:'unsent'|'unknown'|'checking' }]
+let threadFailSeq = 0;
+function threadCanSendNow(key){
+  if (!key || key.length !== 10 || threadKey !== key || threadSending.has(key)) return null;
   const t = currentThread();
-  if (!t) return;
-  const btn = $('#tSend');
-  btn.disabled = true;
+  if (!t || (t.name && prefNoText(t.name))) return null;
+  return t;
+}
+function threadSentOk(t, person, body, range, recovered){
+  const ctx = { name: t.name || '', srcKey:'' };
+  logSmsActivity(person, '+1' + t.key, ctx, 'reply');
+  const m = String(range || '').match(/![A-Z]+(\d+):/);
+  /* optimistic bubble until the next refresh */
+  state.smsOut.push({ sheetRow: recovered && m ? +m[1] : 0, cells:[
+    new Date().toLocaleString(), person || state.email.split('@')[0], '+1' + t.key,
+    t.name || '', '', 'reply', body, 'QUEUED', '', '', '', ''
+  ] });
+  watchSmsStatus(range, t.name || t.phone);
+  if (recovered) toast('That text did go through — nothing was sent twice', 'ok');
+}
+async function sendThreadReply(t, raw, item){
+  const key = t.key;
+  const body = String(raw || '').trim();
+  const reqId = (item && item.reqId) || newSmsReqId();
+  threadSending.add(key);
+  renderThread();                       // Send shows "Sending…" and stays disabled for this conversation
   const person = autoSenderName();
-  smsCtx = { name: t.name || '', srcKey:'' };
-  smsType = 'reply';
+  const ctx = { name: t.name || '', srcKey:'' };
   try {
-    const range = await queueSmsRow(person, '+1' + t.key, body);
-    logSmsActivity(person, '+1' + t.key);
-    /* optimistic bubble until the next refresh */
-    state.smsOut.push({ sheetRow:0, cells:[
-      new Date().toLocaleString(), person || state.email.split('@')[0], '+1' + t.key,
-      t.name || '', '', 'reply', body, 'QUEUED', '', '', '', ''
-    ] });
-    $('#tReply').value = '';
+    const res = await queueSmsConfirmed(person, '+1' + key, body, ctx, 'reply', reqId);
+    if (res.state === 'queued'){ threadSentOk(t, person, body, res.range, res.recovered); return; }
+    const why = sendErrWhy(res.error);
+    if (res.state === 'unknown'){
+      (threadFailed[key] = threadFailed[key] || []).push({ id: ++threadFailSeq, raw, reqId, state:'unknown' });
+      toast('Status unknown' + why + ' — the text may or may not have gone. It’s held above the reply box; check the SMS Outbox tab before sending it again.', 'err');
+    } else if (threadKey === key && !$('#tReply').value.trim()){
+      $('#tReply').value = raw;
+      toast('Text not sent' + why + ' — your message is back in the reply box', 'err');
+    } else if (threadKey !== key && !String(threadDrafts[key] || '').trim()){
+      threadDrafts[key] = raw;
+      toast('Text not sent' + why + ' — your message is saved as that conversation’s draft', 'err');
+    } else {
+      (threadFailed[key] = threadFailed[key] || []).push({ id: ++threadFailSeq, raw, reqId, state:'unsent' });
+      toast('Text not sent' + why + ' — your message is saved above the reply box; tap Retry', 'err');
+    }
+  } catch(e){
+    /* defensive: queueSmsConfirmed resolves rather than throws — if anything
+       else breaks, hold the text as status unknown rather than lose or resend it */
+    (threadFailed[key] = threadFailed[key] || []).push({ id: ++threadFailSeq, raw, reqId, state:'unknown' });
+    toast('Status unknown' + sendErrWhy(e) + ' — check the SMS Outbox tab before sending it again', 'err');
+  } finally {
+    threadSending.delete(key);
+    if ($('#threadWrap').classList.contains('on') && threadKey !== null){
+      renderThread();                   // re-derives Send for whichever conversation is showing now
+      if (threadKey === key && !$('#tFailed').contains(document.activeElement)) $('#tReply').focus();
+    }
+  }
+}
+$('#tSend').addEventListener('click', () => {
+  const raw = $('#tReply').value;
+  if (!raw.trim()) return;
+  const t = threadCanSendNow(threadKey);
+  if (!t) return;
+  $('#tReply').value = '';
+  delete threadDrafts[t.key];
+  sendThreadReply(t, raw, null);
+});
+function renderThreadFailed(){
+  const box = $('#tFailed');
+  const list = (threadKey && threadFailed[threadKey]) || [];
+  if (!list.length){ box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const busy = threadSending.has(threadKey);
+  box.innerHTML = list.map(f => {
+    const checking = f.state === 'checking';
+    const label = f.state === 'unsent' ? 'Not sent:' : checking ? 'Checking…' : 'Status unknown:';
+    const acts = f.state === 'unsent'
+      ? `<button type="button" data-act="retry"${busy ? ' disabled' : ''}>Retry</button>`
+      : `<button type="button" data-act="check"${checking ? ' disabled' : ''}>Check again</button>` +
+        `<button type="button" data-act="resend" title="Only after checking the SMS Outbox tab"${(checking || busy) ? ' disabled' : ''}>Send anyway</button>`;
+    return `
+    <div class="t-fail" data-id="${f.id}">
+      <span class="t-fail-txt" title="${esc(f.raw)}"><b>${label}</b> ${esc(f.raw)}</span>
+      ${acts}
+      <button type="button" data-act="edit" title="Move into the reply box"${checking ? ' disabled' : ''}>Edit</button>
+      <button type="button" data-act="drop" aria-label="Discard this message"${checking ? ' disabled' : ''}>✕</button>
+    </div>`;
+  }).join('');
+}
+$('#tFailed').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-act]');
+  const row = b && b.closest('.t-fail');
+  if (!row || !threadKey) return;
+  const key = threadKey;
+  const list = threadFailed[key] || [];
+  const f = list.find(x => String(x.id) === row.dataset.id);
+  if (!f || f.state === 'checking') return;
+  const take = () => {
+    const i = list.indexOf(f);
+    if (i >= 0) list.splice(i, 1);
+    if (!list.length) delete threadFailed[key];
+  };
+  const landed = sheetRow => {
+    take();
+    const t = computeThreads().find(x => x.key === key) || { key, name:'', phone: fmtPhone(key) };
+    threadSentOk(t, autoSenderName(), f.raw.trim(), outboxRange(sheetRow), true);
+  };
+  if (b.dataset.act === 'retry'){
+    /* 'unsent' = a definite rejection: nothing was written, a plain retry is safe */
+    const t = threadCanSendNow(key);
+    if (!t) return;
+    take();
+    sendThreadReply(t, f.raw, f);
+  } else if (b.dataset.act === 'check' || b.dataset.act === 'resend'){
+    const resend = b.dataset.act === 'resend';
+    if (resend && !threadCanSendNow(key)) return;
+    f.state = 'checking';
     renderThread();
-    watchSmsStatus(range, t.name || t.phone);
-  } catch(e){ toast(e.message || 'Send failed', 'err'); }
-  finally {
-    smsCtx = null;
-    btn.disabled = false;
+    const sheetRow = await lookupOutboxReq(f.reqId);
+    if (sheetRow > 0){
+      landed(sheetRow);
+    } else {
+      f.state = 'unknown';               // absent is not proof of anything: never downgrade to "Not sent"
+      if (resend){
+        if (threadKey === key) renderThread();
+        if (!confirm(RESEND_CONFIRM)) return;
+        const t = threadCanSendNow(key);
+        if (!t) return;
+        take();
+        sendThreadReply(t, f.raw, f);    // same request id
+        return;
+      }
+      toast(sheetRow === 0
+        ? 'Not in the SMS Outbox yet — it may still show up. Check the Outbox tab; use Send anyway only if it isn’t there.'
+        : 'Couldn’t check the SMS Outbox right now — look for the text in the Outbox tab before sending it again.', 'err');
+    }
+    if (threadKey === key) renderThread();
+  } else if (b.dataset.act === 'edit'){
+    if ($('#tReply').value.trim()){ toast('Send or clear the reply box first, then Edit', 'err'); return; }
+    if (f.state === 'unknown' && !confirm('We couldn’t confirm whether this text already went through.\n\nIf it did, sending it again will text the client twice. Move it into the reply box anyway?')) return;
+    take();
+    $('#tReply').value = f.raw;
+    renderThread();
     $('#tReply').focus();
+  } else if (b.dataset.act === 'drop'){
+    if (!confirm('Discard this message?\n\n' + f.raw)) return;
+    take();
+    renderThread();
   }
 });
 
