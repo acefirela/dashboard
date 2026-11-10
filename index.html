@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ACE Fire LA — Job Dashboard · v1.00 — SMS fast refresh. New texts no longer wait for the 5-minute full reload (or for an unsaved edit to be saved): every 30 s, while the page is visible, the dashboard re-reads only SMS Outbox + SMS Inbox and redraws only the Texts badge and filter counts, the Texts list and the open conversation — never renderAll(), so edits elsewhere are untouched. Outgoing status changes (queued → sent / failed) show the same way. Every SMS read (fast refresh and full reload) is applied only if no newer read or SMS write began after it left, no read is issued while a send or SMS cell write is open, and a failed or malformed read keeps what is shown instead of blanking it. A reply arriving in an open conversation is marked read only while the window has focus, so a thread left open on an unattended screen does not hide it from the team; scroll position is kept unless the reader is already at the newest message. The v0.96–v0.99 send safeguards are unchanged. Plus v0.99 — one review fix on v0.98 before its first deploy (v0.98 never shipped). A request id that is not found in the Outbox no longer counts as proof the text was not queued — a delayed write can land after the lookup. Uncertain outcomes now stay Status unknown: Check again only looks the id up, and the only way to resend is Send anyway (thread strip) or Send again (composer), each behind a confirm that the user has checked the SMS Outbox tab; found still resolves to sent. Only a definite rejection (4xx, nothing written) is Not sent with a plain Retry. Plus v0.98 — two review fixes on v0.97 before its first deploy (v0.97 never shipped). Uncertain sends are no longer guessed at: every dashboard text carries a request id in SMS Outbox column M (falls back to 12 columns if the grid is narrower), api() errors carry their HTTP status, and a failure with no response or a 5xx is resolved by looking the id up — found means it went through, absent means Not sent with a Retry that re-checks and reuses the id, and an impossible lookup means Not confirmed with Check again instead of Retry. Uncertain thread replies always stay in the strip, never back in the box. The composer applies the same rule (Send again on an unconfirmed text checks first), and on success closes only if it still shows exactly what was sent, so edits made while queueing stay open. Plus v0.97 — two review fixes on v0.96 before its first deploy (v0.96 never shipped). Send context is now passed explicitly: queueSmsRow / logSmsActivity take ctx + type from their caller instead of reading the smsCtx / smsType globals, the thread reply path never touches those globals, and the composer snapshots its context at click time — a reply finishing while a quote composer was open used to overwrite that composer's customer / ref / type and switch off its staff-number check. The composer also refuses a second identical send while one is queueing, and on success closes only the composer the send came from. A failed thread reply is never lost: it returns to the box or draft when empty, otherwise it is kept above the reply box with Retry / Edit / Discard. Plus v0.96 — four review fixes on v0.95 before its first deploy (v0.95 never shipped). Sending: one send in flight per conversation (stepping away and back re-enabled Send mid-request with the same text still in the box, so a second click queued the SMS twice) and the text now leaves the box on submit, so a finishing send can never wipe a newer reply; on failure it is put back only into an empty box or empty draft. The instant-paint cache is now bound to the Google account that wrote it and refused for any other or unknown account. Reminder Skip/Restore requires the purpose key to match when the row has one (the hourly refresh can reuse the row for another reminder to the same phone) and the status to still be PREVIEW/SKIPPED. Plus v0.95 — Texts: step between conversations without closing. An open conversation gets a Prev / Next strip (with "3 of 25") and the ← → keys walk the same list it was opened from, filter and search included; the list is snapshotted at open so reading a thread under Unread cannot make Prev skip. The arrows step only when they mean nothing else (no modifier, not in an input, reply box empty). Unsent reply text is now kept per conversation, so a half-typed message can never ride along to the next client; a send that finishes after a step clears only its own draft. The drawer ignores the arrows while a conversation sits on top of it, and the jump-to-first-unread scroll is measured against the message pane. Plus v0.94 — two review fixes on v0.93 before its first deploy (v0.93 never shipped). The missed-call template is now pure GSM-7: the v0.93 wording carried an em dash and curly apostrophes, which force UCS-2 encoding and drop the per-segment limit from 160 to 70/67 characters — the ~167-character apology billed as THREE segments; the reworded ASCII version says the same thing in ~132 characters and ONE segment (smsSegInfo in the composer confirms it live). And the two compose action chips now render BEFORE the Open/Unread/Done/All filter chips: the filter bar scrolls horizontally on phones, so appending the actions last could park \u260E Missed call off-screen at 360-412px — the exact discoverability problem the blue styling was added to solve. Plus v0.93 — the compose chips look like actions, and missed calls get a one-tap template. The \uFF0B New text chip was styled as just another filter chip and got missed in the field; compose chips now carry .fchip.act — solid --blue with white text, the same action color as Send — so they read as buttons, not filters. A second chip, \u260E Missed call, opens the same guarded free composer pre-filled with the missed-call apology template (sorry-we-missed-you wording pointing at CONFIG.COMPANY_PHONE, the 818 clients actually dialed — the caller-ID mismatch this whole feature exists to soften), queued as type 'missed-call' so reports can tell apologies from ordinary manual sends. openManualText(body, type) is generalized under the hood; the chip click handlers wrap it in arrow functions so a click event can never be mistaken for a template body. Everything else — the fail-closed staff-directory gate, literal-text queueing, identity stamp — is unchanged from v0.92 and applies to both chips. Plus v0.92 — review fixes on v0.91 before its first deploy (v0.91 never shipped). The manual staff-number guard now FAILS CLOSED: staffNameForPhone() reads state.teamPhones, which is {} until a Supabase-bound directory read or an identity-bound cache hydration, so on a device that never did the Team Chat opt-in a manual send to a teammate's handset would have sailed through the v0.91 check. teamPhonesReady() — non-empty map AND teamPhonesFor equal to the signed-in Google email — now gates manual sends at the send boundary; until the roster is proven loaded and bound to this identity, free compose refuses with instructions rather than guessing. Reply/quote/renewal paths keep their v0.83 behavior; the umbrella fix remains server-side rejection in the SMS Outbox consumer, tracked as the next Apps Script work. Second, outbound queueing gets the same literal-text protection the inbound poller got: SMS Outbox is operational data read by the Twilio automation, and valueInputOption=USER_ENTERED lets Sheets parse a body of '=1+1' as a formula or coerce a '+1...' destination to a number — sheetText_() apostrophe-guards to, name and body (guarding '=', '+', '-', '@', with the empty-string charAt/indexOf lesson from InboundSms.gs baked in), while the timestamp column keeps USER_ENTERED parsing that downstream consumers were built against. Third, markThreadRead() is no longer fire-and-forget: a failed batchUpdate rolls the local read flags back to unread and says so, instead of showing messages as read that the sheet still has unread. Plus v0.91 — the Texts tab gets free compose and threads open at the newest message. openThread() rendered (and scrolled) #tBody while #threadWrap was still display:none, so the scroll was a no-op and every thread opened at the OLDEST bubble — after a send, with the modal already visible, the very same line worked, which is why sending looked fine while opening did not; the scroll now runs a frame after the wrap turns visible, landing on the first unread bubble when one exists (inbound bubbles carry an .unread class for exactly this) and the newest message otherwise. A ＋ New text chip on the Texts filter bar opens the existing full composer with an empty, editable To — the plumbing was already there for quote/renewal flows; what is new is the entry point and the guard: smsCtx.manual makes the staff-handset check apply at the send boundary even with NO customer name attached, because the v0.83 teammate exemption is for reply threads and must not leak into free compose — a manual send to a staff number is refused by name with its own wording, since 'fix the Customers row' is advice for a different mistake. Manual sends queue with type 'manual' through the same SMS Outbox append and identity stamp. The Texts empty-state now mentions the button and says client replies arrive within about a minute (the InboundSms.gs poller), not five. Plus v0.90 — the deep link survives sign-in, and the sign-in gate says what it is doing. The Google Sheets access token is memory-only BY DESIGN and stays that way: it carries the spreadsheets scope (every sheet the user can reach) and gmail.send, so it must never sit in storage -- a v0.89 build that persisted it was rejected in review and never deployed; the lasting fix is a Sheets relay behind the Supabase JWT, which is the next piece of work. What changes here: the gate shows "Reconnecting as <email>" while the silent attempt runs and a plain explanation when it fails, and the Sign in button passes the account hint it was omitting. silentToken() is single-flight with per-attempt bookkeeping, so an overlapping api() 401 retry shares the one attempt and a stale 8 s timeout can only clear itself (before, an overlap could strand the api() caller forever); a click during a pending attempt supersedes it so a blocked popup produces a visible error instead of nothing; a click before GIS has loaded says so instead of throwing; a token that arrives while the app is already showing is kept without re-running onSignedIn(). The deep-link poller no longer dies 120 s after parse: it runs until the link resolves (30 min hard cap), the gate shows "After you sign in, this link will open (213) 820-6568", and the link is not burnt by a mid-session re-gate. Team Chat and Properties share ONE Supabase client (window.__sb). ?debug=1 (or localStorage acefire_debug=1) logs breadcrumbs at silentToken, the api() 401 branch, Supabase session transitions, every tryDeepLink early return and poller teardown -- values only, never a token. The in-drawer Team Chat sign-in is a once-per-device opt-in for chat, not a second gate; its wording now says so. Plus v0.88 — the ?phone= deep link (the on-call SMS from Retell/n8n) now resolves only after loadAll() has finished, never against the localStorage snapshot or the half-populated state that exists between the first batchGet and the Roles read: state.freshLoads / state.loadErrors are session-only counters loadAllRun() bumps on success / failure, and tryDeepLink() waits on them. The Texts-thread fallback for an SMS-only number is gated by the same visibleTabs() predicate that hides the Texts tab, and additionally by state.rolesResolved, so a Field account (or an unresolved role) can never be shown a customer conversation through a link; it gets a plain no-record message instead. A staff handset supplied as the caller is never treated as a customer: the deep link gives the team-phone map a bounded 3 s grace to arrive on a first sign-in (TC.phonesSettled marks the directory read as finished, session or not), then names the teammate for Field users or opens their Team thread for the office. If the fresh load fails, cached rows are still searched, but the no-match message says the data did not load rather than pretending there is no record. Badge bumped past the unbadged v0.86/v0.87 deep-link work. Plus v0.85 — the empty-directory rule moves from loadTeamPhones() to adoptTeamPhones_(), which is where the replacement actually happens. v0.84 checked it at response time, and in the Supabase-first race that check runs before hydrateCache(), so state.teamPhones is still {} and a zero-row read sees nothing to protect; {} is truthy, so it parked as pendingTeamPhones and then overwrote the good cached map that hydration restored moments later -- re-arming the guarded call in precisely the ordering the pending mechanism was added to handle. Enforced at the adoption boundary, the rule holds whichever of cache, Google identity and Supabase identity lands first, and a zero-row result is now discarded outright so it cannot ambush a later bind. A non-empty read still replaces wholesale, so a removed teammate stops being named. Plus v0.84 — three fixes from review of v0.83. The pending staff directory is now adopted AFTER hydrateCache(), not before: adoptTeamPhones_() calls saveCache(), and before hydration state.lastLoad is 0, so the v0.83 ordering wrote a ts:0 cache over the good one and hydrateCache() then deleted it as stale -- destroying the instant-paint cache in the very race v0.83 added the bind to fix. adoptTeamPhones_() also now declines to persist until a real load has happened. Second, a successful ZERO-row directory read no longer replaces a known-good map: the view returns [] both for an empty roster and for an is_team_member() miss, so accepting it would blank the map and re-arm the guarded call -- the same reasoning that keeps the map through sign-out. A non-empty result still replaces wholesale, so a removed teammate does stop being named. Third, the drawer resolves dPhone before the Call block, so a blank quote phone with a good Customers number now offers Call as well as Text. Plus v0.83 — closes five gaps found in review of v0.82. The v0.82 guard checked the number a dialog was OPENED with, but #cTo and #sTo are editable, so placeCall() and the #sSend handler now re-check the field contents at the actual send boundary. Quote cards no longer pre-strip a staff number to '' before openCaller/openTexter -- that left a blank recipient and destroyed the named refusal -- they pass the raw number and let the guard explain whose it is. Call and Text visibility now agree: both appear whenever a number exists and both refuse by name, because a staff number in a quote row is bad data that should be surfaced, not hidden. Drawer Quote Text passes its already-resolved dPhone instead of re-reading the quote row and discarding a legitimate Customers fallback, and drawer Call does the same. The cached directory is adopted only once the Supabase and Google emails are both known and equal, with a pending hand-off from onSignedIn() to close the startup race; an already-cached map stays in force meanwhile so the guard is never disarmed. Plus v0.82 — the staff-handset map is now a customer-contact safety guard, not only a Texts label. Review of v0.81 was right: naming Ernesto's thread fixed the caption but left the cause, a Customers row for Judy Mickens carrying his handset. Renewals took the Customers phone first, quote cards trusted column D, and the drawer took quote-phone-or-Customers-phone, none checking the roster, so a renewal addressed to Judy could dial or text Ernesto. customerPhone() now gates every customer destination and returns '' meaning KEEP LOOKING, so a customer with a bad directory row is still reached on the real number from a quote row rather than losing their buttons. openCaller/openTexter refuse as a last line of defence when a customer name is present, naming the teammate so the bad row can be found; the free-dial pad passes no name and still works. The cached map is bound to the Google account that fetched it, and is deliberately NOT cleared on Supabase sign-out -- an empty map re-arms the exact call this guard prevents. Plus v0.81 — teammates are named in the Texts tab. The call-notification system texts a staff handset before transferring a caller, so those threads were sitting in the list as bare phone numbers — and worse, one of them (Ernesto's 818 571-7045) was being labelled with a client name a stale Customers row happened to carry. A new team-gated Supabase view, public.team_phone_directory, projects ONLY display_name + a 10-digit key out of voice_staff (which stays deny-all to the browser: RLS on, zero policies), so the dashboard can name a handset without ever seeing an email, a voice flag or a raw E.164 string. Threads on a staff handset now show the teammate's name, a violet “Team” badge and a violet left rail in the list and in the thread header; any customer-directory match on a staff number is discarded as the mis-match it is, which also keeps contact preferences and email threading — both customer-scoped — from firing on a teammate. The map is cached like state.roles, so labels are correct on first paint and a failed read keeps the last good map rather than silently reverting everyone to digits; with no Supabase session at all the tab behaves exactly as v0.80 did. The thread's ✎ Name button hides on team threads, since a roster name always wins and the button would otherwise be a no-op. Plus v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
+<!-- ACE Fire LA — Job Dashboard · v1.01 — Today tab. The Handoff tab becomes Today: one home page with three sub-tabs — Critical / Follow up / FYI — that combine the latest shift handoff with the AI Today's Priorities list. The five priority cards no longer sit above every tab; in their place a one-line At-a-glance strip shows only the non-zero counts (All stats still opens the tiles). Critical = P1 priorities + the handoff's Needs attention; Follow up = P2/P3 priorities + new customers, updates, waiting on customer, stale open items and suggested next actions; FYI = the handoff's FYI rows (the mapping is the TD_SEGS table in the Today module). Every ranked priority is listed, not just the top five. The Today tab badge counts critical items; empty tab badges are hidden. Phone header: buttons stay on one line. No data, sheet, auth, SMS or role behavior changed; Field accounts still never see the tab. Plus v1.00 — SMS fast refresh. New texts no longer wait for the 5-minute full reload (or for an unsaved edit to be saved): every 30 s, while the page is visible, the dashboard re-reads only SMS Outbox + SMS Inbox and redraws only the Texts badge and filter counts, the Texts list and the open conversation — never renderAll(), so edits elsewhere are untouched. Outgoing status changes (queued → sent / failed) show the same way. Every SMS read (fast refresh and full reload) is applied only if no newer read or SMS write began after it left, no read is issued while a send or SMS cell write is open, and a failed or malformed read keeps what is shown instead of blanking it. A reply arriving in an open conversation is marked read only while the window has focus, so a thread left open on an unattended screen does not hide it from the team; scroll position is kept unless the reader is already at the newest message. The v0.96–v0.99 send safeguards are unchanged. Plus v0.99 — one review fix on v0.98 before its first deploy (v0.98 never shipped). A request id that is not found in the Outbox no longer counts as proof the text was not queued — a delayed write can land after the lookup. Uncertain outcomes now stay Status unknown: Check again only looks the id up, and the only way to resend is Send anyway (thread strip) or Send again (composer), each behind a confirm that the user has checked the SMS Outbox tab; found still resolves to sent. Only a definite rejection (4xx, nothing written) is Not sent with a plain Retry. Plus v0.98 — two review fixes on v0.97 before its first deploy (v0.97 never shipped). Uncertain sends are no longer guessed at: every dashboard text carries a request id in SMS Outbox column M (falls back to 12 columns if the grid is narrower), api() errors carry their HTTP status, and a failure with no response or a 5xx is resolved by looking the id up — found means it went through, absent means Not sent with a Retry that re-checks and reuses the id, and an impossible lookup means Not confirmed with Check again instead of Retry. Uncertain thread replies always stay in the strip, never back in the box. The composer applies the same rule (Send again on an unconfirmed text checks first), and on success closes only if it still shows exactly what was sent, so edits made while queueing stay open. Plus v0.97 — two review fixes on v0.96 before its first deploy (v0.96 never shipped). Send context is now passed explicitly: queueSmsRow / logSmsActivity take ctx + type from their caller instead of reading the smsCtx / smsType globals, the thread reply path never touches those globals, and the composer snapshots its context at click time — a reply finishing while a quote composer was open used to overwrite that composer's customer / ref / type and switch off its staff-number check. The composer also refuses a second identical send while one is queueing, and on success closes only the composer the send came from. A failed thread reply is never lost: it returns to the box or draft when empty, otherwise it is kept above the reply box with Retry / Edit / Discard. Plus v0.96 — four review fixes on v0.95 before its first deploy (v0.95 never shipped). Sending: one send in flight per conversation (stepping away and back re-enabled Send mid-request with the same text still in the box, so a second click queued the SMS twice) and the text now leaves the box on submit, so a finishing send can never wipe a newer reply; on failure it is put back only into an empty box or empty draft. The instant-paint cache is now bound to the Google account that wrote it and refused for any other or unknown account. Reminder Skip/Restore requires the purpose key to match when the row has one (the hourly refresh can reuse the row for another reminder to the same phone) and the status to still be PREVIEW/SKIPPED. Plus v0.95 — Texts: step between conversations without closing. An open conversation gets a Prev / Next strip (with "3 of 25") and the ← → keys walk the same list it was opened from, filter and search included; the list is snapshotted at open so reading a thread under Unread cannot make Prev skip. The arrows step only when they mean nothing else (no modifier, not in an input, reply box empty). Unsent reply text is now kept per conversation, so a half-typed message can never ride along to the next client; a send that finishes after a step clears only its own draft. The drawer ignores the arrows while a conversation sits on top of it, and the jump-to-first-unread scroll is measured against the message pane. Plus v0.94 — two review fixes on v0.93 before its first deploy (v0.93 never shipped). The missed-call template is now pure GSM-7: the v0.93 wording carried an em dash and curly apostrophes, which force UCS-2 encoding and drop the per-segment limit from 160 to 70/67 characters — the ~167-character apology billed as THREE segments; the reworded ASCII version says the same thing in ~132 characters and ONE segment (smsSegInfo in the composer confirms it live). And the two compose action chips now render BEFORE the Open/Unread/Done/All filter chips: the filter bar scrolls horizontally on phones, so appending the actions last could park \u260E Missed call off-screen at 360-412px — the exact discoverability problem the blue styling was added to solve. Plus v0.93 — the compose chips look like actions, and missed calls get a one-tap template. The \uFF0B New text chip was styled as just another filter chip and got missed in the field; compose chips now carry .fchip.act — solid --blue with white text, the same action color as Send — so they read as buttons, not filters. A second chip, \u260E Missed call, opens the same guarded free composer pre-filled with the missed-call apology template (sorry-we-missed-you wording pointing at CONFIG.COMPANY_PHONE, the 818 clients actually dialed — the caller-ID mismatch this whole feature exists to soften), queued as type 'missed-call' so reports can tell apologies from ordinary manual sends. openManualText(body, type) is generalized under the hood; the chip click handlers wrap it in arrow functions so a click event can never be mistaken for a template body. Everything else — the fail-closed staff-directory gate, literal-text queueing, identity stamp — is unchanged from v0.92 and applies to both chips. Plus v0.92 — review fixes on v0.91 before its first deploy (v0.91 never shipped). The manual staff-number guard now FAILS CLOSED: staffNameForPhone() reads state.teamPhones, which is {} until a Supabase-bound directory read or an identity-bound cache hydration, so on a device that never did the Team Chat opt-in a manual send to a teammate's handset would have sailed through the v0.91 check. teamPhonesReady() — non-empty map AND teamPhonesFor equal to the signed-in Google email — now gates manual sends at the send boundary; until the roster is proven loaded and bound to this identity, free compose refuses with instructions rather than guessing. Reply/quote/renewal paths keep their v0.83 behavior; the umbrella fix remains server-side rejection in the SMS Outbox consumer, tracked as the next Apps Script work. Second, outbound queueing gets the same literal-text protection the inbound poller got: SMS Outbox is operational data read by the Twilio automation, and valueInputOption=USER_ENTERED lets Sheets parse a body of '=1+1' as a formula or coerce a '+1...' destination to a number — sheetText_() apostrophe-guards to, name and body (guarding '=', '+', '-', '@', with the empty-string charAt/indexOf lesson from InboundSms.gs baked in), while the timestamp column keeps USER_ENTERED parsing that downstream consumers were built against. Third, markThreadRead() is no longer fire-and-forget: a failed batchUpdate rolls the local read flags back to unread and says so, instead of showing messages as read that the sheet still has unread. Plus v0.91 — the Texts tab gets free compose and threads open at the newest message. openThread() rendered (and scrolled) #tBody while #threadWrap was still display:none, so the scroll was a no-op and every thread opened at the OLDEST bubble — after a send, with the modal already visible, the very same line worked, which is why sending looked fine while opening did not; the scroll now runs a frame after the wrap turns visible, landing on the first unread bubble when one exists (inbound bubbles carry an .unread class for exactly this) and the newest message otherwise. A ＋ New text chip on the Texts filter bar opens the existing full composer with an empty, editable To — the plumbing was already there for quote/renewal flows; what is new is the entry point and the guard: smsCtx.manual makes the staff-handset check apply at the send boundary even with NO customer name attached, because the v0.83 teammate exemption is for reply threads and must not leak into free compose — a manual send to a staff number is refused by name with its own wording, since 'fix the Customers row' is advice for a different mistake. Manual sends queue with type 'manual' through the same SMS Outbox append and identity stamp. The Texts empty-state now mentions the button and says client replies arrive within about a minute (the InboundSms.gs poller), not five. Plus v0.90 — the deep link survives sign-in, and the sign-in gate says what it is doing. The Google Sheets access token is memory-only BY DESIGN and stays that way: it carries the spreadsheets scope (every sheet the user can reach) and gmail.send, so it must never sit in storage -- a v0.89 build that persisted it was rejected in review and never deployed; the lasting fix is a Sheets relay behind the Supabase JWT, which is the next piece of work. What changes here: the gate shows "Reconnecting as <email>" while the silent attempt runs and a plain explanation when it fails, and the Sign in button passes the account hint it was omitting. silentToken() is single-flight with per-attempt bookkeeping, so an overlapping api() 401 retry shares the one attempt and a stale 8 s timeout can only clear itself (before, an overlap could strand the api() caller forever); a click during a pending attempt supersedes it so a blocked popup produces a visible error instead of nothing; a click before GIS has loaded says so instead of throwing; a token that arrives while the app is already showing is kept without re-running onSignedIn(). The deep-link poller no longer dies 120 s after parse: it runs until the link resolves (30 min hard cap), the gate shows "After you sign in, this link will open (213) 820-6568", and the link is not burnt by a mid-session re-gate. Team Chat and Properties share ONE Supabase client (window.__sb). ?debug=1 (or localStorage acefire_debug=1) logs breadcrumbs at silentToken, the api() 401 branch, Supabase session transitions, every tryDeepLink early return and poller teardown -- values only, never a token. The in-drawer Team Chat sign-in is a once-per-device opt-in for chat, not a second gate; its wording now says so. Plus v0.88 — the ?phone= deep link (the on-call SMS from Retell/n8n) now resolves only after loadAll() has finished, never against the localStorage snapshot or the half-populated state that exists between the first batchGet and the Roles read: state.freshLoads / state.loadErrors are session-only counters loadAllRun() bumps on success / failure, and tryDeepLink() waits on them. The Texts-thread fallback for an SMS-only number is gated by the same visibleTabs() predicate that hides the Texts tab, and additionally by state.rolesResolved, so a Field account (or an unresolved role) can never be shown a customer conversation through a link; it gets a plain no-record message instead. A staff handset supplied as the caller is never treated as a customer: the deep link gives the team-phone map a bounded 3 s grace to arrive on a first sign-in (TC.phonesSettled marks the directory read as finished, session or not), then names the teammate for Field users or opens their Team thread for the office. If the fresh load fails, cached rows are still searched, but the no-match message says the data did not load rather than pretending there is no record. Badge bumped past the unbadged v0.86/v0.87 deep-link work. Plus v0.85 — the empty-directory rule moves from loadTeamPhones() to adoptTeamPhones_(), which is where the replacement actually happens. v0.84 checked it at response time, and in the Supabase-first race that check runs before hydrateCache(), so state.teamPhones is still {} and a zero-row read sees nothing to protect; {} is truthy, so it parked as pendingTeamPhones and then overwrote the good cached map that hydration restored moments later -- re-arming the guarded call in precisely the ordering the pending mechanism was added to handle. Enforced at the adoption boundary, the rule holds whichever of cache, Google identity and Supabase identity lands first, and a zero-row result is now discarded outright so it cannot ambush a later bind. A non-empty read still replaces wholesale, so a removed teammate stops being named. Plus v0.84 — three fixes from review of v0.83. The pending staff directory is now adopted AFTER hydrateCache(), not before: adoptTeamPhones_() calls saveCache(), and before hydration state.lastLoad is 0, so the v0.83 ordering wrote a ts:0 cache over the good one and hydrateCache() then deleted it as stale -- destroying the instant-paint cache in the very race v0.83 added the bind to fix. adoptTeamPhones_() also now declines to persist until a real load has happened. Second, a successful ZERO-row directory read no longer replaces a known-good map: the view returns [] both for an empty roster and for an is_team_member() miss, so accepting it would blank the map and re-arm the guarded call -- the same reasoning that keeps the map through sign-out. A non-empty result still replaces wholesale, so a removed teammate does stop being named. Third, the drawer resolves dPhone before the Call block, so a blank quote phone with a good Customers number now offers Call as well as Text. Plus v0.83 — closes five gaps found in review of v0.82. The v0.82 guard checked the number a dialog was OPENED with, but #cTo and #sTo are editable, so placeCall() and the #sSend handler now re-check the field contents at the actual send boundary. Quote cards no longer pre-strip a staff number to '' before openCaller/openTexter -- that left a blank recipient and destroyed the named refusal -- they pass the raw number and let the guard explain whose it is. Call and Text visibility now agree: both appear whenever a number exists and both refuse by name, because a staff number in a quote row is bad data that should be surfaced, not hidden. Drawer Quote Text passes its already-resolved dPhone instead of re-reading the quote row and discarding a legitimate Customers fallback, and drawer Call does the same. The cached directory is adopted only once the Supabase and Google emails are both known and equal, with a pending hand-off from onSignedIn() to close the startup race; an already-cached map stays in force meanwhile so the guard is never disarmed. Plus v0.82 — the staff-handset map is now a customer-contact safety guard, not only a Texts label. Review of v0.81 was right: naming Ernesto's thread fixed the caption but left the cause, a Customers row for Judy Mickens carrying his handset. Renewals took the Customers phone first, quote cards trusted column D, and the drawer took quote-phone-or-Customers-phone, none checking the roster, so a renewal addressed to Judy could dial or text Ernesto. customerPhone() now gates every customer destination and returns '' meaning KEEP LOOKING, so a customer with a bad directory row is still reached on the real number from a quote row rather than losing their buttons. openCaller/openTexter refuse as a last line of defence when a customer name is present, naming the teammate so the bad row can be found; the free-dial pad passes no name and still works. The cached map is bound to the Google account that fetched it, and is deliberately NOT cleared on Supabase sign-out -- an empty map re-arms the exact call this guard prevents. Plus v0.81 — teammates are named in the Texts tab. The call-notification system texts a staff handset before transferring a caller, so those threads were sitting in the list as bare phone numbers — and worse, one of them (Ernesto's 818 571-7045) was being labelled with a client name a stale Customers row happened to carry. A new team-gated Supabase view, public.team_phone_directory, projects ONLY display_name + a 10-digit key out of voice_staff (which stays deny-all to the browser: RLS on, zero policies), so the dashboard can name a handset without ever seeing an email, a voice flag or a raw E.164 string. Threads on a staff handset now show the teammate's name, a violet “Team” badge and a violet left rail in the list and in the thread header; any customer-directory match on a staff number is discarded as the mis-match it is, which also keeps contact preferences and email threading — both customer-scoped — from firing on a teammate. The map is cached like state.roles, so labels are correct on first paint and a failed read keeps the last good map rather than silently reverting everyone to digits; with no Supabase session at all the tab behaves exactly as v0.80 did. The thread's ✎ Name button hides on team threads, since a roster name always wins and the button would otherwise be a no-op. Plus v0.73 — Handoff is the home screen: the Handoff tab moves to the FIRST position in the tab bar and is the default active tab on load, so opening the dashboard lands on the latest shift handoff. Field accounts never see the tab, and the existing applyRoleUI guard (visibleTabs fallback) already re-homes them to Tracker — no new gating code. Sheet tabs, data loading, and every other behavior unchanged from v0.72. Plus v0.72 — Handoff tab: shift handoffs move from email into the dashboard. A new Handoff tab (Admin + Back office; hidden from Field by the existing visibleTabs filter) renders rows of the 'Handoff Feed' sheet written by the ACE Shift Handoff service v1.9 — headline + read-time line, Needs attention / New customer conversations / Updates / Waiting on customer / FYI sections, numbered next actions, and Open items going stale — with a picker over the last 30 boundaries and a Refresh that re-reads only the feed tab. Q#/J# chips open the matching record drawer when that row is loaded (comma-insensitive key match via quoteNum); the global search box filters the rendered thread cards. The feed is an optional tab: missing tab, empty tab, or an unparsable payload renders a friendly empty state, never an error, and the tab lazy-loads on first open so the core app pays nothing. Plus v0.71 — review fixes on the outcome stamping before its first deploy (v0.70 never shipped, so no unmarked stamps exist in any sheet): stamps now carry an explicit provenance marker — the cell value is “Stopped — <answer>” — and ONLY marked cells are ever rewritten or cleared, so a human-typed value that happens to equal the outcome text can never be erased; Save treats generated stamps as compare-and-set writes — commitEdits rereads the live K:M row after resolving the target and drops any stamp whose live cell now holds a real unmarked value (the outreach automation may have written a date since the page loaded), keeping the newer sheet value, reconciling the cache and the activity-log old value to it, and telling the user what was kept in the save toast — human-typed edits keep the app's normal last-write-wins behavior, only generated stamps are guarded; and fuTag renders a marked stamp as an honest gray “stopped” badge (title shows the outcome) instead of “Emailed/Texted/Called <outcome>”, which read as completed outreach that never happened. Plus v0.70 — closing a quote stands the outreach automation down: picking an outcome now stamps the same answer (plain text, no colour dot) into whichever of the Email / Text / Call columns (K/L/M) are still blank, because the Apps Script outreach automation only acts on BLANK cells — a filled cell is the off switch. Cells already holding a date or a typed note are never touched; changing the answer rewrites only cells still holding the previous stamp, and clearing the outcome (reopening the quote) blanks those same cells, re-arming the automation. Stamps are ordinary pending edits — Revert drops them, Save writes outcome + stamps in one batchUpdate, and the activity log records every column with undo data. Recolouring an answer never rewrites the contact columns (the stamp carries no dot on purpose). Plus v0.69 — Properties list fits the phone + current-work filters: the list grid track is minmax(0,1fr) with min-width:0 cards (the v0.68 min-content lesson one level up \u2014 the longest nowrap client name was setting the page width, which is why the list screen rendered zoomed out), the filter strip hides its scrollbar track on phones, and two new chips \u2014 \u201cCurrent jobs\u201d and \u201cCurrent quotes\u201d \u2014 filter to properties with live work, counted and matched through the same predicate-gated activeIdx the cards use (both fall to 0/empty pre-load and for Field accounts). Plus v0.68 — phone-overflow fix from field screenshots: the detail's single-column grid now uses minmax(0,1fr) (a bare 1fr track can't shrink below content min-content, so long nowrap lines in Active-work rows stretched the column past the card edge and widened every sibling's wrap width), columns get min-width:0, and record keys display normalized (\u201c#1,122\u201d \u2192 \u201c#1122\u201d) in Active-work rows and the Needs-a-property queue while UIDs stay untouched. Plus v0.67 — mobile fixes from field screenshots: linked record references in the property detail are now tappable chips \u2014 each reference that resolves to a loaded row (closed and expired quotes still live in the Quotes tab, paid jobs in Tracker) opens that record's drawer over the property, muted when no longer active, and only references with no loaded row remain flat text marked historical (rowForRef prefers the tab matching the link's source_type); and the \u201cNeeds a property\u201d queue wraps on \u2264640px \u2014 badge, number and Open-record button on the top line, full-width title below \u2014 instead of squeezing titles to a word per line. Plus v0.66 — review fixes on Active work: a shared isLiveRecord() predicate (mirroring the app's own Quotes \u201cActive\u201d filter and Tracker paid/cancelled markers) now decides what counts, so closed and expired quotes and paid or cancelled jobs are excluded from both the detail section and the \u201cN active\u201d chip; and the detail rows are genuinely two lines \u2014 customer and job brief are block-level, so each truncates with its own ellipsis. Plus v0.65 — active work visible from the property: the detail gains an \u201cActive work\u201d section with one tappable row per live quote and tracker job linked to the property (#key, customer, job brief; tapping opens the record's drawer OVER the property, so Back returns to it \u2014 the nested-safe v0.60 pattern), and list cards show a green \u201cN active\u201d chip when a property has live work. Built on a memoised activeIdx() over the active tabs via the same gated propForRecord path as the system chips; historical references stay text since their rows no longer exist to open. Plus v0.64 — comment accuracy only (no behavior change): the two inline comments flagged in review now describe current behavior — the card pick comes from P.custLatest (not CU[0]/dedupe), and the \u201cCustomer on file\u201d label applies to a SELECTED undated row, of which there are currently zero. Plus v0.63 — comment accuracy only (no behavior change from v0.62): the labelling claim now states what the UI does per CARD rather than per relationship. Plus v0.62 — the latest-customer claim is now backed by data: valid_from was backfilled on 551 of 562 frozen customer relationships from the newest linked Wix quote per customer (evidence table wix_quote_customers, checksum-verified against the export), the query orders valid_from DESC nulls-last with customer_name ASC as a deterministic tiebreak, the card picks the RAW first row (newest spelling, never dedupe's older variant), and a selected customer without a date is labelled \u201cCustomer on file\u201d instead of \u201cLatest customer\u201d (after the backfill, zero cards are actually affected \u2014 all 11 undated rows are non-selected variants; the label is the honest fallback). Plus v0.61 — the property card's top-right slot now shows the LATEST client name (mechanics superseded in v0.62: the pick is P.custLatest from the raw server-ordered rows, not dedupe output) instead of the freeze grade chips, which were provenance rather than action \u2014 they remain in the detail view next to Address check, and the one actionable grade, \u201cneeds review\u201d, still shows its chip on the list. Plus v0.60 — nested-transition fix from review: tapping a record in Change History while a property detail is open underneath no longer switches main tabs (the tab switch fired leaveDetail's history.back() between beginReplace and the drawer's open, recreating the queued-traversal race); the drawer now opens over the property — stack [propsel, drawer] — so Back closes the drawer and returns to the property naturally. All other paths unchanged. Plus v0.59 — race-free surface transitions: history.back() is a QUEUED async traversal, so the close-then-push pattern in drawer\u2192property, unread-popover\u2192drawer and change-history\u2192drawer could let the queued traversal pop the freshly pushed entry and desync the stack (the next Back would leave the app). BackNav.beginReplace() now closes the outgoing surface without queuing anything and the incoming open() reuses the entry via synchronous history.replaceState() at the same depth \u2014 nothing queued, nothing to race. Call sites guard on the target surface not already being open. The navigation harness models Back asynchronously (queued traversals + flush) as review required. Plus v0.58 — back-navigation stack fixes from review: one centralized leaveDetail() owns every exit from the property detail (property Back button, filter chips, and all main-tab navigation via a renderContent hook), clearing the selection AND consuming the propsel history entry so nothing stale survives a tab switch; the popstate closer is defensive (no-ops when nothing is selected, re-renders only when Properties is active); and propOpen() invoked from an open record drawer closes the drawer first, so the history stack matches the screen and one Back press does what it looks like it should. Plus v0.57 — job briefs and a working back button: Tracker rows show a compact 2-3 word chip of what the job is (system + kind, e.g. \u201cSprinkler annual\u201d, \u201cAlarm repair\u201d) derived from the title; and BackNav gives every overlay (record drawer, email/text composers, thread, change history, unread popover) and the property detail one history entry, so the hardware/browser back button closes the topmost open surface instead of leaving the page \u2014 leaving was what read as \u201cback logs me out\u201d, since the memory-only Sheets token forces the sign-in gate on return. Surfaces closed by their own X consume their entry; with nothing open, back exits normally. Plus v0.56 — comment hygiene only: the historical v0.54 portion of this comment now scopes address checks to teammates with Properties access; no behavior changes from v0.55. Plus v0.55 — review fixes on the address-check flow: the section renders ONLY when the property_reviews dataset actually loaded (P.reviewsOk), so a failed optional query hides the buttons instead of inviting a doomed submit; wording corrected — checks are scoped to any signed-in teammate with Properties access (Field accounts never see the layer); and the reviewer receives the RLS/grant evidence in the bundle: SELECT + INSERT to authenticated only, INSERT pinned server-side to the JWT email, no UPDATE/DELETE policies or grants, anon fully revoked. Plus v0.54 — phone-friendly property cards (the row wraps on \u2264640px: id + alert + chip on the top line, full-width wrapping title below, no more mid-address ellipsis) and teammate address checks: every property detail has an Address check section where any signed-in teammate with Properties access can Confirm the grouping or Flag a problem with a note; verdicts land in the insert-only property_reviews table (reviewer pinned to the JWT email, no edits or deletes) and are folded into the frozen grades periodically through the controlled freeze workflow. Loaded as the optional eighth dataset with the same failure isolation as the chip table. Plus v0.53 — final containment edge: the popover's height cap is the actual nonnegative space on the chosen side with no imposed minimum (the old 120px floor could push it past the viewport bottom in very short viewports); in a tiny viewport the list simply gets short and scrolls. Plus v0.52 — popover review fixes: the unread list is now vertically contained (it fits below the pill only when there's room, capping its height to the space that exists, and flips above the pill with the same cap otherwise — it never extends past the viewport), and archived rows are plain containers holding the Mark-read button, so no button nests inside another. Plus v0.51 — the team-message pill works: it now has its own styling scaled to the dark attention bar (it borrowed the stats-grid look before), and clicking it opens an unread list where every row does something — threads on active records open their drawer, threads on archived records are labelled "(archived)" with a Mark-read button (the old handler silently did nothing for these, which is why the pill felt dead), plus Mark all read. The popover closes on outside click, Escape, or scroll. Plus v0.50 — confidence chips in plain language: the freeze grades (high / probable / ambiguous / resolved_split / multi_address_unsplit) now render as "address verified", "address probable", "needs review", "split property" and "multi-building", each with a title-attribute explanation; colors and stored values are unchanged. Plus v0.49 — failure isolation for the chip table: the six core property datasets stay load-fatal, but an error from the optional property_systems query (missing table, late migration, RLS misconfiguration) now only logs a warning and leaves the persistent set empty — the layer comes up and live workbook-derived chips keep working, exactly as v0.47 did. Plus v0.48 — persistent system chips: a precomputed property_systems table in Supabase (built server-side from linked quote/tracker titles PLUS Ember appointment system data, additive across refreshes) is loaded as the seventh property dataset and unioned with the live in-browser derivation — so chips no longer depend on the evidence rows still existing in the workbook. Coverage jumps from the handful of properties whose titles happen to be loaded to every property with classified history (137 today; the pre-mirror historical titles are a pending one-time seed backfill). Plus v0.47 — role resolution now requires a FRESH Roles response: cache hydration shapes the UI but never authorizes the property layer (a demotion since the last visit takes effect before any data moves), and a failed Roles read no longer resolves — only a successful response, or the tab's confirmed absence (Google 400 "Unable to parse range", the legacy open-roster case), sets rolesResolved. Network, auth and quota failures keep the layer closed. Plus v0.46 — review fixes on the property layer: the layer now fails CLOSED until the Roles roster has actually been read (state.rolesResolved), so a saved Supabase session can no longer pull the six property datasets before a Field role is established — every exported accessor is gated and the load starts only on the roster-resolved signal (server-side RLS remains tracked as role-enforcement Phase 2). System chips now read the archives too — Archive (paid jobs) and Quotes Archive (expired quotes) — because 290 properties have system evidence only in historical titles; and the classifier catches "Central Station" (Alarm), "Back Flow", hyphenated Fire-Pump/Stand-pipe, while "double check" only counts with a device word after it. Plus v0.45 — system types on Properties: each property shows chips for the systems on site (Sprinkler / Alarm / Backflow / Hydrant / Fire pump / Standpipe / Extinguisher), derived read-only from the titles of its linked quote and tracker records, in the list, in the detail view, and in property search (typing "backflow" filters the list). Nothing is written to the frozen layer; a property whose titles name no system shows no chips. Plus v0.44 — safe-area follow-ups from review: the sticky-tab watcher is guarded while #app is hidden and refreshed the moment sign-in reveals it, the toast subtracts the left/right insets from its width, and the loading bar sits below the notch instead of top:0. Plus v0.43 — complete iOS safe-area coverage: the sticky tab bar pins below the status bar (a painted backdrop strip while stuck keeps page content from scrolling through the notch band), and every fixed surface — record drawer, change-history panel, full-screen email/SMS/thread dialogs — insets for the notch, rounded corners and home indicator, including the ≥900px overrides that previously stripped those insets (the desktop .d-foot override was dropping the home-indicator padding). Plus v0.42 safe-area page containers and v0.41 installable web app: PNG icons at 192/512 (plus maskable), manifest generated at runtime with ABSOLUTE start_url/scope/id, iOS safe-area insets, no orientation lock. Earlier — tab icon and installable home-screen app (embedded, still one file) — "Unlinked" queue on Properties: records with no property are listed with a suggested match, so linking an existing site or spotting a genuinely new one is a glance rather than an audit. Plus v0.37 — Tracker quote numbers arrive comma-formatted ("1,242"), so property matching now strips separators: Tracker chips go from 69 to 145 of 148 rows. Plus v0.36 Properties wide-screen layout (list becomes a responsive grid, detail splits into two columns on a wide monitor) on top of v0.35 phase 2: every quote/tracker row that maps to a frozen property shows its P-number, and tapping it opens that property. The drawer shows the property and address for the open record. Chips are hidden from Field accounts, which cannot open Properties. Read-only: the frozen layer (P-0001…P-0501) is never written from here. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -133,16 +133,7 @@ h1.ace b{color:#E8534E; font-weight:700}
 .kpi.active{outline:2px solid var(--ink); outline-offset:-1px}
 
 /* ============ Today's Priorities (AI) ============ */
-.prio-when{font-size:11.5px; color:#9BA0AB; white-space:nowrap; margin-left:2px}
-.prio-refresh{
-  appearance:none; border:1px solid #464B55; background:transparent; color:#C9CDD5;
-  border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
-  display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex:none;
-}
-.prio-refresh:hover{background:#262A31; color:#fff}
-.prio-refresh:disabled{opacity:.6; cursor:default}
-.prio-refresh.spin svg{animation:rot 1s linear infinite}
-.prios{display:flex; flex-direction:column; gap:8px; margin-top:10px}
+.prios{display:flex; flex-direction:column; gap:8px}
 .prio{
   appearance:none; font:inherit; cursor:pointer; text-align:left; width:100%;
   background:var(--card); border:1px solid var(--line); border-left-width:4px; border-radius:12px;
@@ -180,11 +171,6 @@ h1.ace b{color:#E8534E; font-weight:700}
   .prio{padding:10px 11px}
   .prio .why{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
   .pchip{display:none}
-}
-@media (min-width:900px){
-  .prios{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-  .prios .prio:first-child{grid-column:1 / -1}
-  .prio-empty{grid-column:1 / -1}
 }
 
 /* ============ Tabs (sticky) ============ */
@@ -796,6 +782,25 @@ a.fu{text-decoration:none; display:inline-flex; align-items:center; gap:4px}
   .t-body{padding:14px calc(16px + var(--sa-r)) 14px calc(16px + var(--sa-l))}
   .t-foot{padding:10px calc(12px + var(--sa-r)) calc(10px + var(--sa-b)) calc(12px + var(--sa-l))}
 }
+
+/* ============ v1.01 — At-a-glance strip, tab badges, phone header ============ */
+.attn-stats{display:flex; align-items:center; gap:6px 18px; flex-wrap:wrap; flex:1; min-width:0}
+.attn .allclear{font-size:13px; color:#9BA0AB}
+.attn.clear .dot{background:#4CAF7A; box-shadow:0 0 0 3px rgba(76,175,122,.25)}
+.tab .cnt:empty{display:none}   /* a badge with nothing to say is not drawn */
+@media (max-width:640px){
+  /* strip: the counts scroll sideways inside the bar; All stats stays put */
+  .attn{overflow:visible; gap:10px}
+  .attn .tag-t{display:none}
+  .attn-stats{flex-wrap:nowrap; gap:14px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .attn-stats::-webkit-scrollbar{display:none}
+  /* header buttons: one line, never wrapped into tall blocks */
+  .hd-inner{padding-left:calc(12px + var(--sa-l)); padding-right:calc(12px + var(--sa-r))}
+  .hd-user{gap:4px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .hd-user::-webkit-scrollbar{display:none}
+  .hd-btn{white-space:nowrap; flex:none; padding:6px 8px; min-height:36px; font-size:11.5px; gap:4px}
+  #btnRefresh{font-size:0; gap:0; padding:6px 10px}   /* icon only — it keeps its aria-label */
+}
 </style>
 </head>
 <body>
@@ -1058,7 +1063,7 @@ const CONFIG = {
   ROLES_SHEET: 'Roles',                 // optional tab: A=email, B=role (Admin / Back office / Field) — empty/missing tab = Back office for everyone (legacy); once anyone is listed, unlisted emails get the restricted Field view
   CHAT_UPLOAD_URL: 'https://script.google.com/macros/s/AKfycbx5u0ksVJYyjmd96arg0x0lJ6hQFJmIiOQ6irpJGH4hvSvXINAAJH8SndIlYaX6Dx1t/exec', // ACE Chat File Service (standalone project, runs as support@) — chat uploads, Drive folders, voice notes, AI reports
   VOICE_URL: 'https://script.google.com/macros/s/AKfycbwoG_qWFwuJBUguIwSrG0TkZELKtYrw5NKfwQ3SgnGqNECFBlGxVBP8MSztxTCe8PqnwQ/exec',                        // ACE Voice Service (Voice.gs in "Dashboard and Clean Up Past") — paste its /exec URL to turn Call buttons on; blank hides them entirely
-  VERSION: '1.00'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
+  VERSION: '1.01'                       // shown in the header — bump on each deploy so anyone can confirm they're on the latest build
 };
 document.querySelectorAll('.ver').forEach(el => el.textContent = 'v' + CONFIG.VERSION);
 
@@ -1081,7 +1086,7 @@ const QC_ACTION = { 10:'Email', 11:'Text', 12:'Call' };
 const STAMP_PREFIX = 'Stopped — ';
 const isStamp = v => String(v || '').trim().startsWith(STAMP_PREFIX);
 /* UI tabs = the two sheet tabs + the computed Renewals radar */
-const UI_TABS = [{ id:'handoff', label:'Handoff' }, ...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }, { id:'properties', label:'Properties' }];   // v0.73 — Handoff leads
+const UI_TABS = [{ id:'handoff', label:'Today' }, ...TABS, { id:'renewals', label:'Renewals' }, { id:'texts', label:'Texts' }, { id:'properties', label:'Properties' }];   // v0.73 — Handoff leads
 const tabOfUid = uid => TABS.find(t => String(uid || '').startsWith(t.id + ':'));
 
 /* =====================================================================
@@ -1102,7 +1107,7 @@ const state = {
   teamPhones:{}, teamPhonesFor:'',   // v0.81/0.82 — 10-digit handset -> teammate name (team-gated Supabase view), bound to the Google account it was fetched under
   renBucket:'d30',
   prios:{ items:[], generated:'', source:'', loading:false },
-  handoff:{ rows:null, loading:false, sel:0, err:'' },   // v0.72 — Handoff Feed rows (lazy; null = never fetched)
+  handoff:{ rows:null, loading:false, sel:0, err:'', seg:null },   // v0.72 — Handoff Feed rows (lazy; null = never fetched) · v1.01 — seg = open Today sub-tab (null = first non-empty)
   drawerUid:null, drawerList:[], lastLoad:0,
   freshLoads:0, loadErrors:0   // v0.88 — session-only (never cached): how many loadAll() runs finished / failed; the ?phone= deep link waits on these
 };
@@ -2054,11 +2059,17 @@ function prioMarkDone(p){
   const done = prioDoneSet();
   done.add(p.tab + '|' + p.key);
   try { localStorage.setItem(PRIO_DONE_LS, JSON.stringify({ gen: state.prios.generated, keys: [...done] })); } catch(e){}
-  renderSummary();
+  prioChanged_();
 }
 function prioClearDone(){
   try { localStorage.removeItem(PRIO_DONE_LS); } catch(e){}
-  renderSummary();
+  prioChanged_();
+}
+/* v1.01 — the priorities live on the Today tab now: redraw it (and its tab
+   badge) when they change. The At-a-glance strip no longer depends on them. */
+function prioChanged_(){
+  if (window.__todayBadge) window.__todayBadge();
+  if (state.activeTab === 'handoff' && window.renderHandoff) window.renderHandoff();
 }
 function prioJump(p){
   if (p.tab === 'texts'){ state.textsFilter = 'open'; jumpTo('texts', 'all'); return; }
@@ -2075,7 +2086,7 @@ async function refreshPriorities(){
   if (!url){ toast('Deploy Priorities.gs, then paste its /exec URL into CONFIG.PRIORITIES_URL', 'err'); return; }
   if (state.prios.loading) return;
   state.prios.loading = true;
-  renderSummary();
+  prioChanged_();
   try {
     const r = await fetch(url, { method:'POST', body: JSON.stringify({ action:'refresh', token: state.token }) });
     const txt = await r.text();
@@ -2089,46 +2100,47 @@ async function refreshPriorities(){
       : 'Priorities refreshed', 'ok');
   } catch(e){ if (e.message !== 'auth') toast(String(e.message || e), 'err'); }
   state.prios.loading = false;
-  renderSummary();
+  prioChanged_();
 }
+/* v1.01 — what the Today module (its own script scope) needs from here */
+window.__prio = {
+  doneSet: prioDoneSet, markDone: prioMarkDone, clearDone: prioClearDone,
+  jump: prioJump, refresh: refreshPriorities, age: fmtPrioAge,
+  canRefresh: () => !!String(CONFIG.PRIORITIES_URL || '').trim()
+};
 function renderSummary(){
   const box = $('#summary');
   box.innerHTML = '';
   if (isField()) return;   // field view keeps the header lean — no office KPIs
 
-  const P = state.prios || { items:[] };
+  /* v1.01 — one line: only the counts that are not zero, each a shortcut to
+     its filtered list. Today's Priorities moved to the Today tab. */
   const bar = document.createElement('div');
   bar.className = 'attn';
-  bar.innerHTML = '<span class="tag"><span class="dot" aria-hidden="true"></span>Today\u2019s Priorities</span>';
-  const when = document.createElement('span');
-  when.className = 'prio-when';
-  when.textContent = P.loading ? 'Refreshing\u2026'
-    : P.generated ? ('Updated ' + fmtPrioAge(P.generated) + (P.source === 'fallback' ? ' \u00b7 rule-based' : ''))
-    : 'Not generated yet';
-  bar.appendChild(when);
-  if (String(CONFIG.PRIORITIES_URL || '').trim()){
-    const rb = document.createElement('button');
-    rb.type = 'button';
-    rb.className = 'prio-refresh' + (P.loading ? ' spin' : '');
-    rb.disabled = !!P.loading;
-    rb.setAttribute('aria-label', 'Refresh today\u2019s priorities');
-    rb.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>' +
-      (P.loading ? ' Refreshing' : ' Refresh');
-    rb.addEventListener('click', refreshPriorities);
-    bar.appendChild(rb);
+  bar.innerHTML = '<span class="tag"><span class="dot" aria-hidden="true"></span><span class="tag-t">At a glance</span></span>';
+  const stats = document.createElement('span');
+  stats.className = 'attn-stats';
+  let any = 0;
+  KPI_TILES.forEach(tl => {
+    const n = countFor(tl.tab, tl.filter);
+    if (!n) return;
+    any++;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'stat' + (tl.tone === 'red' ? ' s-red' : tl.tone === 'amber' ? ' s-amber' : '');
+    b.setAttribute('aria-label', `${tl.label}: ${n} — show these`);
+    b.innerHTML = `<b>${n}</b> ${esc(tl.label)}`;
+    b.addEventListener('click', () => jumpTo(tl.tab, tl.filter));
+    stats.appendChild(b);
+  });
+  if (!any){
+    bar.classList.add('clear');
+    const ok = document.createElement('span');
+    ok.className = 'allclear';
+    ok.textContent = state.lastLoad ? 'All clear \u2014 nothing waiting' : 'Loading\u2026';
+    stats.appendChild(ok);
   }
-  const doneSet = prioDoneSet();
-  const ranked = P.items.slice(0, 5).map((p, i) => ({ p, rank: i + 1 }));
-  const shown = ranked.filter(x => !doneSet.has(x.p.tab + '|' + x.p.key));
-  const hiddenN = ranked.length - shown.length;
-  if (hiddenN){
-    const db = document.createElement('button');
-    db.type = 'button';
-    db.className = 'prio-refresh';
-    db.textContent = hiddenN + ' handled \u00b7 undo';
-    db.addEventListener('click', prioClearDone);
-    bar.appendChild(db);
-  }
+  bar.appendChild(stats);
   const tog = document.createElement('button');
   tog.type = 'button';
   tog.className = 'statsbtn';
@@ -2137,76 +2149,6 @@ function renderSummary(){
   tog.addEventListener('click', () => { state.statsOpen = !state.statsOpen; renderSummary(); });
   bar.appendChild(tog);
   box.appendChild(bar);
-
-  const list = document.createElement('div');
-  list.className = 'prios';
-  if (!shown.length){
-    const empty = document.createElement('div');
-    empty.className = 'prio-empty';
-    empty.textContent = P.loading ? 'Thinking\u2026'
-      : hiddenN ? ('All ' + hiddenN + ' handled \u2014 nothing left this morning.')
-      : P.generated ? 'Nothing urgent right now \u2014 all clear.'
-      : 'No priorities yet \u2014 they generate automatically each morning, or tap Refresh.';
-    list.appendChild(empty);
-  }
-  shown.forEach(({ p, rank }) => {
-    const lv = ['p1','p2','p3'].includes(p.level) ? p.level : PRIO_LEVEL(p.score);
-    const card = document.createElement('div');
-    card.className = 'prio ' + lv;
-    card.setAttribute('role', 'button');
-    card.tabIndex = 0;
-    card.setAttribute('aria-label', 'Priority ' + rank + ': ' + p.title + ' — open');
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); prioJump(p); }
-    });
-    const badge = document.createElement('span');
-    badge.className = 'pbadge'; badge.textContent = String(rank);
-    const body = document.createElement('span');
-    body.className = 'pbody';
-    const ptrow = document.createElement('span');
-    ptrow.className = 'ptrow';
-    if (p.key && (p.tab === 'quotes' || p.tab === 'tracker')){
-      const pk = document.createElement('span');
-      pk.className = 'pkey'; pk.textContent = '#' + p.key;
-      ptrow.appendChild(pk);
-    }
-    const pt = document.createElement('span');
-    pt.className = 'pt'; pt.textContent = p.title;
-    ptrow.appendChild(pt);
-    body.appendChild(ptrow);
-    if (p.reason){
-      const why = document.createElement('span');
-      why.className = 'why'; why.textContent = p.reason;
-      body.appendChild(why);
-    }
-    if (p.action){
-      const act = document.createElement('span');
-      act.className = 'act'; act.textContent = '\u2192 ' + p.action;
-      body.appendChild(act);
-    }
-    const right = document.createElement('span');
-    right.className = 'pright';
-    if (p.chip){
-      const ch = document.createElement('span');
-      ch.className = 'pchip'; ch.textContent = p.chip;
-      right.appendChild(ch);
-    }
-    const dn = document.createElement('button');
-    dn.type = 'button';
-    dn.className = 'pdone';
-    dn.title = 'Mark handled for today';
-    dn.setAttribute('aria-label', 'Mark \u201c' + p.title + '\u201d handled for today');
-    dn.textContent = '\u2713';
-    dn.addEventListener('click', e => { e.stopPropagation(); prioMarkDone(p); });
-    right.appendChild(dn);
-    const go = document.createElement('span');
-    go.className = 'go'; go.setAttribute('aria-hidden', 'true'); go.textContent = '\u203a';
-    right.appendChild(go);
-    card.appendChild(badge); card.appendChild(body); card.appendChild(right);
-    card.addEventListener('click', () => prioJump(p));
-    list.appendChild(card);
-  });
-  box.appendChild(list);
 
   const grid = document.createElement('div');
   grid.className = 'kpis' + (state.statsOpen ? ' open' : '');
@@ -2238,6 +2180,7 @@ function renderAll(){
   if (xc) xc.textContent = computeThreads().reduce((s, t) => s + t.unread, 0);
   const pc = document.querySelector('[data-cnt="properties"]');
   if (pc) pc.textContent = (window.propAlertCount ? window.propAlertCount() : '');
+  if (window.__todayBadge) window.__todayBadge();   // v1.01 — Today badge = critical count
   updateStale();
   renderSummary();
 
@@ -8346,11 +8289,16 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
 })();
 </script>
 <script>
-/* === HANDOFF MODULE v0.72 ===================================================
-   Renders the 'Handoff Feed' tab (written by ACE Shift Handoff v1.9) as a
-   dashboard section. Read-only. Lazy: nothing is fetched until the tab is
-   first opened. Pure builders (hoParseRows_, hoView_) are exported for the
-   behavioral harness; DOM wiring is guarded so the file evals headless.   */
+/* === TODAY MODULE v1.01 (was HANDOFF MODULE v0.72) ==========================
+   The home tab. One page, three sub-tabs — Critical / Follow up / FYI — fed
+   by two sources the dashboard already reads:
+     · the 'Handoff Feed' tab (written by ACE Shift Handoff v1.9), and
+     · state.prios — the AI "Today's Priorities" list, which used to sit as a
+       bar of five cards above every tab.
+   Read-only. The Handoff Feed is still lazy: nothing is fetched until the tab
+   is first opened. Pure builders (hoParseRows_, hoView_, tdSplit_, tdCounts_)
+   are exported for the behavioral harness; DOM wiring is guarded so the file
+   evals headless. hoView_(payload, search) returns exactly what v0.72 did.  */
 (function(){
   'use strict';
   var HO_COLORS = { ink:'#181A1F', ink2:'#3C4048', muted:'#767B85', card:'#FFFFFF', line:'#E4E2DC',
@@ -8361,6 +8309,19 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     ['new_customers',       'New customer conversations',   'green'],
     ['existing_updates',    'Updates to existing customers','blue'],
     ['waiting_on_customer', 'Waiting on customer',          'amber']
+  ];
+  /* v1.01 — the three Today sub-tabs. THIS TABLE IS THE WHOLE MAPPING:
+       sections : which Handoff Feed sections land in the sub-tab ('fyi' included)
+       extras   : also show "Suggested next actions" + "Open items going stale"
+       levels   : which priority levels land in the sub-tab (p1 = score 80+)
+     Move a section or level to another row to re-bucket it; nothing else changes. */
+  var TD_SEGS = [
+    { id:'critical', label:'Critical',  dot:'#C4322E', sections:['needs_attention'], extras:false, levels:['p1'],
+      empty:'Nothing critical right now — all clear.' },
+    { id:'followup', label:'Follow up', dot:'#E0A93E', sections:['new_customers','existing_updates','waiting_on_customer'], extras:true, levels:['p2','p3'],
+      empty:'Nothing to follow up on right now.' },
+    { id:'fyi',      label:'FYI',       dot:'#9BA0AB', sections:['fyi'], extras:false, levels:[],
+      empty:'No FYIs right now.' }
   ];
   function hoEsc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -8389,74 +8350,154 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       '" data-hokey="' + hoEsc(key) + '">' + hoEsc(label) + '</button>';
   }
   function hoThreadCard_(p, i, tone){
-    var t = p.threads[i] || {};
+    var t = (p.threads || [])[i] || {};
     var meta = [];
     if (t.cust) meta.push(hoEsc(t.cust));
     if (t.prop) meta.push(hoEsc(t.prop));
     if (t.owner) meta.push('Last handled by ' + hoEsc(t.owner));
     return '<div class="ho-thread" style="border-left:3px solid ' + tone + '">' +
       '<div class="ho-thread-top">' + hoChip_(t) +
-      (t.urgent ? '<span class="ho-urgent">' + hoEsc(t.urgentWord || 'urgent') + (t.repeat ? ' \u00B7 2nd handoff' : '') + '</span>' : '') +
+      (t.urgent ? '<span class="ho-urgent">' + hoEsc(t.urgentWord || 'urgent') + (t.repeat ? ' · 2nd handoff' : '') + '</span>' : '') +
       '</div>' +
       '<div class="ho-subj">' + hoEsc(t.subject || '(no subject)') + '</div>' +
-      (meta.length ? '<div class="ho-meta">' + meta.join(' \u00B7 ') + '</div>' : '') +
+      (meta.length ? '<div class="ho-meta">' + meta.join(' · ') + '</div>' : '') +
       '<div class="ho-note">' + hoEsc((p.notes || {})[i] || '') + '</div>' +
       '</div>';
   }
   function hoMatches_(p, i, q){
     if (!q) return true;
-    var t = p.threads[i] || {};
+    var t = (p.threads || [])[i] || {};
     var hay = ((t.subject||'') + ' ' + (t.cust||'') + ' ' + (t.prop||'') + ' ' +
       (t.quote||'') + ' ' + (t.job||'') + ' ' + ((p.notes||{})[i]||'')).toLowerCase();
     return hay.indexOf(q.toLowerCase()) !== -1;
   }
-  /* Pure view builder: (payload, searchText) -> HTML string. */
-  function hoView_(p, q){
-    if (!p) return '<div class="ho-empty">This handoff row could not be read (payload did not parse). ' +
-      'Pick another handoff from the list above.</div>';
-    var C = HO_COLORS, h = '';
-    h += '<div class="ho-head"><div class="ho-route">' + hoEsc((p.from||'') + ' \u2192 ' + (p.to||'')) +
+  function hoIdxs_(p, key, q){
+    return (((p || {}).sections || {})[key] || []).filter(function(i){ return hoMatches_(p, i, q); });
+  }
+  /* Route + date line for one handoff (the Today tab shows these in the picker instead). */
+  function hoRoute_(p){
+    return '<div class="ho-head"><div class="ho-route">' + hoEsc((p.from||'') + ' → ' + (p.to||'')) +
       (p.kind === 'manual' ? ' <span class="ho-manual">manual snapshot</span>' : '') + '</div>' +
       '<div class="ho-date">' + hoEsc(p.dateLabel || p.boundary || '') + '</div></div>';
-    h += '<div class="ho-headline">' + hoEsc(p.headline || '') +
+  }
+  /* Headline card for one handoff. */
+  function hoHeadline_(p){
+    return '<div class="ho-headline">' + hoEsc(p.headline || '') +
       (p.readLine ? '<div class="ho-readline">' + hoEsc(p.readLine) +
-        (p.truncated ? ' \u00B7 ' + p.truncated + ' more thread' + (p.truncated === 1 ? '' : 's') + ' next handoff' : '') + '</div>' : '') + '</div>';
-    var shown = 0;
+        (p.truncated ? ' · ' + p.truncated + ' more thread' + (p.truncated === 1 ? '' : 's') + ' next handoff' : '') + '</div>' : '') + '</div>';
+  }
+  /* Section cards for one handoff. seg = a TD_SEGS row limits the output to
+     that sub-tab's sections; seg = null renders every section (the v0.72 view). */
+  function hoBody_(p, q, seg){
+    var C = HO_COLORS, h = '', shown = 0;
+    var want = seg ? seg.sections : null;
+    var extras = seg ? !!seg.extras : true;
     HO_SECTIONS.forEach(function(def){
-      var idxs = ((p.sections || {})[def[0]] || []).filter(function(i){ return hoMatches_(p, i, q); });
+      if (want && want.indexOf(def[0]) === -1) return;
+      var idxs = hoIdxs_(p, def[0], q);
       if (!idxs.length) return;
       shown += idxs.length;
       h += '<div class="ho-card"><div class="ho-card-title"><span class="ho-dot" style="background:' + C[def[2]] + '"></span>' +
         hoEsc(def[1]) + '<span class="ho-count">' + idxs.length + '</span></div>' +
         idxs.map(function(i){ return hoThreadCard_(p, i, C[def[2]]); }).join('') + '</div>';
     });
-    if (p.next_actions && p.next_actions.length && !q){
+    if (extras && p.next_actions && p.next_actions.length && !q){
       h += '<div class="ho-card"><div class="ho-card-title">' + hoEsc(p.actionsTitle || 'Suggested next actions') + '</div>' +
         p.next_actions.map(function(a, i){
           return '<div class="ho-action"><span class="ho-num">' + (i + 1) + '.</span> ' + hoEsc(a) + '</div>';
         }).join('') + '</div>';
     }
-    if (p.openItems && p.openItems.length && !q){
+    if (extras && p.openItems && p.openItems.length && !q){
       h += '<div class="ho-card"><div class="ho-card-title"><span class="ho-dot" style="background:' + C.amber + '"></span>Open items going stale</div>' +
         p.openItems.map(function(it){
           return '<div class="ho-stale">' + hoChip_({ quote: it.quote, job: it.job }) + ' ' +
-            hoEsc(it.who || '') + ' \u2014 <b style="color:' + C.amber + '">' + hoEsc(it.line || '') + '</b></div>';
+            hoEsc(it.who || '') + ' — <b style="color:' + C.amber + '">' + hoEsc(it.line || '') + '</b></div>';
         }).join('') + '</div>';
     }
-    var fyi = ((p.sections || {}).fyi || []).filter(function(i){ return hoMatches_(p, i, q); });
+    var fyi = (!want || want.indexOf('fyi') !== -1) ? hoIdxs_(p, 'fyi', q) : [];
     if (fyi.length){
-      h += '<div class="ho-card ho-fyi"><div class="ho-card-title" style="color:' + C.muted + '">FYI \u2014 no action needed</div>' +
+      h += '<div class="ho-card ho-fyi"><div class="ho-card-title" style="color:' + C.muted + '">FYI — no action needed</div>' +
         fyi.map(function(i){
-          var t = p.threads[i] || {};
-          return '<div class="ho-fyi-row">' + hoEsc(t.subject || '') + ' \u2014 ' + hoEsc((p.notes||{})[i] || '') + '</div>';
+          var t = (p.threads || [])[i] || {};
+          return '<div class="ho-fyi-row">' + hoEsc(t.subject || '') + ' — ' + hoEsc((p.notes||{})[i] || '') + '</div>';
         }).join('') + '</div>';
     }
-    if (q && !shown && !fyi.length) h += '<div class="ho-empty">No threads in this handoff match \u201c' + hoEsc(q) + '\u201d.</div>';
-    return h;
+    return { html:h, shown:shown, fyi:fyi.length };
+  }
+  /* Pure view builder: (payload, searchText) -> HTML string. Unchanged output since v0.72. */
+  function hoView_(p, q){
+    if (!p) return '<div class="ho-empty">This handoff row could not be read (payload did not parse). ' +
+      'Pick another handoff from the list above.</div>';
+    var b = hoBody_(p, q, null);
+    return hoRoute_(p) + hoHeadline_(p) + b.html +
+      (q && !b.shown && !b.fyi ? '<div class="ho-empty">No threads in this handoff match “' + hoEsc(q) + '”.</div>' : '');
+  }
+
+  /* ---- v1.01 — priorities, split across the sub-tabs ---------------------- */
+  function tdLevel_(p){
+    var lv = String((p || {}).level || '').trim().toLowerCase();
+    if (lv === 'p1' || lv === 'p2' || lv === 'p3') return lv;
+    var s = parseInt((p || {}).score, 10) || 0;
+    return s >= 80 ? 'p1' : s >= 60 ? 'p2' : 'p3';
+  }
+  function tdPrioMatches_(p, q){
+    if (!q) return true;
+    var hay = ((p.title||'') + ' ' + (p.reason||'') + ' ' + (p.action||'') + ' ' + (p.key||'') + ' ' + (p.chip||'')).toLowerCase();
+    return hay.indexOf(q.toLowerCase()) !== -1;
+  }
+  /* Pure: (priority items, Set of handled 'tab|key', searchText) ->
+     { critical:[{p,idx,rank,lv}], followup:[...], fyi:[], handled:{critical:n,followup:n,fyi:0} }.
+     rank is the item's position in the service's ranking, so numbers stay
+     stable when something is marked handled or a search is typed. */
+  function tdSplit_(items, done, q){
+    var out = { handled:{} };
+    TD_SEGS.forEach(function(s){ out[s.id] = []; out.handled[s.id] = 0; });
+    (items || []).forEach(function(p, i){
+      var lv = tdLevel_(p), seg = null;
+      TD_SEGS.forEach(function(s){ if (!seg && s.levels.indexOf(lv) !== -1) seg = s; });
+      if (!seg) return;
+      if (done && done.has(p.tab + '|' + p.key)){ out.handled[seg.id]++; return; }
+      if (!tdPrioMatches_(p, q)) return;
+      out[seg.id].push({ p:p, idx:i, rank:i + 1, lv:lv });
+    });
+    return out;
+  }
+  /* Pure: how many items each sub-tab holds. Derived from the same rows the
+     panels render — handoff threads + stale open items + open priorities. */
+  function tdCounts_(p, q, split){
+    var n = {};
+    TD_SEGS.forEach(function(s){
+      var c = (split && split[s.id]) ? split[s.id].length : 0;
+      if (p){
+        s.sections.forEach(function(key){ c += hoIdxs_(p, key, q).length; });
+        if (s.extras && !q && p.openItems) c += p.openItems.length;
+      }
+      n[s.id] = c;
+    });
+    return n;
+  }
+  function tdPrioCard_(x){
+    var p = x.p;
+    return '<div class="prio ' + x.lv + '" role="button" tabindex="0" data-prio="' + x.idx + '" aria-label="Priority ' + x.rank + ': ' + hoEsc(p.title) + ' — open">' +
+      '<span class="pbadge">' + x.rank + '</span>' +
+      '<span class="pbody"><span class="ptrow">' +
+        (p.key && (p.tab === 'quotes' || p.tab === 'tracker') ? '<span class="pkey">#' + hoEsc(p.key) + '</span>' : '') +
+        '<span class="pt">' + hoEsc(p.title) + '</span></span>' +
+        (p.reason ? '<span class="why">' + hoEsc(p.reason) + '</span>' : '') +
+        (p.action ? '<span class="act">→ ' + hoEsc(p.action) + '</span>' : '') +
+      '</span>' +
+      '<span class="pright">' +
+        (p.chip ? '<span class="pchip">' + hoEsc(p.chip) + '</span>' : '') +
+        '<button type="button" class="pdone" data-pdone="' + x.idx + '" title="Mark handled for today" aria-label="Mark “' + hoEsc(p.title) + '” handled for today">✓</button>' +
+        '<span class="go" aria-hidden="true">›</span>' +
+      '</span></div>';
   }
   // exported for the behavioral harness
   window.__hoParseRows = hoParseRows_;
   window.__hoView = hoView_;
+  window.__tdSplit = tdSplit_;
+  window.__tdCounts = tdCounts_;
+  window.__tdSegs = TD_SEGS;
 
   if (typeof document === 'undefined' || !document.getElementById) return;   // headless eval stops here
 
@@ -8478,6 +8519,7 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '.ho-dot{width:9px;height:9px;border-radius:9px;display:inline-block}' +
     '.ho-count{font-weight:400;color:' + HO_COLORS.muted + ';font-size:12.5px}' +
     '.ho-thread{padding:6px 0 8px 11px;margin:0 0 8px}' +
+    '.ho-thread:last-child{margin-bottom:0}' +
     '.ho-thread-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:4px}' +
     '.ho-chip{background:' + HO_COLORS.red + ';color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;letter-spacing:.4px;padding:2px 8px;cursor:pointer}' +
     '.ho-chip[disabled]{opacity:.55;cursor:default}' +
@@ -8488,11 +8530,45 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
     '.ho-action{font-size:13.5px;color:' + HO_COLORS.ink2 + ';line-height:1.5;padding:4px 0}' +
     '.ho-num{color:' + HO_COLORS.red + ';font-weight:800}' +
     '.ho-stale{font-size:13.5px;color:' + HO_COLORS.ink2 + ';padding:5px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
-    '.ho-fyi-row{font-size:12.5px;color:' + HO_COLORS.muted + ';line-height:1.5;padding:3px 0}' +
-    '.ho-empty{background:' + HO_COLORS.card + ';border:1px dashed ' + HO_COLORS.line + ';border-radius:10px;padding:22px 16px;text-align:center;color:' + HO_COLORS.muted + ';font-size:13.5px}';
+    '.ho-fyi-row{font-size:13px;color:' + HO_COLORS.ink2 + ';line-height:1.5;padding:5px 0;border-top:1px solid ' + HO_COLORS.line + '}' +
+    '.ho-card-title + .ho-fyi-row{border-top:0}' +
+    '.ho-empty{background:' + HO_COLORS.card + ';border:1px dashed ' + HO_COLORS.line + ';border-radius:10px;padding:22px 16px;text-align:center;color:' + HO_COLORS.muted + ';font-size:13.5px}' +
+    /* v1.01 — Today sub-tabs + priorities header */
+    '.td-note{margin-bottom:12px;padding:12px 14px}' +
+    '.td-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:#E9E7E1;border-radius:12px;padding:4px;margin:0 0 14px}' +
+    '.td-tab{appearance:none;border:0;background:transparent;border-radius:9px;padding:8px 6px;min-height:42px;font:inherit;font-size:14px;font-weight:700;color:' + HO_COLORS.ink2 + ';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}' +
+    '.td-tab:hover{background:rgba(255,255,255,.5)}' +
+    '.td-tab.on{background:#fff;color:' + HO_COLORS.ink + ';box-shadow:0 1px 2px rgba(20,22,26,.12),0 2px 8px rgba(20,22,26,.06)}' +
+    '.td-dot{width:8px;height:8px;border-radius:50%;flex:none}' +
+    '.td-n{font-size:11.5px;font-weight:700;min-width:22px;text-align:center;background:#F5F4F1;border:1px solid ' + HO_COLORS.line + ';border-radius:99px;padding:0 7px;color:' + HO_COLORS.muted + '}' +
+    '.td-tab.on .td-n{color:' + HO_COLORS.ink2 + '}' +
+    '.td-tab.td-critical .td-n.has{background:' + HO_COLORS.redBg + ';color:#9E2724;border-color:#EFD2D1}' +
+    '.td-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 2px 8px}' +
+    '.td-h-t{font-weight:800;font-size:13px;letter-spacing:.7px;text-transform:uppercase;color:' + HO_COLORS.ink + '}' +
+    '.td-when{font-size:12px;color:' + HO_COLORS.muted + ';margin-right:auto}' +
+    '.td-mini{appearance:none;border:1px solid ' + HO_COLORS.line + ';background:#fff;color:' + HO_COLORS.ink2 + ';border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}' +
+    '.td-mini:hover{border-color:#C7CBD3}' +
+    '.td-mini:disabled{opacity:.6;cursor:default}' +
+    '.td-mini.spin svg{animation:rot 1s linear infinite}' +
+    '.ho-wrap .prios{margin:0 0 14px}' +
+    '@media (max-width:640px){.td-tab{font-size:13px;gap:5px}.td-n{padding:0 6px;min-width:20px}.td-long{display:none}}';
   document.head.appendChild(css);
 
   function S(){ return window.state || {}; }
+  function PR(){ return window.__prio || null; }
+  function prioSplit(q){
+    var api = PR();
+    return tdSplit_((S().prios || {}).items || [], api ? api.doneSet() : null, q);
+  }
+  /* Today tab badge = critical items in the LATEST handoff + open critical priorities. */
+  function badge(){
+    var el = document.querySelector('[data-cnt="handoff"]');
+    if (!el) return;
+    var st = S().handoff || {};
+    var row = (st.rows && st.rows.length) ? st.rows[0] : null;
+    var n = tdCounts_(row ? row.payload : null, '', prioSplit('')).critical;
+    el.textContent = n ? String(n) : '';
+  }
   function hoLoad(force){
     var st = S().handoff;
     if (!st || st.loading) return;
@@ -8512,31 +8588,82 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
       .then(function(){ st.loading = false; render(); });
   }
   function render(){
+    badge();
     if (S().activeTab !== 'handoff') return;
     var main = document.getElementById('main');
     if (!main) return;
     var st = S().handoff;
     if (st.rows === null && !st.loading){ hoLoad(false); return; }
+    var q = String(S().search || '').trim();
+    var rows = st.rows || [];
+    var row = rows.length ? rows[st.sel] : null;
+    var p = row ? row.payload : null;
+    var P = S().prios || { items:[] };
+    var api = PR();
     var h = '<div class="ho-wrap">';
-    if (st.loading && st.rows === null){
-      h += '<div class="ho-empty">Loading handoffs\u2026</div></div>';
-      main.innerHTML = h; return;
+
+    /* shift handoff picker + headline */
+    h += '<div class="ho-bar">' +
+      (rows.length ? '<select id="hoPick" aria-label="Pick a handoff">' +
+        rows.map(function(r, i){
+          return '<option value="' + i + '"' + (i === st.sel ? ' selected' : '') + '>' +
+            hoEsc((r.payload && r.payload.dateLabel) ? r.payload.dateLabel : r.boundary) + ' — ' +
+            hoEsc(r.from + ' → ' + r.to) + (r.payload && r.payload.kind === 'manual' ? ' (manual snapshot)' : '') + '</option>';
+        }).join('') + '</select>' : '') +
+      '<button type="button" id="hoRefresh"' + (st.loading ? ' disabled' : '') + '>' + (st.loading ? 'Refreshing…' : 'Refresh') + '</button></div>';
+    if (st.loading && st.rows === null) h += '<div class="ho-empty td-note">Loading handoffs…</div>';
+    else if (!rows.length) h += '<div class="ho-empty td-note">' + (st.err ? 'Could not load the Handoff Feed: ' + hoEsc(st.err)
+      : 'No handoffs yet. The first one is written at the next shift boundary (weekdays 2 PM & 7 PM, Sat noon, Mon 7 AM) — or run generateHandoffNow() in the Shift Handoff project for an instant snapshot.') + '</div>';
+    else if (!p) h += '<div class="ho-empty td-note">This handoff row could not be read (payload did not parse). Pick another handoff from the list above.</div>';
+    else h += hoHeadline_(p);   // route + date are already the picker's text
+
+    /* sub-tabs */
+    var split = prioSplit(q);
+    var counts = tdCounts_(p, q, split);
+    var segId = st.seg;
+    if (!segId){   // nothing picked yet: open the first sub-tab that has something in it
+      segId = 'critical';
+      for (var si = 0; si < TD_SEGS.length; si++){ if (counts[TD_SEGS[si].id]){ segId = TD_SEGS[si].id; break; } }
     }
-    if (!st.rows || !st.rows.length){
-      h += '<div class="ho-empty">' + (st.err ? 'Could not load the Handoff Feed: ' + hoEsc(st.err)
-        : 'No handoffs yet. The first one is written at the next shift boundary (weekdays 2\u2009PM & 7\u2009PM, Sat noon, Mon 7\u2009AM) \u2014 or run generateHandoffNow() in the Shift Handoff project for an instant snapshot.') +
-        '</div><div class="ho-bar"><button type="button" id="hoRefresh">Refresh</button></div></div>';
-      main.innerHTML = h; wire(); return;
+    var seg = TD_SEGS[0];
+    TD_SEGS.forEach(function(s){ if (s.id === segId) seg = s; });
+    h += '<div class="td-seg" role="tablist" aria-label="Today">' + TD_SEGS.map(function(s){
+      var on = s.id === seg.id;
+      return '<button type="button" role="tab" class="td-tab td-' + s.id + (on ? ' on' : '') + '" aria-selected="' + (on ? 'true' : 'false') + '" data-seg="' + s.id + '">' +
+        '<span class="td-dot" style="background:' + s.dot + '"></span>' + hoEsc(s.label) +
+        '<span class="td-n' + (counts[s.id] ? ' has' : '') + '">' + counts[s.id] + '</span></button>';
+    }).join('') + '</div>';
+
+    /* panel: priorities first, then this sub-tab's handoff sections */
+    var pr = split[seg.id] || [];
+    var handledHere = split.handled[seg.id] || 0;
+    var handledAll = 0;
+    TD_SEGS.forEach(function(s){ handledAll += split.handled[s.id] || 0; });
+    var body = p ? hoBody_(p, q, seg) : { html:'', shown:0, fyi:0 };
+    var prioHead = seg.levels.length && (pr.length || handledHere || seg.id === 'critical');
+    if (prioHead){
+      h += '<div class="td-h"><span class="td-h-t">Today’s priorities</span>' +
+        '<span class="td-when">' + (P.loading ? 'Refreshing…'
+          : P.generated ? ('Updated ' + hoEsc(api ? api.age(P.generated) : '') + (P.source === 'fallback' ? ' · rule-based' : ''))
+          : 'Not generated yet') + '</span>' +
+        (handledAll ? '<button type="button" class="td-mini" id="tdUndo">' + handledAll + ' handled · undo</button>' : '') +
+        (api && api.canRefresh() ? '<button type="button" class="td-mini' + (P.loading ? ' spin' : '') + '" id="tdPrioRefresh"' + (P.loading ? ' disabled' : '') + ' aria-label="Refresh today’s priorities">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>' +
+          '<span>' + (P.loading ? 'Refreshing' : 'Refresh<span class="td-long"> priorities</span>') + '</span></button>' : '') +
+        '</div>';
+      if (pr.length) h += '<div class="prios">' + pr.map(tdPrioCard_).join('') + '</div>';
+      else h += '<div class="prio-empty" style="margin-bottom:14px">' + hoEsc(
+        P.loading ? 'Thinking…'
+        : q ? 'No ' + seg.label.toLowerCase() + ' priorities match “' + q + '”.'
+        : handledHere ? ('All ' + handledHere + ' handled — nothing left here.')
+        : !P.generated ? 'No priorities yet — they generate automatically each morning, or tap Refresh priorities.'
+        : seg.id === 'critical' ? 'No critical priorities right now.'
+        : 'No priorities here right now.') + '</div>';
     }
-    h += '<div class="ho-bar"><select id="hoPick" aria-label="Pick a handoff">' +
-      st.rows.map(function(r, i){
-        return '<option value="' + i + '"' + (i === st.sel ? ' selected' : '') + '>' +
-          hoEsc((r.payload && r.payload.dateLabel) ? r.payload.dateLabel : r.boundary) + ' \u2014 ' +
-          hoEsc(r.from + ' \u2192 ' + r.to) + '</option>';
-      }).join('') + '</select>' +
-      '<button type="button" id="hoRefresh"' + (st.loading ? ' disabled' : '') + '>' + (st.loading ? 'Refreshing\u2026' : 'Refresh') + '</button></div>';
-    var row = st.rows[st.sel];
-    h += hoView_(row ? row.payload : null, String(S().search || '').trim());
+    h += body.html;
+    if (!prioHead && !body.html){
+      h += '<div class="ho-empty">' + (q ? 'Nothing in ' + hoEsc(seg.label) + ' matches “' + hoEsc(q) + '”.' : hoEsc(seg.empty)) + '</div>';
+    }
     h += '</div>';
     main.innerHTML = h;
     wire();
@@ -8567,8 +8694,31 @@ window.rowByUid = rowByUid; window.tabOfUid = tabOfUid;
         if (!ok){ btn.disabled = true; btn.title = 'Record not in the loaded tabs (archived or historical)'; }
       });
     });
+    /* v1.01 — sub-tabs + priority cards */
+    Array.prototype.forEach.call(main.querySelectorAll('.td-tab'), function(btn){
+      btn.addEventListener('click', function(){ S().handoff.seg = btn.getAttribute('data-seg'); render(); });
+    });
+    var api = PR();
+    if (!api) return;
+    var items = (S().prios || {}).items || [];
+    Array.prototype.forEach.call(main.querySelectorAll('.prio[data-prio]'), function(card){
+      var p = items[parseInt(card.getAttribute('data-prio'), 10)];
+      if (!p) return;
+      card.addEventListener('click', function(){ api.jump(p); });
+      card.addEventListener('keydown', function(e){
+        if (e.target !== card) return;   // the ✓ button handles its own keys
+        if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); api.jump(p); }
+      });
+      var dn = card.querySelector('.pdone');
+      if (dn) dn.addEventListener('click', function(e){ e.stopPropagation(); api.markDone(p); });
+    });
+    var un = document.getElementById('tdUndo');
+    if (un) un.addEventListener('click', function(){ api.clearDone(); });
+    var prf = document.getElementById('tdPrioRefresh');
+    if (prf) prf.addEventListener('click', function(){ api.refresh(); });
   }
   window.renderHandoff = render;
+  window.__todayBadge = badge;
 })();
 </script>
 
